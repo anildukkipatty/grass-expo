@@ -1,6 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Text as RNText } from 'react-native';
+import Markdown from 'react-native-markdown-display';
 import { GrassColors } from '@/constants/theme';
+import { markdownStyles } from '@/constants/markdownStyles';
 
 interface Props {
   role: 'user' | 'assistant' | 'error';
@@ -8,6 +10,24 @@ interface Props {
   badge?: string;
   theme: 'light' | 'dark';
 }
+
+const fenceRules = {
+  fence: (node: any, _ch: any, _p: any, styleObj: any, inherited: any = {}) => {
+    let content = node.content as string;
+    if (content.endsWith('\n')) content = content.slice(0, -1);
+    return (
+      <ScrollView
+        key={node.key}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styleObj.fence}
+        contentContainerStyle={{ flexGrow: 1 }}
+      >
+        <RNText style={[inherited, styleObj.fence, { margin: 0 }]}>{content}</RNText>
+      </ScrollView>
+    );
+  },
+};
 
 export function MessageBubble({ role, content, badge, theme }: Props) {
   const c = GrassColors[theme];
@@ -26,7 +46,13 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
 
   return (
     <View style={[styles.bubble, bubbleStyle]}>
-      <Text style={[styles.text, { color: textColor }]}>{content}</Text>
+      {role === 'assistant' ? (
+        <Markdown style={markdownStyles(theme)} rules={fenceRules}>
+          {content}
+        </Markdown>
+      ) : (
+        <Text style={[styles.text, { color: textColor }]}>{content}</Text>
+      )}
       {badge ? <Text style={[styles.badge, { color: c.badgeText }]}>{badge}</Text> : null}
     </View>
   );

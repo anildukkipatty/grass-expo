@@ -118,7 +118,7 @@ export default function Chat() {
         <FlatList
           ref={flatListRef}
           data={ws.messages}
-          keyExtractor={(item, index) => item.msgId ?? String(index)}
+          keyExtractor={(item) => item.msgId}
           contentContainerStyle={styles.messageList}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           renderItem={({ item }) => (

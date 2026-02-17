@@ -4,7 +4,10 @@ export interface Message {
   role: 'user' | 'assistant' | 'error';
   content: string;
   complete: boolean;
-  msgId?: string;
+  /** Stable unique key for FlatList — never reused, never index-based */
+  msgId: string;
+  /** Server-assigned stream id used only for matching streaming updates */
+  wsId?: string;
   badge?: string;
 }
 
@@ -58,6 +61,11 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
   const reconnectDelayRef = useRef(1000);
   const currentSessionIdRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
+  const msgCounterRef = useRef(0);
+
+  function nextMsgId(): string {
+    return 'm' + (++msgCounterRef.current);
+  }
 
   const stopPing = useCallback(() => {
     if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
@@ -182,25 +190,25 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
 
         if (data.type === 'history') {
           const msgs = (data.messages as Array<{ role: string; content: string }>) || [];
-          setMessages(msgs.map((m, i) => ({
+          setMessages(msgs.map((m) => ({
             role: m.role as Message['role'],
             content: m.content,
             complete: true,
-            msgId: 'history-' + i,
+            msgId: nextMsgId(),
           })));
           return;
         }
 
         if (data.type === 'assistant') {
           setActivity(null);
-          const msgId = data.id as string;
+          const wsId = data.id as string;
           const content = data.content as string;
           setMessages(prev => {
             const last = prev[prev.length - 1];
-            if (last && last.role === 'assistant' && !last.complete && last.msgId === msgId) {
+            if (last && last.role === 'assistant' && !last.complete && last.wsId === wsId) {
               return [...prev.slice(0, -1), { ...last, content }];
             }
-            return [...prev, { role: 'assistant', content, complete: false, msgId }];
+            return [...prev, { role: 'assistant', content, complete: false, msgId: nextMsgId(), wsId }];
           });
         } else if (data.type === 'status') {
           const status = data.status as string;
@@ -233,11 +241,11 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
         } else if (data.type === 'aborted') {
           setStreaming(false);
           setActivity(null);
-          setMessages(prev => [...prev, { role: 'error', content: '⚠️ ' + (data.message as string), complete: true }]);
+          setMessages(prev => [...prev, { role: 'error', content: '⚠️ ' + (data.message as string), complete: true, msgId: nextMsgId() }]);
         } else if (data.type === 'error') {
           setStreaming(false);
           setActivity(null);
-          setMessages(prev => [...prev, { role: 'error', content: data.message as string, complete: true }]);
+          setMessages(prev => [...prev, { role: 'error', content: data.message as string, complete: true, msgId: nextMsgId() }]);
         }
       };
     }
@@ -265,7 +273,7 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
 
   const send = useCallback((text: string) => {
     if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-    setMessages(prev => [...prev, { role: 'user', content: text, complete: true }]);
+    setMessages(prev => [...prev, { role: 'user', content: text, complete: true, msgId: nextMsgId() }]);
     wsRef.current.send(JSON.stringify({ type: 'message', content: text }));
     setStreaming(true);
     setActivity({ label: 'Thinking' });
