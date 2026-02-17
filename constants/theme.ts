@@ -5,6 +5,39 @@
 
 import { Platform } from 'react-native';
 
+export const GrassColors = {
+  light: {
+    bg: '#f5f5f5',
+    text: '#1a1a1a',
+    barBg: '#e8e8e8',
+    border: '#d0d0d0',
+    userBubble: '#0066cc',
+    userBubbleText: '#fff',
+    assistantBubble: '#fff',
+    assistantBubbleText: '#1a1a1a',
+    errorBubble: '#fff0f0',
+    errorText: '#cc0000',
+    accent: '#0066cc',
+    badgeText: '#888',
+    inputBg: '#fff',
+  },
+  dark: {
+    bg: '#1a1a2e',
+    text: '#e0e0e0',
+    barBg: '#16213e',
+    border: '#0f3460',
+    userBubble: '#0f3460',
+    userBubbleText: '#e0e0e0',
+    assistantBubble: '#16213e',
+    assistantBubbleText: '#e0e0e0',
+    errorBubble: '#3c1414',
+    errorText: '#e74c3c',
+    accent: '#533483',
+    badgeText: '#888',
+    inputBg: '#1a1a2e',
+  },
+};
+
 const tintColorLight = '#0a7ea4';
 const tintColorDark = '#fff';
 
