@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView } from 'expo-camera';
 import { saveUrl } from '@/store/url-store';
@@ -36,6 +36,11 @@ export default function Settings() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
       <View style={styles.inner}>
+        <Image
+          source={require('@/assets/images/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={[styles.title, { color: c.text }]}>GRASS</Text>
         <Text style={[styles.subtitle, { color: c.badgeText }]}>
           Scan the QR code displayed by your GRASS server to connect.
@@ -62,6 +67,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 32,
     gap: 24,
+  },
+  logo: {
+    width: 280,
+    height: 120,
   },
   title: {
     fontSize: 32,
