@@ -20,6 +20,7 @@ export default function Chat() {
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
+  const msgCountRef = useRef(0);
   const c = GrassColors[theme];
 
   useEffect(() => {
@@ -120,7 +121,13 @@ export default function Chat() {
           data={ws.messages}
           keyExtractor={(item) => item.msgId}
           contentContainerStyle={styles.messageList}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          onContentSizeChange={() => {
+            const count = ws.messages.length;
+            if (count !== msgCountRef.current) {
+              msgCountRef.current = count;
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }
+          }}
           renderItem={({ item }) => (
             <MessageBubble
               role={item.role}
