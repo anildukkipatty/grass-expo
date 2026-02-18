@@ -1,9 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Text as RNText } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import Markdown from 'react-native-markdown-display';
-import { Highlight, themes } from 'prism-react-renderer';
 import { GrassColors } from '@/constants/theme';
-import { markdownStyles } from '@/constants/markdownStyles';
+import { markdownStyles, fenceColors } from '@/constants/markdownStyles';
 
 interface Props {
   role: 'user' | 'assistant' | 'error';
@@ -13,41 +12,14 @@ interface Props {
 }
 
 function makeFenceRules(theme: 'light' | 'dark') {
-  const hlTheme = theme === 'dark' ? themes.vsDark : themes.github;
+  const colors = fenceColors(theme);
   return {
-    fence: (node: any, _ch: any, _p: any, styleObj: any) => {
+    fence: (node: any) => {
       let content = node.content as string;
       if (content.endsWith('\n')) content = content.slice(0, -1);
-      const language = (node.sourceInfo as string | undefined)?.trim() || 'text';
       return (
-        <View key={node.key} style={[styleObj.fence, { backgroundColor: hlTheme.plain.backgroundColor as string }]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-          >
-            <Highlight theme={hlTheme} code={content} language={language as any}>
-              {({ tokens, getTokenProps }) => (
-                <RNText style={[styleObj.fence, { margin: 0, backgroundColor: 'transparent' }]}>
-                  {tokens.map((line, i) => (
-                    <RNText key={i}>
-                      {line.map((token, j) => {
-                        const tokenProps = getTokenProps({ token });
-                        return (
-                          <RNText
-                            key={j}
-                            style={{ color: (tokenProps.style as any)?.color ?? (hlTheme.plain.color as string) }}
-                          >
-                            {token.content}
-                          </RNText>
-                        );
-                      })}
-                      {'\n'}
-                    </RNText>
-                  ))}
-                </RNText>
-              )}
-            </Highlight>
-          </ScrollView>
+        <View key={node.key} style={[styles.fenceContainer, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+          <Text style={[styles.fenceText, { color: colors.text }]}>{content}</Text>
         </View>
       );
     },
@@ -99,5 +71,17 @@ const styles = StyleSheet.create({
   badge: {
     fontSize: 11,
     marginTop: 4,
+  },
+  fenceContainer: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginVertical: 6,
+  },
+  fenceText: {
+    fontFamily: 'monospace',
+    fontSize: 13,
+    lineHeight: 20,
   },
 });

@@ -2,9 +2,18 @@ import { GrassColors, Fonts } from '@/constants/theme';
 
 type Theme = 'light' | 'dark';
 
+export function fenceColors(theme: Theme) {
+  return {
+    bg:     theme === 'light' ? '#f6f8fa' : '#0d1117',
+    text:   theme === 'light' ? '#24292e' : '#c9d1d9',
+    border: theme === 'light' ? '#e1e4e8' : '#30363d',
+  };
+}
+
 export function markdownStyles(theme: Theme) {
   const c = GrassColors[theme];
   const mono = Fonts?.mono ?? 'monospace';
+  const fence = fenceColors(theme);
   return {
     body:                 { color: c.assistantBubbleText, fontSize: 15, lineHeight: 22, backgroundColor: 'transparent' },
     paragraph:            { marginTop: 4, marginBottom: 4, color: c.assistantBubbleText },
@@ -14,8 +23,7 @@ export function markdownStyles(theme: Theme) {
     strong:               { fontWeight: '700' as const, color: c.assistantBubbleText },
     em:                   { fontStyle: 'italic' as const, color: c.assistantBubbleText },
     code_inline:          { fontFamily: mono, fontSize: 13, backgroundColor: theme === 'light' ? '#f0f0f0' : '#0d1117', color: theme === 'light' ? '#c7254e' : '#e06c75', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3 },
-    fence:                { fontFamily: mono, fontSize: 13, lineHeight: 20, backgroundColor: theme === 'light' ? '#f6f8fa' : '#0d1117', color: theme === 'light' ? '#24292e' : '#c9d1d9', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 6, marginVertical: 6, borderWidth: 1, borderColor: theme === 'light' ? '#e1e4e8' : '#30363d' },
-    code_block:           { fontFamily: mono, fontSize: 13, lineHeight: 20, backgroundColor: theme === 'light' ? '#f6f8fa' : '#0d1117', color: theme === 'light' ? '#24292e' : '#c9d1d9', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 6, marginVertical: 6, borderWidth: 1, borderColor: theme === 'light' ? '#e1e4e8' : '#30363d' },
+    code_block:           { fontFamily: mono, fontSize: 13, lineHeight: 20, backgroundColor: fence.bg, color: fence.text, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 6, marginVertical: 6, borderWidth: 1, borderColor: fence.border },
     blockquote:           { borderLeftWidth: 3, borderLeftColor: c.border, paddingLeft: 10, marginLeft: 0, fontStyle: 'italic' as const, opacity: 0.8 },
     bullet_list:          { marginBottom: 4 },
     ordered_list:         { marginBottom: 4 },
