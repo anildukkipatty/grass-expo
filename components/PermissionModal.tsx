@@ -4,6 +4,7 @@ import { GrassColors } from '@/constants/theme';
 import { Fonts } from '@/constants/theme';
 import { fenceColors } from '@/constants/markdownStyles';
 import { PermissionItem } from '@/hooks/use-websocket';
+import { SyntaxBlock } from '@/components/SyntaxBlock';
 
 interface Props {
   item: PermissionItem;
@@ -12,24 +13,24 @@ interface Props {
   theme: 'light' | 'dark';
 }
 
-interface Section { label: string; code: string }
+interface Section { label: string; code: string; language: string }
 
 function formatSections(toolName: string, input: Record<string, unknown>): Section[] {
   switch (toolName) {
     case 'Write': {
       const content = (input.content as string) || '';
       const preview = content.slice(0, 500) + (content.length > 500 ? '\n...' : '');
-      return [{ label: `File: ${input.file_path}`, code: preview }];
+      return [{ label: `File: ${input.file_path}`, code: preview, language: 'tsx' }];
     }
     case 'Edit':
       return [
-        { label: `File: ${input.file_path}  —  Replace`, code: (input.old_string as string || '').slice(0, 300) },
-        { label: 'With', code: (input.new_string as string || '').slice(0, 300) },
+        { label: `File: ${input.file_path}  —  Replace`, code: (input.old_string as string || '').slice(0, 300), language: 'tsx' },
+        { label: 'With', code: (input.new_string as string || '').slice(0, 300), language: 'tsx' },
       ];
     case 'Bash':
-      return [{ label: 'Command', code: String(input.command ?? '') }];
+      return [{ label: 'Command', code: String(input.command ?? ''), language: 'bash' }];
     default:
-      return [{ label: '', code: JSON.stringify(input, null, 2) }];
+      return [{ label: '', code: JSON.stringify(input, null, 2), language: 'json' }];
   }
 }
 
@@ -53,11 +54,7 @@ export function PermissionModal({ item, onAllow, onDeny, theme }: Props) {
                     {sec.label}
                   </Text>
                 ) : null}
-                <View style={[styles.codeBlock, { backgroundColor: fence.bg, borderColor: fence.border }, sec.label ? { borderTopLeftRadius: 0, borderTopRightRadius: 0 } : undefined]}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <Text style={{ fontFamily: mono, fontSize: 12, lineHeight: 18, color: fence.text }}>{sec.code}</Text>
-                  </ScrollView>
-                </View>
+                <SyntaxBlock code={sec.code} language={sec.language} theme={theme} />
               </View>
             ))}
           </ScrollView>
@@ -111,12 +108,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 6,
     borderWidth: 1,
     borderBottomWidth: 0,
-  },
-  codeBlock: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
   },
   actions: {
     flexDirection: 'row',

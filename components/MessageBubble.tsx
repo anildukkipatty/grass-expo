@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { GrassColors } from '@/constants/theme';
-import { markdownStyles, fenceColors } from '@/constants/markdownStyles';
+import { markdownStyles } from '@/constants/markdownStyles';
+import { SyntaxBlock } from '@/components/SyntaxBlock';
 
 interface Props {
   role: 'user' | 'assistant' | 'error';
@@ -12,15 +13,13 @@ interface Props {
 }
 
 function makeFenceRules(theme: 'light' | 'dark') {
-  const colors = fenceColors(theme);
   return {
     fence: (node: any) => {
       let content = node.content as string;
       if (content.endsWith('\n')) content = content.slice(0, -1);
+      const language = (node.sourceInfo as string | undefined)?.trim() || 'tsx';
       return (
-        <View key={node.key} style={[styles.fenceContainer, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-          <Text style={[styles.fenceText, { color: colors.text }]}>{content}</Text>
-        </View>
+        <SyntaxBlock key={node.key} code={content} language={language} theme={theme} />
       );
     },
   };
@@ -71,17 +70,5 @@ const styles = StyleSheet.create({
   badge: {
     fontSize: 11,
     marginTop: 4,
-  },
-  fenceContainer: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginVertical: 6,
-  },
-  fenceText: {
-    fontFamily: 'monospace',
-    fontSize: 13,
-    lineHeight: 20,
   },
 });
