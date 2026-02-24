@@ -3,51 +3,34 @@ import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useWebSocket } from '@/hooks/use-websocket';
 import { useTheme } from '@/store/theme-store';
-import { getUrl } from '@/store/url-store';
 import { GrassColors } from '@/constants/theme';
 import { MessageBubble } from '@/components/MessageBubble';
 import { ActivityBar } from '@/components/ActivityBar';
 import { PermissionModal } from '@/components/PermissionModal';
-import { sessionsRef, onSelectRef, onNewRef } from './sessions';
 import { diffTextRef } from './diffs';
 
 export default function Chat() {
   const router = useRouter();
+  const { wsUrl, sessionId: initialSessionId } = useLocalSearchParams<{ wsUrl: string; sessionId?: string }>();
   const [theme, setTheme] = useTheme();
-  const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
   const msgCountRef = useRef(0);
+  const sessionInitialized = useRef(false);
   const c = GrassColors[theme];
 
-  useEffect(() => {
-    getUrl().then(url => {
-      if (!url) {
-        router.replace('/settings');
-      } else {
-        setWsUrl(url);
-      }
-    });
-  }, [router]);
+  const ws = useWebSocket(wsUrl ?? null);
 
-  const ws = useWebSocket(wsUrl);
-
-  // Keep sessions module refs up-to-date
+  // Auto-connect to session once connected
   useEffect(() => {
-    sessionsRef.current = ws.sessionsList;
-  }, [ws.sessionsList]);
-
-  useEffect(() => {
-    onSelectRef.current = (id: string) => {
-      ws.initSession(id);
-    };
-    onNewRef.current = () => {
-      ws.initSession(null);
-    };
-  }, [ws.initSession]);
+    if (ws.connected && initialSessionId && !sessionInitialized.current) {
+      sessionInitialized.current = true;
+      ws.initSession(initialSessionId);
+    }
+  }, [ws.connected, initialSessionId, ws.initSession]);
 
   const send = useCallback(() => {
     const text = inputText.trim();
@@ -55,11 +38,6 @@ export default function Chat() {
     ws.send(text);
     setInputText('');
   }, [inputText, ws]);
-
-  const goSessions = useCallback(() => {
-    sessionsRef.current = ws.sessionsList;
-    router.push('/sessions');
-  }, [router, ws.sessionsList]);
 
   const goDiffs = useCallback(() => {
     ws.getDiffs();
@@ -84,20 +62,13 @@ export default function Chat() {
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: c.barBg, borderBottomColor: c.border }]}>
+        <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} hitSlop={8}>
+          <Text style={[styles.backBtnText, { color: c.text }]}>‹</Text>
+        </TouchableOpacity>
         <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
         <Text style={[styles.statusText, { color: c.text }]} numberOfLines={1}>{statusText}</Text>
         <TouchableOpacity style={styles.headerBtn} onPress={goDiffs} hitSlop={8}>
           <Text style={[styles.headerBtnText, { color: c.text }]}>Diffs</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.headerBtn} onPress={goSessions} hitSlop={8}>
-          <Text style={[styles.headerBtnText, { color: c.text }]}>Sessions</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.headerBtn}
-          onPress={() => router.push('/settings')}
-          hitSlop={8}
-        >
-          <Text style={[styles.headerBtnText, { color: c.text }]}>⚙</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.headerBtn}
@@ -221,6 +192,10 @@ const styles = StyleSheet.create({
   },
   headerBtnText: {
     fontSize: 13,
+  },
+  backBtnText: {
+    fontSize: 28,
+    lineHeight: 30,
   },
   messageList: {
     padding: 12,

@@ -17,10 +17,11 @@ export default function RootLayout() {
     <>
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="chat" options={{ headerShown: false }} />
+        <Stack.Screen name="home" options={{ headerShown: false }} />
         <Stack.Screen name="sessions" options={{ title: 'Sessions' }} />
+        <Stack.Screen name="chat" options={{ headerShown: false }} />
         <Stack.Screen name="diffs" options={{ title: 'Diffs' }} />
-        <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        <Stack.Screen name="scan" options={{ title: 'Add Server' }} />
       </Stack>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
     </>

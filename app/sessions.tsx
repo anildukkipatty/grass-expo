@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView
+  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/store/theme-store';
@@ -9,14 +9,83 @@ import { Session } from '@/hooks/use-websocket';
 
 export default function Sessions() {
   const router = useRouter();
+  const { wsUrl } = useLocalSearchParams<{ wsUrl: string }>();
   const [theme] = useTheme();
   const c = GrassColors[theme];
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Sessions and callbacks are passed via global store pattern — we use a
-  // simple module-level ref set by chat.tsx before navigating here.
-  const sessions = sessionsRef.current;
-  const onSelect = onSelectRef.current;
-  const onNew = onNewRef.current;
+  useEffect(() => {
+    if (!wsUrl) return;
+    let ws: WebSocket;
+    let done = false;
+    let timeout: ReturnType<typeof setTimeout>;
+
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch (e) {
+      setError('Invalid server URL');
+      setLoading(false);
+      return;
+    }
+
+    timeout = setTimeout(() => {
+      if (!done) {
+        done = true;
+        ws.close();
+        setError('Connection timed out');
+        setLoading(false);
+      }
+    }, 6000);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'list_sessions' }));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data as string);
+        if (data.type === 'sessions_list') {
+          clearTimeout(timeout);
+          done = true;
+          setSessions((data.sessions as Session[]) || []);
+          setLoading(false);
+          ws.close();
+        }
+      } catch {}
+    };
+
+    ws.onerror = () => {
+      if (!done) {
+        clearTimeout(timeout);
+        done = true;
+        setError('Could not connect to server');
+        setLoading(false);
+      }
+    };
+
+    ws.onclose = () => {
+      if (!done) {
+        clearTimeout(timeout);
+        done = true;
+        setError('Connection closed');
+        setLoading(false);
+      }
+    };
+
+    return () => {
+      done = true;
+      clearTimeout(timeout);
+      ws.close();
+    };
+  }, [wsUrl]);
+
+  function openChat(sessionId?: string) {
+    const params: Record<string, string> = { wsUrl: wsUrl! };
+    if (sessionId) params.sessionId = sessionId;
+    router.push({ pathname: '/chat', params });
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
@@ -24,18 +93,24 @@ export default function Sessions() {
         <Text style={[styles.headerTitle, { color: c.text }]}>Sessions</Text>
         <TouchableOpacity
           style={[styles.newBtn, { backgroundColor: c.accent }]}
-          onPress={() => {
-            onNew?.();
-            router.back();
-          }}
+          onPress={() => openChat()}
         >
           <Text style={styles.newBtnText}>New Chat</Text>
         </TouchableOpacity>
       </View>
 
-      {sessions.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={[styles.emptyText, { color: c.badgeText }]}>No sessions yet</Text>
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={c.accent} />
+          <Text style={[styles.statusText, { color: c.badgeText }]}>Loading sessions…</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Text style={[styles.errorText, { color: '#e74c3c' }]}>{error}</Text>
+        </View>
+      ) : sessions.length === 0 ? (
+        <View style={styles.center}>
+          <Text style={[styles.statusText, { color: c.badgeText }]}>No sessions yet</Text>
         </View>
       ) : (
         <FlatList
@@ -45,10 +120,7 @@ export default function Sessions() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.sessionItem, { backgroundColor: c.assistantBubble, borderColor: c.border }]}
-              onPress={() => {
-                onSelect?.(item.id);
-                router.back();
-              }}
+              onPress={() => openChat(item.id)}
               activeOpacity={0.7}
             >
               <Text style={[styles.sessionPreview, { color: c.text }]} numberOfLines={2}>
@@ -62,11 +134,6 @@ export default function Sessions() {
     </SafeAreaView>
   );
 }
-
-// Module-level refs for passing data from chat screen
-export const sessionsRef = { current: [] as Session[] };
-export const onSelectRef = { current: null as ((id: string) => void) | null };
-export const onNewRef = { current: null as (() => void) | null };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -93,6 +160,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  statusText: {
+    fontSize: 15,
+  },
+  errorText: {
+    fontSize: 15,
+  },
   list: {
     padding: 16,
     gap: 6,
@@ -111,13 +190,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'ui-monospace',
     marginTop: 4,
-  },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    fontSize: 15,
   },
 });

@@ -1,18 +1,17 @@
 import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView } from 'expo-camera';
 import { saveUrl } from '@/store/url-store';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 
-export default function Settings() {
+export default function Scan() {
   const router = useRouter();
   const [theme] = useTheme();
   const c = GrassColors[theme];
 
   useEffect(() => {
-    // Register barcode listener for the scanner session
     const subscription = CameraView.onModernBarcodeScanned(async (result) => {
       const raw = result.data;
       const wsUrl = raw
@@ -20,7 +19,7 @@ export default function Settings() {
         .replace(/^https:\/\//, 'wss://');
       await CameraView.dismissScanner();
       await saveUrl(wsUrl);
-      router.replace('/chat');
+      router.replace('/home');
     });
     return () => subscription.remove();
   }, [router]);
@@ -36,14 +35,9 @@ export default function Settings() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
       <View style={styles.inner}>
-        <Image
-          source={require('@/assets/images/logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={[styles.title, { color: c.text }]}>GRASS</Text>
+        <Text style={[styles.title, { color: c.text }]}>Add Server</Text>
         <Text style={[styles.subtitle, { color: c.badgeText }]}>
-          Scan the QR code displayed by your GRASS server to connect.
+          Scan the QR code displayed by your GRASS server to add it.
         </Text>
         <TouchableOpacity
           style={[styles.scanBtn, { backgroundColor: c.accent }]}
@@ -58,9 +52,7 @@ export default function Settings() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   inner: {
     flex: 1,
     alignItems: 'center',
@@ -68,14 +60,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 24,
   },
-  logo: {
-    width: 280,
-    height: 120,
-  },
   title: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '700',
-    letterSpacing: 4,
   },
   subtitle: {
     fontSize: 15,
