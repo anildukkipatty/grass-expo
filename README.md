@@ -16,7 +16,7 @@
 
 ---
 
-Grass is an iOS-first mobile client for the [Pingpong](https://github.com/korgy/pingpong) CLI. Connect to your Pingpong server from your phone, chat with an AI coding assistant, review diffs, and approve tool executions — all from the couch.
+Grass is an iOS-first mobile client for the [Grass CLI](https://github.com/anildukkipatty/grass-ide) CLI. Connect to your Grass server from your phone, chat with an AI coding assistant, review diffs, and approve tool executions — all from the couch.
 
 ## Features
 
