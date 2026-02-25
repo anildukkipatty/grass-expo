@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  SafeAreaView, Alert, Image, Animated,
+  SafeAreaView, Alert, Image, Animated, PanResponder,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { CameraView } from 'expo-camera';
@@ -9,19 +9,42 @@ import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { getUrls, removeUrl, saveUrl } from '@/store/url-store';
 
-function ServerItem({ item, onPress, onLongPress, c }: {
+const DELETE_WIDTH = 72;
+
+function ServerItem({ item, onPress, onDelete, c }: {
   item: string;
   onPress: () => void;
-  onLongPress: () => void;
+  onDelete: () => void;
   c: typeof GrassColors['light'];
 }) {
+  const translateX = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
+  const isOpen = useRef(false);
 
-  function handlePressIn() {
-    Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 2 }).start();
-  }
-  function handlePressOut() {
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderMove: (_, g) => {
+        const x = isOpen.current ? g.dx - DELETE_WIDTH : g.dx;
+        translateX.setValue(Math.min(0, Math.max(-DELETE_WIDTH, x)));
+      },
+      onPanResponderRelease: (_, g) => {
+        const x = isOpen.current ? g.dx - DELETE_WIDTH : g.dx;
+        if (x < -DELETE_WIDTH / 2) {
+          Animated.spring(translateX, { toValue: -DELETE_WIDTH, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
+          isOpen.current = true;
+        } else {
+          Animated.spring(translateX, { toValue: 0, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
+          isOpen.current = false;
+        }
+      },
+    })
+  ).current;
+
+  function close() {
+    Animated.spring(translateX, { toValue: 0, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
+    isOpen.current = false;
   }
 
   function displayUrl(url: string) {
@@ -29,22 +52,37 @@ function ServerItem({ item, onPress, onLongPress, c }: {
   }
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <TouchableOpacity
-        style={[styles.serverItem, { backgroundColor: c.assistantBubble, borderColor: c.border }]}
-        onPress={onPress}
-        onLongPress={onLongPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        activeOpacity={1}
+    <View style={{ overflow: 'hidden', borderRadius: 14 }}>
+      {/* Delete button revealed behind */}
+      <View style={[styles.deleteBtn]}>
+        <TouchableOpacity style={styles.deleteBtnInner} onPress={onDelete} activeOpacity={0.8}>
+          <Text style={styles.deleteBtnText}>􀈑</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Animated.View
+        style={{ transform: [{ translateX }, { scale }] }}
+        {...panResponder.panHandlers}
       >
-        <View style={[styles.dot, { backgroundColor: c.accent }]} />
-        <Text style={[styles.serverUrl, { color: c.text }]} numberOfLines={1}>
-          {displayUrl(item)}
-        </Text>
-        <Text style={[styles.chevron, { color: c.badgeText }]}>›</Text>
-      </TouchableOpacity>
-    </Animated.View>
+        <TouchableOpacity
+          style={[styles.serverItem, { backgroundColor: c.assistantBubble, borderColor: c.border }]}
+          onPress={() => { if (isOpen.current) { close(); } else { onPress(); } }}
+          onPressIn={() =>
+            Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
+          }
+          onPressOut={() =>
+            Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()
+          }
+          activeOpacity={1}
+        >
+          <View style={[styles.dot, { backgroundColor: c.accent }]} />
+          <Text style={[styles.serverUrl, { color: c.text }]} numberOfLines={1}>
+            {displayUrl(item)}
+          </Text>
+          <Text style={[styles.chevron, { color: c.badgeText }]}>›</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -86,18 +124,9 @@ export default function Home() {
     router.push({ pathname: '/sessions', params: { wsUrl: url } });
   }
 
-  function handleDelete(url: string) {
-    Alert.alert('Remove Server', url, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          await removeUrl(url);
-          setUrls(prev => prev.filter(u => u !== url));
-        },
-      },
-    ]);
+  async function handleDelete(url: string) {
+    await removeUrl(url);
+    setUrls(prev => prev.filter(u => u !== url));
   }
 
   return (
@@ -121,7 +150,7 @@ export default function Home() {
                 item={item}
                 c={c}
                 onPress={() => handleSelect(item)}
-                onLongPress={() => handleDelete(item)}
+                onDelete={() => handleDelete(item)}
               />
             )}
           />
@@ -214,6 +243,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 26,
+  },
+  deleteBtn: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: DELETE_WIDTH,
+    backgroundColor: '#e53935',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteBtnInner: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteBtnText: {
+    color: '#fff',
+    fontSize: 22,
   },
   scanBtn: {
     paddingHorizontal: 36,
