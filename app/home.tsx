@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet,
   SafeAreaView, Alert, Image, Animated, PanResponder,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -140,20 +140,17 @@ export default function Home() {
         <Text style={[styles.title, { color: c.text }]}>GRASS</Text>
 
         {urls.length > 0 ? (
-          <FlatList
-            data={urls}
-            keyExtractor={item => item}
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => (
+          <View style={styles.list}>
+            {urls.map(item => (
               <ServerItem
+                key={item}
                 item={item}
                 c={c}
                 onPress={() => handleSelect(item)}
                 onDelete={() => handleDelete(item)}
               />
-            )}
-          />
+            ))}
+          </View>
         ) : (
           <View style={styles.empty}>
             <Text style={[styles.emptyText, { color: c.badgeText }]}>
@@ -204,9 +201,6 @@ const styles = StyleSheet.create({
   },
   list: {
     width: '100%',
-    flexGrow: 0,
-  },
-  listContent: {
     gap: 10,
   },
   serverItem: {
