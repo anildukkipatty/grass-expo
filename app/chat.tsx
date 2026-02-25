@@ -18,7 +18,6 @@ export default function Chat() {
   const [theme, setTheme] = useTheme();
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const msgCountRef = useRef(0);
   const sessionInitialized = useRef(false);
   const c = GrassColors[theme];
   const sendScale = useRef(new Animated.Value(1)).current;
@@ -96,10 +95,8 @@ export default function Chat() {
           keyExtractor={(item) => item.msgId}
           contentContainerStyle={styles.messageList}
           onContentSizeChange={() => {
-            const count = ws.messages.length;
-            if (count !== msgCountRef.current) {
-              msgCountRef.current = count;
-              flatListRef.current?.scrollToEnd({ animated: true });
+            if (ws.messages.length > 0) {
+              flatListRef.current?.scrollToOffset({ offset: 999999, animated: false });
             }
           }}
           renderItem={({ item }) => (
