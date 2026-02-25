@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform,
+  StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Animated,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useWebSocket } from '@/hooks/use-websocket';
@@ -21,6 +21,7 @@ export default function Chat() {
   const msgCountRef = useRef(0);
   const sessionInitialized = useRef(false);
   const c = GrassColors[theme];
+  const sendScale = useRef(new Animated.Value(1)).current;
 
   const ws = useWebSocket(wsUrl ?? null);
 
@@ -53,10 +54,12 @@ export default function Chat() {
   const statusText = ws.reconnecting
     ? 'Reconnecting...'
     : ws.connected
-    ? ws.sessionId ? `Session: ${ws.sessionId.slice(0, 8)}…` : 'Connected'
+    ? ws.sessionId ? `${ws.sessionId.slice(0, 8)}…` : 'Connected'
     : 'Disconnected';
 
-  const statusColor = ws.connected ? '#2ecc71' : ws.reconnecting ? '#f39c12' : '#e74c3c';
+  const statusColor = ws.connected ? '#22c55e' : ws.reconnecting ? '#f59e0b' : '#ef4444';
+
+  const canSend = ws.connected && !!inputText.trim() && !ws.streaming;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
@@ -66,16 +69,16 @@ export default function Chat() {
           <Text style={[styles.backBtnText, { color: c.text }]}>‹</Text>
         </TouchableOpacity>
         <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-        <Text style={[styles.statusText, { color: c.text }]} numberOfLines={1}>{statusText}</Text>
+        <Text style={[styles.statusText, { color: c.badgeText }]} numberOfLines={1}>{statusText}</Text>
         <TouchableOpacity style={styles.headerBtn} onPress={goDiffs} hitSlop={8}>
-          <Text style={[styles.headerBtnText, { color: c.text }]}>Diffs</Text>
+          <Text style={[styles.headerBtnText, { color: c.badgeText }]}>Diffs</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.headerBtn}
           onPress={() => setTheme(theme === 'light' ? 'dark' : 'light')}
           hitSlop={8}
         >
-          <Text style={[styles.headerBtnText, { color: c.text }]}>
+          <Text style={[styles.headerBtnText, { color: c.badgeText }]}>
             {theme === 'light' ? '☾' : '☀'}
           </Text>
         </TouchableOpacity>
@@ -125,7 +128,7 @@ export default function Chat() {
         <View style={[styles.inputBar, { backgroundColor: c.barBg, borderTopColor: c.border }]}>
           <TextInput
             style={[styles.textInput, { backgroundColor: c.inputBg, borderColor: c.border, color: c.text }]}
-            placeholder="Type a message…"
+            placeholder="Message…"
             placeholderTextColor={c.badgeText}
             value={inputText}
             onChangeText={setInputText}
@@ -134,19 +137,38 @@ export default function Chat() {
             onSubmitEditing={send}
             blurOnSubmit={false}
           />
-          {ws.streaming ? (
-            <TouchableOpacity style={[styles.sendBtn, styles.abortBtn]} onPress={ws.abort}>
-              <Text style={styles.sendBtnText}>■</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.sendBtn, { backgroundColor: c.accent }, (!ws.connected || !inputText.trim()) && styles.sendBtnDisabled]}
-              onPress={send}
-              disabled={!ws.connected || !inputText.trim()}
-            >
-              <Text style={styles.sendBtnText}>↑</Text>
-            </TouchableOpacity>
-          )}
+          <Animated.View style={{ transform: [{ scale: sendScale }] }}>
+            {ws.streaming ? (
+              <TouchableOpacity
+                style={[styles.sendBtn, styles.abortBtn]}
+                onPress={ws.abort}
+                onPressIn={() =>
+                  Animated.spring(sendScale, { toValue: 0.9, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
+                }
+                onPressOut={() =>
+                  Animated.spring(sendScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start()
+                }
+                activeOpacity={1}
+              >
+                <Text style={styles.sendBtnText}>■</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.sendBtn, { backgroundColor: canSend ? c.accent : c.border }]}
+                onPress={send}
+                onPressIn={() => {
+                  if (canSend) Animated.spring(sendScale, { toValue: 0.9, useNativeDriver: true, speed: 50, bounciness: 2 }).start();
+                }}
+                onPressOut={() =>
+                  Animated.spring(sendScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start()
+                }
+                disabled={!canSend}
+                activeOpacity={1}
+              >
+                <Text style={[styles.sendBtnText, !canSend && styles.sendBtnTextDimmed]}>↑</Text>
+              </TouchableOpacity>
+            )}
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
 
@@ -169,20 +191,21 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    gap: 8,
+    gap: 4,
   },
   statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     flexShrink: 0,
   },
   statusText: {
-    fontSize: 13,
+    fontSize: 12,
     flex: 1,
+    fontFamily: 'ui-monospace',
   },
   headerBtn: {
     minWidth: 44,
@@ -214,37 +237,38 @@ const styles = StyleSheet.create({
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderTopWidth: 1,
     gap: 8,
   },
   textInput: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 16,
+    borderRadius: 22,
+    paddingHorizontal: 18,
     paddingVertical: 12,
     fontSize: 16,
     maxHeight: 120,
-    minHeight: 48,
+    minHeight: 46,
   },
   sendBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  sendBtnDisabled: {
-    opacity: 0.4,
-  },
   abortBtn: {
-    backgroundColor: '#e74c3c',
+    backgroundColor: '#ef4444',
   },
   sendBtnText: {
     color: '#fff',
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  sendBtnTextDimmed: {
+    opacity: 0.4,
   },
 });

@@ -1,11 +1,40 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { Session } from '@/hooks/use-websocket';
+
+function SessionItem({ item, onPress, c }: {
+  item: Session;
+  onPress: () => void;
+  c: typeof GrassColors['light'];
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity
+        style={[styles.sessionItem, { backgroundColor: c.assistantBubble, borderColor: c.border }]}
+        onPress={onPress}
+        onPressIn={() =>
+          Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
+        }
+        onPressOut={() =>
+          Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()
+        }
+        activeOpacity={1}
+      >
+        <Text style={[styles.sessionPreview, { color: c.text }]} numberOfLines={2}>
+          {item.label || item.preview || 'Session'}
+        </Text>
+        <Text style={[styles.sessionId, { color: c.badgeText }]}>{item.id}</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 export default function Sessions() {
   const router = useRouter();
@@ -15,6 +44,7 @@ export default function Sessions() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const newBtnScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!wsUrl) return;
@@ -91,22 +121,31 @@ export default function Sessions() {
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
       <View style={[styles.header, { backgroundColor: c.barBg, borderBottomColor: c.border }]}>
         <Text style={[styles.headerTitle, { color: c.text }]}>Sessions</Text>
-        <TouchableOpacity
-          style={[styles.newBtn, { backgroundColor: c.accent }]}
-          onPress={() => openChat()}
-        >
-          <Text style={styles.newBtnText}>New Chat</Text>
-        </TouchableOpacity>
+        <Animated.View style={{ transform: [{ scale: newBtnScale }] }}>
+          <TouchableOpacity
+            style={[styles.newBtn, { backgroundColor: c.accent }]}
+            onPress={() => openChat()}
+            onPressIn={() =>
+              Animated.spring(newBtnScale, { toValue: 0.94, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
+            }
+            onPressOut={() =>
+              Animated.spring(newBtnScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()
+            }
+            activeOpacity={1}
+          >
+            <Text style={styles.newBtnText}>New Chat</Text>
+          </TouchableOpacity>
+        </Animated.View>
       </View>
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={c.accent} />
+          <ActivityIndicator color={c.accent} size="large" />
           <Text style={[styles.statusText, { color: c.badgeText }]}>Loading sessions…</Text>
         </View>
       ) : error ? (
         <View style={styles.center}>
-          <Text style={[styles.errorText, { color: '#e74c3c' }]}>{error}</Text>
+          <Text style={[styles.errorText, { color: c.errorText }]}>{error}</Text>
         </View>
       ) : sessions.length === 0 ? (
         <View style={styles.center}>
@@ -118,16 +157,7 @@ export default function Sessions() {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[styles.sessionItem, { backgroundColor: c.assistantBubble, borderColor: c.border }]}
-              onPress={() => openChat(item.id)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.sessionPreview, { color: c.text }]} numberOfLines={2}>
-                {item.label || item.preview || 'Session'}
-              </Text>
-              <Text style={[styles.sessionId, { color: c.badgeText }]}>{item.id}</Text>
-            </TouchableOpacity>
+            <SessionItem item={item} c={c} onPress={() => openChat(item.id)} />
           )}
         />
       )}
@@ -140,31 +170,32 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     gap: 12,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     flex: 1,
+    letterSpacing: -0.3,
   },
   newBtn: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 10,
   },
   newBtnText: {
     color: '#fff',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: 14,
   },
   statusText: {
     fontSize: 15,
@@ -174,21 +205,22 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 16,
-    gap: 6,
+    gap: 8,
   },
   sessionItem: {
-    padding: 14,
-    borderRadius: 12,
+    padding: 16,
+    borderRadius: 14,
     borderWidth: 1,
-    marginBottom: 6,
   },
   sessionPreview: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '500',
   },
   sessionId: {
     fontSize: 11,
     fontFamily: 'ui-monospace',
-    marginTop: 4,
+    marginTop: 6,
+    letterSpacing: 0.2,
   },
 });
