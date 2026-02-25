@@ -10,8 +10,6 @@ import { GrassColors } from '@/constants/theme';
 import { MessageBubble } from '@/components/MessageBubble';
 import { ActivityBar } from '@/components/ActivityBar';
 import { PermissionModal } from '@/components/PermissionModal';
-import { diffStore } from './diffs';
-
 export default function Chat() {
   const router = useRouter();
   const { wsUrl, sessionId: initialSessionId } = useLocalSearchParams<{ wsUrl: string; sessionId?: string }>();
@@ -50,15 +48,8 @@ export default function Chat() {
   }, [inputText, ws]);
 
   const goDiffs = useCallback(() => {
-    diffStore.set('');
-    ws.getDiffs();
-    router.push('/diffs');
-  }, [router, ws]);
-
-  // Push diff text into reactive store when it arrives
-  useEffect(() => {
-    if (ws.diffText) diffStore.set(ws.diffText);
-  }, [ws.diffText]);
+    router.push({ pathname: '/diffs', params: { wsUrl: wsUrl! } });
+  }, [router, wsUrl]);
 
   const statusText = ws.reconnecting
     ? 'Reconnecting...'

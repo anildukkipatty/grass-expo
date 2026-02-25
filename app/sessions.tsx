@@ -6,7 +6,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { Session } from '@/hooks/use-websocket';
-import { diffStore } from './diffs';
+
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -262,19 +262,7 @@ export default function Sessions() {
 
   function goDiffs() {
     if (!wsUrl) return;
-    diffStore.set('');
-    const ws = new WebSocket(wsUrl);
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'get_diffs' }));
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data as string);
-        if (data.type === 'diffs') {
-          diffStore.set(data.diff || '');
-          ws.close();
-        }
-      } catch {}
-    };
-    router.push('/diffs');
+    router.push({ pathname: '/diffs', params: { wsUrl } });
   }
 
   return (

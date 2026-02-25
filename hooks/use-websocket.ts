@@ -34,13 +34,11 @@ export interface UseWebSocketResult {
   permissionQueue: PermissionItem[];
   sessionId: string | null;
   sessionsList: Session[];
-  diffText: string;
   send: (text: string) => void;
   abort: () => void;
   respondPermission: (approved: boolean) => void;
   listSessions: () => void;
   initSession: (id: string | null) => void;
-  getDiffs: () => void;
 }
 
 export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
@@ -52,7 +50,7 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
   const [permissionQueue, setPermissionQueue] = useState<PermissionItem[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionsList, setSessionsList] = useState<Session[]>([]);
-  const [diffText, setDiffText] = useState('');
+
 
   const wsRef = useRef<WebSocket | null>(null);
   const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -150,11 +148,6 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
 
         if (data.type === 'sessions_list') {
           setSessionsList((data.sessions as Session[]) || []);
-          return;
-        }
-
-        if (data.type === 'diffs') {
-          setDiffText((data.diff as string) || '');
           return;
         }
 
@@ -312,11 +305,6 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
     }
   }, []);
 
-  const getDiffs = useCallback(() => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-    wsRef.current.send(JSON.stringify({ type: 'get_diffs' }));
-  }, []);
-
   return {
     connected,
     reconnecting,
@@ -326,12 +314,10 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
     permissionQueue,
     sessionId,
     sessionsList,
-    diffText,
     send,
     abort,
     respondPermission,
     listSessions,
     initSession,
-    getDiffs,
   };
 }

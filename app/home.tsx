@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, Alert, Image, Animated, PanResponder,
+  SafeAreaView, Alert, Animated, PanResponder,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { CameraView } from 'expo-camera';
 import { useTheme } from '@/store/theme-store';
@@ -139,9 +140,9 @@ export default function Home() {
         <Image
           source={require('@/assets/images/logo.png')}
           style={styles.logo}
-          resizeMode="contain"
+          contentFit="contain"
+          cachePolicy="memory-disk"
         />
-        <Text style={[styles.title, { color: c.text }]}>GRASS</Text>
 
         {urls.length > 0 ? (
           <View style={styles.list}>
@@ -193,15 +194,9 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   logo: {
-    width: 220,
-    height: 90,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: 6,
+    width: 320,
+    height: 138,
     marginBottom: 36,
-    fontFamily: 'ui-rounded',
   },
   list: {
     width: '100%',

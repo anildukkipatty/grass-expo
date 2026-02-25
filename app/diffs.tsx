@@ -1,16 +1,8 @@
-import React, { useMemo, useSyncExternalStore } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, StyleSheet, SafeAreaView, View, ActivityIndicator } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
-
-// Simple reactive store so the diffs page re-renders when data arrives
-let _diffText = '';
-let _listeners = new Set<() => void>();
-export const diffStore = {
-  get: () => _diffText,
-  set: (v: string) => { _diffText = v; _listeners.forEach(l => l()); },
-  subscribe: (l: () => void) => { _listeners.add(l); return () => { _listeners.delete(l); }; },
-};
 
 type FileDiff = {
   filename: string;
@@ -151,15 +143,93 @@ function FileBox({ file, colors }: { file: FileDiff; colors: typeof GrassColors.
 export default function Diffs() {
   const [theme] = useTheme();
   const c = GrassColors[theme];
-  const text = useSyncExternalStore(diffStore.subscribe, diffStore.get);
+  const { wsUrl } = useLocalSearchParams<{ wsUrl: string }>();
+  const [text, setText] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const files = useMemo(() => parseFileDiffs(text), [text]);
+
+  useEffect(() => {
+    if (!wsUrl) {
+      setError('No server URL provided');
+      setLoading(false);
+      return;
+    }
+
+    let done = false;
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch {
+      setError('Invalid server URL');
+      setLoading(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      if (!done) {
+        done = true;
+        ws.close();
+        setError('Connection timed out');
+        setLoading(false);
+      }
+    }, 6000);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'get_diffs' }));
+    };
+
+    ws.onmessage = (event) => {
+      if (done) return;
+      try {
+        const data = JSON.parse(event.data as string);
+        if (data.type === 'diffs') {
+          done = true;
+          clearTimeout(timeout);
+          const diff = (data.diff as string) || '';
+          setText(diff);
+          setLoading(false);
+          if (!diff) setError('No diffs available');
+          ws.close();
+        }
+      } catch {}
+    };
+
+    ws.onerror = () => {
+      if (!done) {
+        done = true;
+        clearTimeout(timeout);
+        setError('Failed to connect to server');
+        setLoading(false);
+      }
+    };
+
+    ws.onclose = () => {
+      if (!done) {
+        done = true;
+        clearTimeout(timeout);
+        setError('Connection closed');
+        setLoading(false);
+      }
+    };
+
+    return () => {
+      done = true;
+      clearTimeout(timeout);
+      ws.close();
+    };
+  }, [wsUrl]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
-      {!text ? (
+      {loading ? (
         <View style={styles.empty}>
           <ActivityIndicator color={c.badgeText} style={{ marginBottom: 12 }} />
           <Text style={[styles.emptyText, { color: c.badgeText }]}>Loading diffs…</Text>
+        </View>
+      ) : error && !text ? (
+        <View style={styles.empty}>
+          <Text style={[styles.emptyText, { color: c.badgeText }]}>{error}</Text>
         </View>
       ) : (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
