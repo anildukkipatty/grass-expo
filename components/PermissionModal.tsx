@@ -1,5 +1,5 @@
-import React from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import React, { useRef } from 'react';
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated } from 'react-native';
 import { GrassColors } from '@/constants/theme';
 import { Fonts } from '@/constants/theme';
 import { fenceColors } from '@/constants/markdownStyles';
@@ -39,14 +39,20 @@ export function PermissionModal({ item, onAllow, onDeny, theme }: Props) {
   const mono = Fonts?.mono ?? 'monospace';
   const fence = fenceColors(theme);
   const sections = formatSections(item.toolName, item.input);
+  const denyScale = useRef(new Animated.Value(1)).current;
+  const allowScale = useRef(new Animated.Value(1)).current;
 
   return (
     <Modal transparent animationType="fade" visible>
-      <View style={styles.overlay}>
-        <View style={[styles.card, { backgroundColor: c.bg, borderColor: c.border }]}>
-          <Text style={[styles.title, { color: c.text }]}>Permission Request</Text>
-          <Text style={[styles.toolName, { color: c.badgeText }]}>{item.toolName}</Text>
-          <ScrollView style={styles.body}>
+      <View style={[styles.overlay, { backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.72)' : 'rgba(0,0,0,0.45)' }]}>
+        <View style={[styles.card, { backgroundColor: c.assistantBubble, borderColor: c.border }]}>
+          <View style={styles.titleRow}>
+            <View style={[styles.toolBadge, { backgroundColor: c.accentSoft }]}>
+              <Text style={[styles.toolBadgeText, { color: c.accent }]}>{item.toolName}</Text>
+            </View>
+            <Text style={[styles.title, { color: c.text }]}>Permission Request</Text>
+          </View>
+          <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
             {sections.map((sec, idx) => (
               <View key={idx} style={idx > 0 ? { marginTop: 10 } : undefined}>
                 {sec.label ? (
@@ -59,12 +65,36 @@ export function PermissionModal({ item, onAllow, onDeny, theme }: Props) {
             ))}
           </ScrollView>
           <View style={styles.actions}>
-            <TouchableOpacity style={[styles.denyBtn, { borderColor: c.border }]} onPress={onDeny}>
-              <Text style={[styles.denyText, { color: c.text }]}>Deny</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.allowBtn} onPress={onAllow}>
-              <Text style={styles.allowText}>Allow</Text>
-            </TouchableOpacity>
+            <Animated.View style={{ transform: [{ scale: denyScale }] }}>
+              <TouchableOpacity
+                style={[styles.denyBtn, { borderColor: c.border, backgroundColor: c.bg }]}
+                onPress={onDeny}
+                onPressIn={() =>
+                  Animated.spring(denyScale, { toValue: 0.94, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
+                }
+                onPressOut={() =>
+                  Animated.spring(denyScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()
+                }
+                activeOpacity={1}
+              >
+                <Text style={[styles.denyText, { color: c.text }]}>Deny</Text>
+              </TouchableOpacity>
+            </Animated.View>
+            <Animated.View style={{ transform: [{ scale: allowScale }] }}>
+              <TouchableOpacity
+                style={styles.allowBtn}
+                onPress={onAllow}
+                onPressIn={() =>
+                  Animated.spring(allowScale, { toValue: 0.94, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
+                }
+                onPressOut={() =>
+                  Animated.spring(allowScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()
+                }
+                activeOpacity={1}
+              >
+                <Text style={styles.allowText}>Allow</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
         </View>
       </View>
@@ -75,26 +105,38 @@ export function PermissionModal({ item, onAllow, onDeny, theme }: Props) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: 20,
   },
   card: {
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
     padding: 20,
     width: '100%',
     maxWidth: 500,
-    gap: 12,
+    gap: 14,
     maxHeight: '80%',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  toolBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  toolBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   title: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  toolName: {
-    fontSize: 13,
+    flex: 1,
   },
   body: {
     maxHeight: 300,
@@ -112,26 +154,27 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
+    gap: 10,
   },
   denyBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+    borderRadius: 10,
     borderWidth: 1,
   },
   denyText: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '500',
   },
   allowBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#2ecc71',
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: '#22c55e',
   },
   allowText: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

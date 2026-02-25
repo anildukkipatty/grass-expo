@@ -8,23 +8,30 @@ interface Props {
 }
 
 function Dot({ delay, accent }: { delay: number; accent: string }) {
-  const opacity = useRef(new Animated.Value(0.2)).current;
+  const scale = useRef(new Animated.Value(0.6)).current;
+  const opacity = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
         Animated.delay(delay),
-        Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.2, duration: 600, useNativeDriver: true }),
-        Animated.delay(600 - delay),
+        Animated.parallel([
+          Animated.spring(scale, { toValue: 1.2, useNativeDriver: true, speed: 18, bounciness: 8 }),
+          Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.spring(scale, { toValue: 0.6, useNativeDriver: true, speed: 12, bounciness: 0 }),
+          Animated.timing(opacity, { toValue: 0.3, duration: 500, useNativeDriver: true }),
+        ]),
+        Animated.delay(Math.max(0, 700 - delay)),
       ])
     );
     anim.start();
     return () => anim.stop();
-  }, [opacity, delay]);
+  }, [scale, opacity, delay]);
 
   return (
-    <Animated.View style={[styles.dot, { backgroundColor: accent, opacity }]} />
+    <Animated.View style={[styles.dot, { backgroundColor: accent, transform: [{ scale }], opacity }]} />
   );
 }
 
@@ -34,8 +41,8 @@ export function ActivityBar({ label, theme }: Props) {
     <View style={[styles.bar, { backgroundColor: c.barBg, borderTopColor: c.border }]}>
       <View style={styles.dots}>
         <Dot delay={0} accent={c.accent} />
-        <Dot delay={200} accent={c.accent} />
-        <Dot delay={400} accent={c.accent} />
+        <Dot delay={160} accent={c.accent} />
+        <Dot delay={320} accent={c.accent} />
       </View>
       <Text style={[styles.label, { color: c.badgeText }]} numberOfLines={1}>{label}</Text>
     </View>
@@ -47,23 +54,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderTopWidth: 1,
-    gap: 8,
-    minHeight: 32,
+    gap: 10,
+    minHeight: 36,
   },
   dots: {
     flexDirection: 'row',
-    gap: 3,
+    gap: 4,
     alignItems: 'center',
   },
   dot: {
-    width: 5,
-    height: 5,
+    width: 6,
+    height: 6,
     borderRadius: 3,
   },
   label: {
     fontSize: 13,
     flex: 1,
+    letterSpacing: 0.1,
   },
 });

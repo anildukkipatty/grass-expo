@@ -30,9 +30,9 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
   const fenceRules = React.useMemo(() => makeFenceRules(theme), [theme]);
 
   const bubbleStyle = role === 'user'
-    ? { backgroundColor: c.userBubble, alignSelf: 'flex-end' as const, borderBottomRightRadius: 4 }
+    ? { backgroundColor: c.userBubble, alignSelf: 'flex-end' as const, borderBottomRightRadius: 5 }
     : role === 'assistant'
-    ? { backgroundColor: c.assistantBubble, alignSelf: 'flex-start' as const, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: c.border }
+    ? { backgroundColor: c.assistantBubble, alignSelf: 'flex-start' as const, borderBottomLeftRadius: 5, borderWidth: 1, borderColor: c.border }
     : { backgroundColor: c.errorBubble, alignSelf: 'center' as const, borderWidth: 1, borderColor: c.errorText };
 
   const textColor = role === 'user'
@@ -57,18 +57,19 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
 
 const styles = StyleSheet.create({
   bubble: {
-    maxWidth: '90%',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    marginVertical: 5,
+    maxWidth: '88%',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    marginVertical: 4,
   },
   text: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 23,
   },
   badge: {
     fontSize: 11,
-    marginTop: 4,
+    marginTop: 5,
+    letterSpacing: 0.1,
   },
 });
