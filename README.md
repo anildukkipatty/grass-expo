@@ -35,7 +35,7 @@ Grass is an iOS-first mobile client for the [Grass CLI](https://github.com/anild
 - [Node.js](https://nodejs.org/) 18+
 - [Expo CLI](https://docs.expo.dev/get-started/installation/)
 - For iOS: Xcode and an Apple Developer account (free tier works)
-- A running [Pingpong](https://github.com/korgy/pingpong) server to connect to
+- A running [Grass](https://github.com/anildukkipatty/grass-ide) server to connect to
 
 ### Installation
 

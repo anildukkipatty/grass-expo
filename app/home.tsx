@@ -9,7 +9,7 @@ import { CameraView } from 'expo-camera';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { getUrls, removeUrl, saveUrl } from '@/store/url-store';
-import { openConnection, closeConnection, useConnectionStatuses, type ConnectionStatus } from '@/store/connection-store';
+import { openConnection, closeConnection, useConnectionStatuses, getEntry, type ConnectionStatus } from '@/store/connection-store';
 
 const DELETE_WIDTH = 72;
 
@@ -19,12 +19,19 @@ const STATUS_COLORS: Record<ConnectionStatus, string> = {
   disconnected: '#ef4444',
 };
 
-function ServerItem({ item, onPress, onDelete, c, status }: {
+function folderName(cwd: string | null | undefined): string | null {
+  if (!cwd) return null;
+  const parts = cwd.replace(/\/+$/, '').split('/');
+  return parts[parts.length - 1] || null;
+}
+
+function ServerItem({ item, onPress, onDelete, c, status, cwd }: {
   item: string;
   onPress: () => void;
   onDelete: () => void;
   c: typeof GrassColors['light'];
   status: ConnectionStatus;
+  cwd: string | null | undefined;
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -89,9 +96,22 @@ function ServerItem({ item, onPress, onDelete, c, status }: {
           activeOpacity={1}
         >
           <View style={[styles.dot, { backgroundColor: STATUS_COLORS[status] }]} />
-          <Text style={[styles.serverUrl, { color: c.text }]} numberOfLines={1}>
-            {displayUrl(item)}
-          </Text>
+          <View style={styles.serverTextGroup}>
+            {folderName(cwd) ? (
+              <>
+                <Text style={[styles.serverFolder, { color: c.text }]} numberOfLines={1}>
+                  {folderName(cwd)}
+                </Text>
+                <Text style={[styles.serverUrl, { color: c.badgeText }]} numberOfLines={1}>
+                  {displayUrl(item)}
+                </Text>
+              </>
+            ) : (
+              <Text style={[styles.serverFolder, { color: c.text }]} numberOfLines={1}>
+                {displayUrl(item)}
+              </Text>
+            )}
+          </View>
           <Text style={[styles.chevron, { color: c.badgeText }]}>›</Text>
         </TouchableOpacity>
       </Animated.View>
@@ -166,6 +186,7 @@ export default function Home() {
                 item={item}
                 c={c}
                 status={statuses.get(item) ?? 'disconnected'}
+                cwd={getEntry(item)?.cwd}
                 onPress={() => handleSelect(item)}
                 onDelete={() => handleDelete(item)}
               />
@@ -231,11 +252,20 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     flexShrink: 0,
   },
-  serverUrl: {
+  serverTextGroup: {
     flex: 1,
-    fontSize: 14,
+    gap: 2,
+  },
+  serverFolder: {
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+  },
+  serverUrl: {
+    fontSize: 12,
     fontFamily: 'ui-monospace',
     letterSpacing: -0.2,
+    opacity: 0.55,
   },
   chevron: {
     fontSize: 22,
