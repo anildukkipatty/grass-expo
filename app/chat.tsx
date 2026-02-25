@@ -10,7 +10,7 @@ import { GrassColors } from '@/constants/theme';
 import { MessageBubble } from '@/components/MessageBubble';
 import { ActivityBar } from '@/components/ActivityBar';
 import { PermissionModal } from '@/components/PermissionModal';
-import { diffTextRef } from './diffs';
+import { diffStore } from './diffs';
 
 export default function Chat() {
   const router = useRouter();
@@ -50,14 +50,14 @@ export default function Chat() {
   }, [inputText, ws]);
 
   const goDiffs = useCallback(() => {
+    diffStore.set('');
     ws.getDiffs();
-    diffTextRef.current = ws.diffText;
     router.push('/diffs');
   }, [router, ws]);
 
-  // Update diffTextRef when diffText changes
+  // Push diff text into reactive store when it arrives
   useEffect(() => {
-    diffTextRef.current = ws.diffText;
+    if (ws.diffText) diffStore.set(ws.diffText);
   }, [ws.diffText]);
 
   const statusText = ws.reconnecting

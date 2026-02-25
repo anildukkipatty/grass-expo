@@ -6,6 +6,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { Session } from '@/hooks/use-websocket';
+import { diffStore } from './diffs';
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -30,6 +31,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'ui-monospace',
     opacity: 0.55,
+  },
+  diffsBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  diffsBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   newBtn: {
     paddingHorizontal: 18,
@@ -251,6 +260,23 @@ export default function Sessions() {
     router.push({ pathname: '/chat', params });
   }
 
+  function goDiffs() {
+    if (!wsUrl) return;
+    diffStore.set('');
+    const ws = new WebSocket(wsUrl);
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'get_diffs' }));
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data as string);
+        if (data.type === 'diffs') {
+          diffStore.set(data.diff || '');
+          ws.close();
+        }
+      } catch {}
+    };
+    router.push('/diffs');
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
       <View style={[styles.header, { backgroundColor: c.barBg, borderBottomColor: c.border }]}>
@@ -262,6 +288,9 @@ export default function Sessions() {
             </Text>
           ) : null}
         </View>
+        <TouchableOpacity style={styles.diffsBtn} onPress={goDiffs} hitSlop={8}>
+          <Text style={[styles.diffsBtnText, { color: c.badgeText }]}>Diffs</Text>
+        </TouchableOpacity>
         <Animated.View style={{ transform: [{ scale: newBtnScale }] }}>
           <TouchableOpacity
             style={[styles.newBtn, { backgroundColor: c.accent }]}
