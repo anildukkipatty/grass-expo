@@ -17,11 +17,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     gap: 12,
   },
+  headerTitleGroup: {
+    flex: 1,
+    gap: 2,
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    flex: 1,
     letterSpacing: -0.3,
+  },
+  headerCwd: {
+    fontSize: 12,
+    fontFamily: 'ui-monospace',
+    opacity: 0.55,
   },
   newBtn: {
     paddingHorizontal: 18,
@@ -77,6 +85,18 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
 });
+
+function trimCwd(path: string, maxLen = 30): string {
+  if (path.length <= maxLen) return path;
+  const parts = path.split('/');
+  let result = parts[parts.length - 1];
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const candidate = parts.slice(i).join('/');
+    if (candidate.length + 4 > maxLen) break;
+    result = candidate;
+  }
+  return '.../' + result;
+}
 
 function timeAgo(isoString?: string): string {
   if (!isoString) return '';
@@ -138,6 +158,7 @@ export default function Sessions() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cwd, setCwd] = useState<string | null>(null);
   const newBtnScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -165,7 +186,15 @@ export default function Sessions() {
 
     ws.onopen = () => {
       ws.send(JSON.stringify({ type: 'list_sessions' }));
+      ws.send(JSON.stringify({ type: 'get_cwd' }));
     };
+
+    let gotSessions = false;
+    let gotCwd = false;
+
+    function maybeClose() {
+      if (gotSessions && gotCwd) ws.close();
+    }
 
     ws.onmessage = (event) => {
       try {
@@ -181,7 +210,12 @@ export default function Sessions() {
           });
           setSessions(raw);
           setLoading(false);
-          ws.close();
+          gotSessions = true;
+          maybeClose();
+        } else if (data.type === 'cwd') {
+          setCwd(data.cwd ?? null);
+          gotCwd = true;
+          maybeClose();
         }
       } catch {}
     };
@@ -220,7 +254,14 @@ export default function Sessions() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
       <View style={[styles.header, { backgroundColor: c.barBg, borderBottomColor: c.border }]}>
-        <Text style={[styles.headerTitle, { color: c.text }]}>Sessions</Text>
+        <View style={styles.headerTitleGroup}>
+          <Text style={[styles.headerTitle, { color: c.text }]}>Sessions</Text>
+          {cwd ? (
+            <Text style={[styles.headerCwd, { color: c.text }]} numberOfLines={1}>
+              {trimCwd(cwd)}
+            </Text>
+          ) : null}
+        </View>
         <Animated.View style={{ transform: [{ scale: newBtnScale }] }}>
           <TouchableOpacity
             style={[styles.newBtn, { backgroundColor: c.accent }]}
