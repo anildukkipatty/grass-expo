@@ -7,6 +7,22 @@ import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { Session } from '@/hooks/use-websocket';
 
+function timeAgo(isoString?: string): string {
+  if (!isoString) return '';
+  const diff = Date.now() - new Date(isoString).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + ' min' + (mins === 1 ? '' : 's') + ' ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + ' hr' + (hrs === 1 ? '' : 's') + ' ago';
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return days + ' day' + (days === 1 ? '' : 's') + ' ago';
+  const months = Math.floor(days / 30);
+  if (months < 12) return months + ' month' + (months === 1 ? '' : 's') + ' ago';
+  const years = Math.floor(months / 12);
+  return years + ' year' + (years === 1 ? '' : 's') + ' ago';
+}
+
 function SessionItem({ item, onPress, c }: {
   item: Session;
   onPress: () => void;
@@ -30,7 +46,14 @@ function SessionItem({ item, onPress, c }: {
         <Text style={[styles.sessionPreview, { color: c.text }]} numberOfLines={2}>
           {item.label || item.preview || 'Session'}
         </Text>
-        <Text style={[styles.sessionId, { color: c.badgeText }]}>{item.id}</Text>
+        <View style={styles.sessionMeta}>
+          {(item.updatedAt || item.createdAt) ? (
+            <Text style={[styles.sessionTime, { color: c.badgeText }]}>
+              {timeAgo(item.updatedAt || item.createdAt)}
+            </Text>
+          ) : null}
+          <Text style={[styles.sessionId, { color: c.badgeText }]}>{item.id}</Text>
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -79,7 +102,13 @@ export default function Sessions() {
         if (data.type === 'sessions_list') {
           clearTimeout(timeout);
           done = true;
-          setSessions((data.sessions as Session[]) || []);
+          const raw: Session[] = data.sessions || [];
+          raw.sort((a, b) => {
+            const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
+            const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
+            return tb - ta;
+          });
+          setSessions(raw);
           setLoading(false);
           ws.close();
         }
@@ -217,10 +246,21 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '500',
   },
+  sessionMeta: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    marginTop: 6,
+  },
+  sessionTime: {
+    fontSize: 11,
+    flexShrink: 0,
+  },
   sessionId: {
     fontSize: 11,
     fontFamily: 'ui-monospace',
-    marginTop: 6,
     letterSpacing: 0.2,
+    flexShrink: 1,
+    opacity: 0.6,
   },
 });
