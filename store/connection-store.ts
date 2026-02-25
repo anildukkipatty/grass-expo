@@ -139,7 +139,6 @@ function connect(url: string) {
     if (entry.currentSessionId) {
       ws.send(JSON.stringify({ type: 'init', sessionId: entry.currentSessionId }));
     }
-    console.log('[onopen]', url, 'globalListeners=', _globalListeners.size, 'entryListeners=', entry.listeners.size);
     notifyListeners(url);
   };
 
@@ -332,7 +331,6 @@ export function openConnection(url: string) {
     listeners: new Set(),
   };
   _connections.set(url, entry);
-  console.log('[openConnection]', url, 'globalListeners=', _globalListeners.size);
   connect(url);
   _globalListeners.forEach(fn => fn());
 }
@@ -429,10 +427,7 @@ export function useConnectionStatuses(): Map<string, ConnectionStatus> {
 
   const result = new Map<string, ConnectionStatus>();
   for (const [url, entry] of _connections) {
-    const status = entry.connected ? 'connected' : entry.reconnecting ? 'reconnecting' : 'disconnected';
-    console.log('[statuses] url=', url, 'connected=', entry.connected, 'reconnecting=', entry.reconnecting, '→', status);
-    result.set(url, status);
+    result.set(url, entry.connected ? 'connected' : entry.reconnecting ? 'reconnecting' : 'disconnected');
   }
-  console.log('[statuses] map size=', result.size);
   return result;
 }
