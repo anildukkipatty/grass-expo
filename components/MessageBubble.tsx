@@ -42,11 +42,13 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
     : c.errorText;
 
   return (
-    <View style={[styles.bubble, bubbleStyle]}>
+    <View style={[styles.bubble, bubbleStyle, role === 'assistant' && styles.assistantBubbleLayout]}>
       {role === 'assistant' ? (
-        <Markdown style={markdownStyles(theme)} rules={fenceRules}>
-          {content}
-        </Markdown>
+        <View style={styles.markdownWrapper}>
+          <Markdown style={markdownStyles(theme)} rules={fenceRules}>
+            {content}
+          </Markdown>
+        </View>
       ) : (
         <Text style={[styles.text, { color: textColor }]}>{content}</Text>
       )}
@@ -62,6 +64,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 18,
     marginVertical: 4,
+  },
+  assistantBubbleLayout: {
+    width: '88%',
+  },
+  markdownWrapper: {
+    width: '100%',
   },
   text: {
     fontSize: 16,
