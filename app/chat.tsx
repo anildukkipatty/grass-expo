@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Animated,
+  StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Animated, Keyboard,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useWebSocket } from '@/hooks/use-websocket';
@@ -23,6 +23,16 @@ export default function Chat() {
   const sendScale = useRef(new Animated.Value(1)).current;
 
   const ws = useWebSocket(wsUrl ?? null);
+
+  // Scroll to bottom when keyboard opens
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      if (ws.messages.length > 0) {
+        flatListRef.current?.scrollToOffset({ offset: 999999, animated: true });
+      }
+    });
+    return () => sub.remove();
+  }, [ws.messages.length]);
 
   // Auto-connect to session once connected
   useEffect(() => {
