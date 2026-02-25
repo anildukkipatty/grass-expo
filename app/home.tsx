@@ -56,7 +56,7 @@ function ServerItem({ item, onPress, onDelete, c }: {
       {/* Delete button revealed behind */}
       <View style={[styles.deleteBtn]}>
         <TouchableOpacity style={styles.deleteBtnInner} onPress={onDelete} activeOpacity={0.8}>
-          <Text style={styles.deleteBtnText}>􀈑</Text>
+          <Text style={styles.deleteBtnText}>Delete</Text>
         </TouchableOpacity>
       </View>
 
@@ -262,7 +262,9 @@ const styles = StyleSheet.create({
   },
   deleteBtnText: {
     color: '#fff',
-    fontSize: 22,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   scanBtn: {
     paddingHorizontal: 36,
