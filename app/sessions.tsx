@@ -7,6 +7,77 @@ import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { Session } from '@/hooks/use-websocket';
 
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    flex: 1,
+    letterSpacing: -0.3,
+  },
+  newBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  newBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  statusText: {
+    fontSize: 15,
+  },
+  errorText: {
+    fontSize: 15,
+  },
+  list: {
+    padding: 16,
+    gap: 8,
+  },
+  sessionItem: {
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  sessionPreview: {
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  sessionMeta: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    marginTop: 6,
+  },
+  sessionTime: {
+    fontSize: 11,
+    flexShrink: 0,
+  },
+  sessionId: {
+    fontSize: 11,
+    fontFamily: 'ui-monospace',
+    letterSpacing: 0.2,
+    flexShrink: 1,
+    opacity: 0.6,
+  },
+});
+
 function timeAgo(isoString?: string): string {
   if (!isoString) return '';
   const diff = Date.now() - new Date(isoString).getTime();
@@ -193,74 +264,3 @@ export default function Sessions() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    gap: 12,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    flex: 1,
-    letterSpacing: -0.3,
-  },
-  newBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  newBtnText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-  },
-  statusText: {
-    fontSize: 15,
-  },
-  errorText: {
-    fontSize: 15,
-  },
-  list: {
-    padding: 16,
-    gap: 8,
-  },
-  sessionItem: {
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  sessionPreview: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  sessionMeta: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-    marginTop: 6,
-  },
-  sessionTime: {
-    fontSize: 11,
-    flexShrink: 0,
-  },
-  sessionId: {
-    fontSize: 11,
-    fontFamily: 'ui-monospace',
-    letterSpacing: 0.2,
-    flexShrink: 1,
-    opacity: 0.6,
-  },
-});
