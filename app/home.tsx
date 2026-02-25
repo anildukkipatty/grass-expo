@@ -20,6 +20,11 @@ function ServerItem({ item, onPress, onDelete, c }: {
   const translateX = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
   const isOpen = useRef(false);
+  const deleteOpacity = translateX.interpolate({
+    inputRange: [-DELETE_WIDTH, -1, 0],
+    outputRange: [1, 1, 0],
+    extrapolate: 'clamp',
+  });
 
   const panResponder = useRef(
     PanResponder.create({
@@ -53,12 +58,11 @@ function ServerItem({ item, onPress, onDelete, c }: {
 
   return (
     <View style={{ overflow: 'hidden', borderRadius: 14 }}>
-      {/* Delete button revealed behind */}
-      <View style={[styles.deleteBtn]}>
+      <Animated.View style={[styles.deleteBtn, { opacity: deleteOpacity }]}>
         <TouchableOpacity style={styles.deleteBtnInner} onPress={onDelete} activeOpacity={0.8}>
           <Text style={styles.deleteBtnText}>Delete</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       <Animated.View
         style={{ transform: [{ translateX }, { scale }] }}
