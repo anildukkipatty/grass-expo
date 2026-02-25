@@ -9,14 +9,22 @@ import { CameraView } from 'expo-camera';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { getUrls, removeUrl, saveUrl } from '@/store/url-store';
+import { openConnection, closeConnection, useConnectionStatuses, type ConnectionStatus } from '@/store/connection-store';
 
 const DELETE_WIDTH = 72;
 
-function ServerItem({ item, onPress, onDelete, c }: {
+const STATUS_COLORS: Record<ConnectionStatus, string> = {
+  connected: '#22c55e',
+  reconnecting: '#f59e0b',
+  disconnected: '#ef4444',
+};
+
+function ServerItem({ item, onPress, onDelete, c, status }: {
   item: string;
   onPress: () => void;
   onDelete: () => void;
   c: typeof GrassColors['light'];
+  status: ConnectionStatus;
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -80,7 +88,7 @@ function ServerItem({ item, onPress, onDelete, c }: {
           }
           activeOpacity={1}
         >
-          <View style={[styles.dot, { backgroundColor: c.accent }]} />
+          <View style={[styles.dot, { backgroundColor: STATUS_COLORS[status] }]} />
           <Text style={[styles.serverUrl, { color: c.text }]} numberOfLines={1}>
             {displayUrl(item)}
           </Text>
@@ -97,10 +105,14 @@ export default function Home() {
   const c = GrassColors[theme];
   const [urls, setUrls] = useState<string[]>([]);
   const scanScale = useRef(new Animated.Value(1)).current;
+  const statuses = useConnectionStatuses();
 
   useFocusEffect(
     useCallback(() => {
-      getUrls().then(setUrls);
+      getUrls().then(loadedUrls => {
+        setUrls(loadedUrls);
+        loadedUrls.forEach(openConnection);
+      });
     }, [])
   );
 
@@ -112,6 +124,7 @@ export default function Home() {
         .replace(/^https:\/\//, 'wss://');
       await CameraView.dismissScanner();
       await saveUrl(wsUrl);
+      openConnection(wsUrl);
       setUrls(await getUrls());
     });
     return () => subscription.remove();
@@ -130,6 +143,7 @@ export default function Home() {
   }
 
   async function handleDelete(url: string) {
+    closeConnection(url);
     await removeUrl(url);
     setUrls(prev => prev.filter(u => u !== url));
   }
@@ -151,6 +165,7 @@ export default function Home() {
                 key={item}
                 item={item}
                 c={c}
+                status={statuses.get(item) ?? 'disconnected'}
                 onPress={() => handleSelect(item)}
                 onDelete={() => handleDelete(item)}
               />

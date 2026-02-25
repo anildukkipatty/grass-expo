@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
-import { Session } from '@/hooks/use-websocket';
+import { Session, useWebSocket } from '@/hooks/use-websocket';
 
 
 const styles = StyleSheet.create({
@@ -164,95 +164,22 @@ export default function Sessions() {
   const { wsUrl } = useLocalSearchParams<{ wsUrl: string }>();
   const [theme] = useTheme();
   const c = GrassColors[theme];
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [cwd, setCwd] = useState<string | null>(null);
   const newBtnScale = useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
-    if (!wsUrl) return;
-    let ws: WebSocket;
-    let done = false;
-    let timeout: ReturnType<typeof setTimeout>;
+  const ws = useWebSocket(wsUrl ?? null);
 
-    try {
-      ws = new WebSocket(wsUrl);
-    } catch (e) {
-      setError('Invalid server URL');
-      setLoading(false);
-      return;
-    }
+  const sessions = useMemo(() =>
+    [...ws.sessionsList].sort((a, b) => {
+      const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return tb - ta;
+    }), [ws.sessionsList]);
 
-    timeout = setTimeout(() => {
-      if (!done) {
-        done = true;
-        ws.close();
-        setError('Connection timed out');
-        setLoading(false);
-      }
-    }, 6000);
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'list_sessions' }));
-      ws.send(JSON.stringify({ type: 'get_cwd' }));
-    };
-
-    let gotSessions = false;
-    let gotCwd = false;
-
-    function maybeClose() {
-      if (gotSessions && gotCwd) ws.close();
-    }
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data as string);
-        if (data.type === 'sessions_list') {
-          clearTimeout(timeout);
-          done = true;
-          const raw: Session[] = data.sessions || [];
-          raw.sort((a, b) => {
-            const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
-            const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
-            return tb - ta;
-          });
-          setSessions(raw);
-          setLoading(false);
-          gotSessions = true;
-          maybeClose();
-        } else if (data.type === 'cwd') {
-          setCwd(data.cwd ?? null);
-          gotCwd = true;
-          maybeClose();
-        }
-      } catch {}
-    };
-
-    ws.onerror = () => {
-      if (!done) {
-        clearTimeout(timeout);
-        done = true;
-        setError('Could not connect to server');
-        setLoading(false);
-      }
-    };
-
-    ws.onclose = () => {
-      if (!done) {
-        clearTimeout(timeout);
-        done = true;
-        setError('Connection closed');
-        setLoading(false);
-      }
-    };
-
-    return () => {
-      done = true;
-      clearTimeout(timeout);
-      ws.close();
-    };
-  }, [wsUrl]);
+  const loading = !ws.connected && ws.sessionsList.length === 0;
+  const error = !ws.connected && !ws.reconnecting && ws.sessionsList.length === 0
+    ? 'Could not connect to server'
+    : null;
+  const cwd = ws.cwd;
 
   function openChat(sessionId?: string) {
     const params: Record<string, string> = { wsUrl: wsUrl! };
