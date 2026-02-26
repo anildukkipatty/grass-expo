@@ -44,6 +44,7 @@ interface ConnectionEntry {
   sessionId: string | null;
   sessionsList: Session[];
   cwd: string | null;
+  agent: string | null;
 
   listeners: Set<() => void>;
 }
@@ -177,6 +178,7 @@ function connect(url: string) {
 
     if (data.type === 'cwd') {
       entry.cwd = (data.cwd as string) ?? null;
+      entry.agent = (data.agent as string) ?? null;
       notifyListeners(url);
       return;
     }
@@ -328,6 +330,7 @@ export function openConnection(url: string) {
     sessionId: null,
     sessionsList: [],
     cwd: null,
+    agent: null,
     listeners: new Set(),
   };
   _connections.set(url, entry);

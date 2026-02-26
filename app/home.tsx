@@ -25,13 +25,19 @@ function folderName(cwd: string | null | undefined): string | null {
   return parts[parts.length - 1] || null;
 }
 
-function ServerItem({ item, onPress, onDelete, c, status, cwd }: {
+const AGENT_LOGOS: Record<string, ReturnType<typeof require>> = {
+  'claude-code': require('@/assets/images/cluade-logo.jpg'),
+  'opencode': require('@/assets/images/open-code.png'),
+};
+
+function ServerItem({ item, onPress, onDelete, c, status, cwd, agent }: {
   item: string;
   onPress: () => void;
   onDelete: () => void;
   c: typeof GrassColors['light'];
   status: ConnectionStatus;
   cwd: string | null | undefined;
+  agent: string | null | undefined;
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -96,6 +102,9 @@ function ServerItem({ item, onPress, onDelete, c, status, cwd }: {
           activeOpacity={1}
         >
           <View style={[styles.dot, { backgroundColor: STATUS_COLORS[status] }]} />
+          {agent && AGENT_LOGOS[agent] && (
+            <Image source={AGENT_LOGOS[agent]} style={styles.agentLogo} contentFit="contain" />
+          )}
           <View style={styles.serverTextGroup}>
             {folderName(cwd) ? (
               <>
@@ -188,6 +197,7 @@ export default function Home() {
                 c={c}
                 status={statuses.get(item) ?? 'disconnected'}
                 cwd={getEntry(item)?.cwd}
+                agent={getEntry(item)?.agent}
                 onPress={() => handleSelect(item)}
                 onDelete={() => handleDelete(item)}
               />
@@ -250,6 +260,12 @@ const styles = StyleSheet.create({
   dot: {
     width: 8,
     height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  agentLogo: {
+    width: 20,
+    height: 20,
     borderRadius: 4,
     flexShrink: 0,
   },
