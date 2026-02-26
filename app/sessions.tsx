@@ -2,6 +2,7 @@ import React, { useRef, useMemo, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated, Image, TextInput,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
@@ -61,7 +62,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   newBtn: {
-    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 10,
   },
@@ -164,7 +168,7 @@ function SessionItem({ item, onPress, c }: {
         activeOpacity={1}
       >
         <Text style={[styles.sessionPreview, { color: c.text }]} numberOfLines={2}>
-          {item.label || item.preview || 'Session'}
+          {(item.label || item.preview || 'Session').replace(/\n/g, ' ')}
         </Text>
         <View style={styles.sessionMeta}>
           {(item.updatedAt || item.createdAt) ? (
@@ -247,7 +251,8 @@ export default function Sessions() {
             }
             activeOpacity={1}
           >
-            <Text style={styles.newBtnText}>New Chat</Text>
+            <Ionicons name="add" size={18} color="#fff" />
+            <Text style={styles.newBtnText}>New</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
