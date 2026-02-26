@@ -32,11 +32,11 @@ export default function Chat() {
     return () => sub.remove();
   }, [ws.messages.length]);
 
-  // Auto-connect to session once connected
+  // Auto-connect to session once connected (or clear old session for "New Chat")
   useEffect(() => {
-    if (ws.connected && initialSessionId && !sessionInitialized.current) {
+    if (ws.connected && !sessionInitialized.current) {
       sessionInitialized.current = true;
-      ws.initSession(initialSessionId);
+      ws.initSession(initialSessionId ?? null);
     }
   }, [ws.connected, initialSessionId, ws.initSession]);
 
