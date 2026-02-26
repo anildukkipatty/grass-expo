@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Animated, Keyboard,
+  StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Animated, Keyboard, Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useWebSocket } from '@/hooks/use-websocket';
@@ -71,7 +71,10 @@ export default function Chat() {
         <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
         <Text style={[styles.statusText, { color: c.badgeText }]} numberOfLines={1}>{statusText}</Text>
         <TouchableOpacity style={styles.headerBtn} onPress={goDiffs} hitSlop={8}>
-          <Text style={[styles.headerBtnText, { color: c.badgeText }]}>Diffs</Text>
+          <View style={styles.diffsBtnInner}>
+            <Image source={require('@/assets/images/diff-logo.png')} style={styles.diffsBtnIcon} />
+            <Text style={[styles.headerBtnText, { color: c.badgeText }]}>Diffs</Text>
+          </View>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.headerBtn}
@@ -213,6 +216,16 @@ const styles = StyleSheet.create({
   },
   headerBtnText: {
     fontSize: 13,
+  },
+  diffsBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  diffsBtnIcon: {
+    width: 16,
+    height: 16,
+    opacity: 0.7,
   },
   backBtnText: {
     fontSize: 28,

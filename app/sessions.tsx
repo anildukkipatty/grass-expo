@@ -1,6 +1,6 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated, Image, TextInput,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/store/theme-store';
@@ -32,9 +32,29 @@ const styles = StyleSheet.create({
     fontFamily: 'ui-monospace',
     opacity: 0.55,
   },
+  searchBar: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 15,
+  },
   diffsBtn: {
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  diffsBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  diffsBtnIcon: {
+    width: 18,
+    height: 18,
+    opacity: 0.7,
   },
   diffsBtnText: {
     fontSize: 14,
@@ -165,15 +185,22 @@ export default function Sessions() {
   const [theme] = useTheme();
   const c = GrassColors[theme];
   const newBtnScale = useRef(new Animated.Value(1)).current;
+  const [query, setQuery] = useState('');
 
   const ws = useWebSocket(wsUrl ?? null);
 
-  const sessions = useMemo(() =>
-    [...ws.sessionsList].sort((a, b) => {
+  const sessions = useMemo(() => {
+    const sorted = [...ws.sessionsList].sort((a, b) => {
       const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
       const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
       return tb - ta;
-    }), [ws.sessionsList]);
+    });
+    if (!query.trim()) return sorted;
+    const q = query.toLowerCase();
+    return sorted.filter(s =>
+      (s.label || s.preview || '').toLowerCase().includes(q) || s.id.toLowerCase().includes(q)
+    );
+  }, [ws.sessionsList, query]);
 
   const loading = !ws.connected && ws.sessionsList.length === 0;
   const error = !ws.connected && !ws.reconnecting && ws.sessionsList.length === 0
@@ -196,7 +223,6 @@ export default function Sessions() {
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
       <View style={[styles.header, { backgroundColor: c.barBg, borderBottomColor: c.border }]}>
         <View style={styles.headerTitleGroup}>
-          <Text style={[styles.headerTitle, { color: c.text }]}>Sessions</Text>
           {cwd ? (
             <Text style={[styles.headerCwd, { color: c.text }]} numberOfLines={1}>
               {trimCwd(cwd)}
@@ -204,7 +230,10 @@ export default function Sessions() {
           ) : null}
         </View>
         <TouchableOpacity style={styles.diffsBtn} onPress={goDiffs} hitSlop={8}>
-          <Text style={[styles.diffsBtnText, { color: c.badgeText }]}>Diffs</Text>
+          <View style={styles.diffsBtnInner}>
+            <Image source={require('@/assets/images/diff-logo.png')} style={styles.diffsBtnIcon} />
+            <Text style={[styles.diffsBtnText, { color: c.badgeText }]}>Diffs</Text>
+          </View>
         </TouchableOpacity>
         <Animated.View style={{ transform: [{ scale: newBtnScale }] }}>
           <TouchableOpacity
@@ -223,6 +252,17 @@ export default function Sessions() {
         </Animated.View>
       </View>
 
+      <TextInput
+        style={[styles.searchBar, { backgroundColor: c.assistantBubble, borderColor: c.border, color: c.text }]}
+        placeholder="Search history…"
+        placeholderTextColor={c.badgeText}
+        value={query}
+        onChangeText={setQuery}
+        clearButtonMode="while-editing"
+        autoCorrect={false}
+        autoCapitalize="none"
+      />
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={c.accent} size="large" />
@@ -234,7 +274,9 @@ export default function Sessions() {
         </View>
       ) : sessions.length === 0 ? (
         <View style={styles.center}>
-          <Text style={[styles.statusText, { color: c.badgeText }]}>No sessions yet</Text>
+          <Text style={[styles.statusText, { color: c.badgeText }]}>
+            {query.trim() ? 'No matching sessions' : 'No sessions yet'}
+          </Text>
         </View>
       ) : (
         <FlatList

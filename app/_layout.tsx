@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen';
 import { useTheme } from '@/store/theme-store';
+import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -18,7 +18,7 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="home" options={{ headerShown: false }} />
-        <Stack.Screen name="sessions" options={{ title: 'Sessions' }} />
+        <Stack.Screen name="sessions" options={{ title: 'Previous threads' }} />
         <Stack.Screen name="chat" options={{ headerShown: false }} />
         <Stack.Screen name="diffs" options={{ title: 'Diffs' }} />
       </Stack>
