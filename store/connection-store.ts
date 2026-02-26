@@ -335,6 +335,20 @@ export function openConnection(url: string) {
   _globalListeners.forEach(fn => fn());
 }
 
+export function reconnectNow(url: string) {
+  const entry = _connections.get(url);
+  if (!entry) return;
+  if (entry.connected) return;
+  clearTimers(url);
+  entry.ws?.close();
+  entry.ws = null;
+  entry.reconnectDelay = 1000;
+  entry.reconnecting = true;
+  entry.active = true;
+  notifyListeners(url);
+  connect(url);
+}
+
 export function closeConnection(url: string) {
   const entry = _connections.get(url);
   if (!entry) return;

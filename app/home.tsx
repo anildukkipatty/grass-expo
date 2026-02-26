@@ -9,7 +9,7 @@ import { CameraView } from 'expo-camera';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { getUrls, removeUrl, saveUrl } from '@/store/url-store';
-import { openConnection, closeConnection, useConnectionStatuses, getEntry, type ConnectionStatus } from '@/store/connection-store';
+import { openConnection, closeConnection, reconnectNow, useConnectionStatuses, getEntry, type ConnectionStatus } from '@/store/connection-store';
 
 const DELETE_WIDTH = 72;
 
@@ -159,6 +159,7 @@ export default function Home() {
   }
 
   function handleSelect(url: string) {
+    reconnectNow(url);
     router.push({ pathname: '/sessions', params: { wsUrl: url } });
   }
 
