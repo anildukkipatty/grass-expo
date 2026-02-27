@@ -1,12 +1,13 @@
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated, Image, TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { Session, useWebSocket } from '@/hooks/use-websocket';
+import { listSessionsStore } from '@/store/connection-store';
 
 
 const styles = StyleSheet.create({
@@ -192,6 +193,10 @@ export default function Sessions() {
   const [query, setQuery] = useState('');
 
   const ws = useWebSocket(wsUrl ?? null);
+
+  useFocusEffect(useCallback(() => {
+    if (wsUrl) listSessionsStore(wsUrl);
+  }, [wsUrl]));
 
   const sessions = useMemo(() => {
     const sorted = [...ws.sessionsList].sort((a, b) => {
