@@ -15,6 +15,7 @@ export default function Chat() {
   const { wsUrl, sessionId: initialSessionId } = useLocalSearchParams<{ wsUrl: string; sessionId?: string }>();
   const [theme, setTheme] = useTheme();
   const [inputText, setInputText] = useState('');
+  const inputTextRef = useRef('');
   const flatListRef = useRef<FlatList>(null);
   const sessionInitialized = useRef(false);
   const c = GrassColors[theme];
@@ -41,11 +42,13 @@ export default function Chat() {
   }, [ws.connected, initialSessionId, ws.initSession]);
 
   const send = useCallback(() => {
-    const text = inputText.trim();
+    const text = inputTextRef.current.trim();
     if (!text || !ws.connected || ws.streaming) return;
     ws.send(text);
+    inputTextRef.current = '';
     setInputText('');
-  }, [inputText, ws]);
+    setTimeout(() => setInputText(''), 100);
+  }, [ws]);
 
   const goDiffs = useCallback(() => {
     router.push({ pathname: '/diffs', params: { wsUrl: wsUrl! } });
@@ -132,7 +135,7 @@ export default function Chat() {
             placeholder="Message…"
             placeholderTextColor={c.badgeText}
             value={inputText}
-            onChangeText={setInputText}
+            onChangeText={(t) => { inputTextRef.current = t; setInputText(t); }}
             multiline
             editable={ws.connected && !ws.streaming}
             onSubmitEditing={send}
