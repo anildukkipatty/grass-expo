@@ -4,12 +4,43 @@ import {
   StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Animated, Keyboard, Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur';
 import { useWebSocket } from '@/hooks/use-websocket';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { MessageBubble } from '@/components/MessageBubble';
 import { ActivityBar } from '@/components/ActivityBar';
 import { PermissionModal } from '@/components/PermissionModal';
+
+/* ── Pulsing status dot ── */
+function PulsingDot({ connected, reconnecting }: { connected: boolean; reconnecting: boolean }) {
+  const pulse = useRef(new Animated.Value(1)).current;
+  const color = connected ? '#22c55e' : reconnecting ? '#f59e0b' : '#ef4444';
+  const status = connected ? 'connected' : reconnecting ? 'reconnecting' : 'disconnected';
+
+  useEffect(() => {
+    if (status === 'disconnected') { pulse.setValue(1); return; }
+    const speed = status === 'reconnecting' ? 600 : 1800;
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.4, duration: speed / 2, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: speed / 2, useNativeDriver: true }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [status, pulse]);
+
+  const opacity = pulse.interpolate({ inputRange: [1, 1.4], outputRange: [1, 0.5] });
+
+  return (
+    <Animated.View
+      style={[styles.statusDot, { backgroundColor: color, transform: [{ scale: pulse }], opacity }]}
+    />
+  );
+}
+
 export default function Chat() {
   const router = useRouter();
   const { wsUrl, sessionId: initialSessionId } = useLocalSearchParams<{ wsUrl: string; sessionId?: string }>();
@@ -20,8 +51,21 @@ export default function Chat() {
   const sessionInitialized = useRef(false);
   const c = GrassColors[theme];
   const sendScale = useRef(new Animated.Value(1)).current;
+  const sendRotation = useRef(new Animated.Value(0)).current;
+  const [inputFocused, setInputFocused] = useState(false);
+  const prevStreaming = useRef(false);
 
   const ws = useWebSocket(wsUrl ?? null);
+
+  // Cross-fade send/stop with rotation
+  useEffect(() => {
+    if (ws.streaming && !prevStreaming.current) {
+      Animated.timing(sendRotation, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    } else if (!ws.streaming && prevStreaming.current) {
+      Animated.timing(sendRotation, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    }
+    prevStreaming.current = ws.streaming;
+  }, [ws.streaming, sendRotation]);
 
   // Scroll to bottom when keyboard opens
   useEffect(() => {
@@ -44,13 +88,20 @@ export default function Chat() {
   const send = useCallback(() => {
     const text = inputTextRef.current.trim();
     if (!text || !ws.connected || ws.streaming) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Pop animation
+    Animated.sequence([
+      Animated.spring(sendScale, { toValue: 1.2, useNativeDriver: true, speed: 50, bounciness: 12 }),
+      Animated.spring(sendScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }),
+    ]).start();
     ws.send(text);
     inputTextRef.current = '';
     setInputText('');
     setTimeout(() => setInputText(''), 100);
-  }, [ws]);
+  }, [ws, sendScale]);
 
   const goDiffs = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push({ pathname: '/diffs', params: { wsUrl: wsUrl! } });
   }, [router, wsUrl]);
 
@@ -60,34 +111,46 @@ export default function Chat() {
     ? ws.sessionId ? `${ws.sessionId.slice(0, 8)}…` : 'Connected'
     : 'Disconnected';
 
-  const statusColor = ws.connected ? '#22c55e' : ws.reconnecting ? '#f59e0b' : '#ef4444';
-
   const canSend = ws.connected && !!inputText.trim() && !ws.streaming;
+
+  const spinRotate = sendRotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '90deg'],
+  });
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: c.barBg, borderBottomColor: c.border }]}>
-        <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} hitSlop={8}>
-          <Text style={[styles.backBtnText, { color: c.text }]}>‹</Text>
-        </TouchableOpacity>
-        <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-        <Text style={[styles.statusText, { color: c.badgeText }]} numberOfLines={1}>{statusText}</Text>
-        <TouchableOpacity style={styles.headerBtn} onPress={goDiffs} hitSlop={8}>
-          <View style={styles.diffsBtnInner}>
-            <Image source={require('@/assets/images/diff-logo.png')} style={styles.diffsBtnIcon} />
-            <Text style={[styles.headerBtnText, { color: c.badgeText }]}>Diffs</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.headerBtn}
-          onPress={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-          hitSlop={8}
-        >
-          <Text style={[styles.headerBtnText, { color: c.badgeText }]}>
-            {theme === 'light' ? '☾' : '☀'}
-          </Text>
-        </TouchableOpacity>
+      {/* Header with blur */}
+      <View style={[styles.headerWrap, { borderBottomColor: c.border }]}>
+        <BlurView intensity={80} tint={theme === 'dark' ? 'dark' : 'light'} style={styles.header}>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+            hitSlop={8}
+          >
+            <Text style={[styles.backBtnText, { color: c.text }]}>‹</Text>
+          </TouchableOpacity>
+          <PulsingDot connected={ws.connected} reconnecting={ws.reconnecting} />
+          <Text style={[styles.statusText, { color: c.badgeText }]} numberOfLines={1}>{statusText}</Text>
+          <TouchableOpacity style={styles.headerBtn} onPress={goDiffs} hitSlop={8}>
+            <View style={styles.diffsBtnInner}>
+              <Image source={require('@/assets/images/diff-logo.png')} style={styles.diffsBtnIcon} />
+              <Text style={[styles.headerBtnText, { color: c.badgeText }]}>Diffs</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => {
+              Haptics.selectionAsync();
+              setTheme(theme === 'light' ? 'dark' : 'light');
+            }}
+            hitSlop={8}
+          >
+            <Text style={[styles.headerBtnText, { color: c.badgeText }]}>
+              {theme === 'light' ? '☾' : '☀'}
+            </Text>
+          </TouchableOpacity>
+        </BlurView>
       </View>
 
       {/* Messages */}
@@ -129,9 +192,18 @@ export default function Chat() {
         )}
 
         {/* Input bar */}
-        <View style={[styles.inputBar, { backgroundColor: c.barBg, borderTopColor: c.border }]}>
+        <View style={[
+          styles.inputBar,
+          { backgroundColor: c.barBg, borderTopColor: c.border },
+          Platform.OS === 'ios' && styles.inputBarShadow,
+          Platform.OS === 'ios' && { shadowColor: c.shadow },
+        ]}>
           <TextInput
-            style={[styles.textInput, { backgroundColor: c.inputBg, borderColor: c.border, color: c.text }]}
+            style={[
+              styles.textInput,
+              { backgroundColor: c.inputBg, borderColor: inputFocused ? c.accent : c.border, color: c.text },
+              inputFocused && { borderWidth: 1.5 },
+            ]}
             placeholder="Message…"
             placeholderTextColor={c.badgeText}
             value={inputText}
@@ -140,12 +212,14 @@ export default function Chat() {
             editable={ws.connected && !ws.streaming}
             onSubmitEditing={send}
             blurOnSubmit={false}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
           />
-          <Animated.View style={{ transform: [{ scale: sendScale }] }}>
+          <Animated.View style={{ transform: [{ scale: sendScale }, { rotate: spinRotate }] }}>
             {ws.streaming ? (
               <TouchableOpacity
                 style={[styles.sendBtn, styles.abortBtn]}
-                onPress={ws.abort}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); ws.abort(); }}
                 onPressIn={() =>
                   Animated.spring(sendScale, { toValue: 0.9, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
                 }
@@ -192,12 +266,14 @@ export default function Chat() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   flex: { flex: 1 },
+  headerWrap: {
+    borderBottomWidth: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 8,
-    borderBottomWidth: 1,
     gap: 4,
   },
   statusDot: {
@@ -255,6 +331,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: 1,
     gap: 8,
+  },
+  inputBarShadow: {
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   textInput: {
     flex: 1,

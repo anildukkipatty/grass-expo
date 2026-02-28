@@ -1,9 +1,11 @@
 import React, { useRef, useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated, Image, TextInput,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated, Image, TextInput, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { Session, useWebSocket } from '@/hooks/use-websocket';
@@ -12,12 +14,14 @@ import { listSessionsStore } from '@/store/connection-store';
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  headerWrap: {
+    borderBottomWidth: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    borderBottomWidth: 1,
     gap: 12,
   },
   headerTitleGroup: {
@@ -118,6 +122,15 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     opacity: 0.6,
   },
+  emptyIcon: {
+    marginBottom: 8,
+    opacity: 0.4,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+  },
 });
 
 function trimCwd(path: string, maxLen = 30): string {
@@ -159,7 +172,10 @@ function SessionItem({ item, onPress, c }: {
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
         style={[styles.sessionItem, { backgroundColor: c.assistantBubble, borderColor: c.border }]}
-        onPress={onPress}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          onPress();
+        }}
         onPressIn={() =>
           Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
         }
@@ -191,6 +207,7 @@ export default function Sessions() {
   const c = GrassColors[theme];
   const newBtnScale = useRef(new Animated.Value(1)).current;
   const [query, setQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const ws = useWebSocket(wsUrl ?? null);
 
@@ -225,41 +242,55 @@ export default function Sessions() {
 
   function goDiffs() {
     if (!wsUrl) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push({ pathname: '/diffs', params: { wsUrl } });
+  }
+
+  async function handleRefresh() {
+    if (!wsUrl) return;
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    listSessionsStore(wsUrl);
+    setTimeout(() => setRefreshing(false), 800);
   }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
-      <View style={[styles.header, { backgroundColor: c.barBg, borderBottomColor: c.border }]}>
-        <View style={styles.headerTitleGroup}>
-          {cwd ? (
-            <Text style={[styles.headerCwd, { color: c.text }]} numberOfLines={1}>
-              {trimCwd(cwd)}
-            </Text>
-          ) : null}
-        </View>
-        <TouchableOpacity style={styles.diffsBtn} onPress={goDiffs} hitSlop={8}>
-          <View style={styles.diffsBtnInner}>
-            <Image source={require('@/assets/images/diff-logo.png')} style={styles.diffsBtnIcon} />
-            <Text style={[styles.diffsBtnText, { color: c.badgeText }]}>Diffs</Text>
+      <View style={[styles.headerWrap, { borderBottomColor: c.border }]}>
+        <BlurView intensity={80} tint={theme === 'dark' ? 'dark' : 'light'} style={styles.header}>
+          <View style={styles.headerTitleGroup}>
+            {cwd ? (
+              <Text style={[styles.headerCwd, { color: c.text }]} numberOfLines={1}>
+                {trimCwd(cwd)}
+              </Text>
+            ) : null}
           </View>
-        </TouchableOpacity>
-        <Animated.View style={{ transform: [{ scale: newBtnScale }] }}>
-          <TouchableOpacity
-            style={[styles.newBtn, { backgroundColor: c.accent }]}
-            onPress={() => openChat()}
-            onPressIn={() =>
-              Animated.spring(newBtnScale, { toValue: 0.94, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
-            }
-            onPressOut={() =>
-              Animated.spring(newBtnScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()
-            }
-            activeOpacity={1}
-          >
-            <Ionicons name="add" size={18} color="#fff" />
-            <Text style={styles.newBtnText}>New</Text>
+          <TouchableOpacity style={styles.diffsBtn} onPress={goDiffs} hitSlop={8}>
+            <View style={styles.diffsBtnInner}>
+              <Image source={require('@/assets/images/diff-logo.png')} style={styles.diffsBtnIcon} />
+              <Text style={[styles.diffsBtnText, { color: c.badgeText }]}>Diffs</Text>
+            </View>
           </TouchableOpacity>
-        </Animated.View>
+          <Animated.View style={{ transform: [{ scale: newBtnScale }] }}>
+            <TouchableOpacity
+              style={[styles.newBtn, { backgroundColor: c.accent }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                openChat();
+              }}
+              onPressIn={() =>
+                Animated.spring(newBtnScale, { toValue: 0.94, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
+              }
+              onPressOut={() =>
+                Animated.spring(newBtnScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()
+              }
+              activeOpacity={1}
+            >
+              <Ionicons name="add" size={18} color="#fff" />
+              <Text style={styles.newBtnText}>New</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </BlurView>
       </View>
 
       <TextInput
@@ -284,8 +315,12 @@ export default function Sessions() {
         </View>
       ) : sessions.length === 0 ? (
         <View style={styles.center}>
+          <Ionicons name="chatbubbles-outline" size={44} color={c.badgeText} style={styles.emptyIcon} />
+          <Text style={[styles.emptyTitle, { color: c.text }]}>
+            {query.trim() ? 'No matching sessions' : 'No threads yet'}
+          </Text>
           <Text style={[styles.statusText, { color: c.badgeText }]}>
-            {query.trim() ? 'No matching sessions' : 'No sessions yet'}
+            {query.trim() ? 'Try a different search' : 'Start a new conversation'}
           </Text>
         </View>
       ) : (
@@ -293,6 +328,14 @@ export default function Sessions() {
           data={sessions}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={c.accent}
+              colors={[c.accent]}
+            />
+          }
           renderItem={({ item }) => (
             <SessionItem item={item} c={c} onPress={() => openChat(item.id)} />
           )}

@@ -4,8 +4,10 @@ import {
   SafeAreaView, Alert, Animated, PanResponder,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { CameraView } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { getUrls, removeUrl, saveUrl } from '@/store/url-store';
@@ -30,6 +32,38 @@ const AGENT_LOGOS: Record<string, ReturnType<typeof require>> = {
   'opencode': require('@/assets/images/open-code.png'),
 };
 
+/* ── Pulsing status dot ── */
+function PulsingDot({ status }: { status: ConnectionStatus }) {
+  const pulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (status === 'disconnected') {
+      pulse.setValue(1);
+      return;
+    }
+    const speed = status === 'reconnecting' ? 600 : 1800;
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.4, duration: speed / 2, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: speed / 2, useNativeDriver: true }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [status, pulse]);
+
+  const opacity = pulse.interpolate({ inputRange: [1, 1.4], outputRange: [1, 0.5] });
+
+  return (
+    <Animated.View
+      style={[
+        styles.dot,
+        { backgroundColor: STATUS_COLORS[status], transform: [{ scale: pulse }], opacity },
+      ]}
+    />
+  );
+}
+
 function ServerItem({ item, onPress, onDelete, c, status, cwd, agent }: {
   item: string;
   onPress: () => void;
@@ -41,7 +75,10 @@ function ServerItem({ item, onPress, onDelete, c, status, cwd, agent }: {
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
+  const itemHeight = useRef(new Animated.Value(1)).current;
+  const itemOpacity = useRef(new Animated.Value(1)).current;
   const isOpen = useRef(false);
+  const didHaptic = useRef(false);
   const deleteOpacity = translateX.interpolate({
     inputRange: [-DELETE_WIDTH, -1, 0],
     outputRange: [1, 1, 0],
@@ -52,9 +89,14 @@ function ServerItem({ item, onPress, onDelete, c, status, cwd, agent }: {
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) =>
         Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderGrant: () => { didHaptic.current = false; },
       onPanResponderMove: (_, g) => {
         const x = isOpen.current ? g.dx - DELETE_WIDTH : g.dx;
         translateX.setValue(Math.min(0, Math.max(-DELETE_WIDTH, x)));
+        if (x < -DELETE_WIDTH / 2 && !didHaptic.current) {
+          didHaptic.current = true;
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }
       },
       onPanResponderRelease: (_, g) => {
         const x = isOpen.current ? g.dx - DELETE_WIDTH : g.dx;
@@ -74,14 +116,23 @@ function ServerItem({ item, onPress, onDelete, c, status, cwd, agent }: {
     isOpen.current = false;
   }
 
+  function handleDelete() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Animated.parallel([
+      Animated.timing(itemOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+      Animated.timing(itemHeight, { toValue: 0, duration: 250, useNativeDriver: true }),
+    ]).start(() => onDelete());
+  }
+
   function displayUrl(url: string) {
     return url.replace(/^wss?:\/\//, '');
   }
 
   return (
-    <View style={{ overflow: 'hidden', borderRadius: 14 }}>
+    <Animated.View style={{ overflow: 'hidden', borderRadius: 14, opacity: itemOpacity, transform: [{ scaleY: itemHeight }] }}>
       <Animated.View style={[styles.deleteBtn, { opacity: deleteOpacity }]}>
-        <TouchableOpacity style={styles.deleteBtnInner} onPress={onDelete} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.deleteBtnInner} onPress={handleDelete} activeOpacity={0.8}>
+          <Ionicons name="trash-outline" size={18} color="#fff" style={{ marginBottom: 2 }} />
           <Text style={styles.deleteBtnText}>Delete</Text>
         </TouchableOpacity>
       </Animated.View>
@@ -92,7 +143,12 @@ function ServerItem({ item, onPress, onDelete, c, status, cwd, agent }: {
       >
         <TouchableOpacity
           style={[styles.serverItem, { backgroundColor: c.assistantBubble, borderColor: c.border }]}
-          onPress={() => { if (isOpen.current) { close(); } else { onPress(); } }}
+          onPress={() => {
+            if (isOpen.current) { close(); } else {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onPress();
+            }
+          }}
           onPressIn={() =>
             Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
           }
@@ -101,7 +157,7 @@ function ServerItem({ item, onPress, onDelete, c, status, cwd, agent }: {
           }
           activeOpacity={1}
         >
-          <View style={[styles.dot, { backgroundColor: STATUS_COLORS[status] }]} />
+          <PulsingDot status={status} />
           {agent && AGENT_LOGOS[agent] && (
             <Image source={AGENT_LOGOS[agent]} style={styles.agentLogo} contentFit="contain" />
           )}
@@ -124,7 +180,58 @@ function ServerItem({ item, onPress, onDelete, c, status, cwd, agent }: {
           <Text style={[styles.chevron, { color: c.badgeText }]}>›</Text>
         </TouchableOpacity>
       </Animated.View>
-    </View>
+    </Animated.View>
+  );
+}
+
+/* ── Pulsing QR empty-state icon ── */
+function PulsingQRIcon({ color }: { color: string }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(0.5)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(scale, { toValue: 1.12, duration: 1200, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(scale, { toValue: 1, duration: 1200, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.5, duration: 1200, useNativeDriver: true }),
+        ]),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [scale, opacity]);
+
+  return (
+    <Animated.View style={{ transform: [{ scale }], opacity }}>
+      <Ionicons name="qr-code-outline" size={56} color={color} />
+    </Animated.View>
+  );
+}
+
+/* ── Bouncing arrow ── */
+function BouncingArrow({ color }: { color: string }) {
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(translateY, { toValue: 8, duration: 600, useNativeDriver: true }),
+        Animated.timing(translateY, { toValue: 0, duration: 600, useNativeDriver: true }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [translateY]);
+
+  return (
+    <Animated.View style={{ transform: [{ translateY }], marginTop: 10 }}>
+      <Ionicons name="arrow-down" size={22} color={color} />
+    </Animated.View>
   );
 }
 
@@ -160,6 +267,7 @@ export default function Home() {
   }, []);
 
   async function handleScan() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       await CameraView.launchScanner({ barcodeTypes: ['qr'] });
     } catch (err) {
@@ -205,9 +313,14 @@ export default function Home() {
           </View>
         ) : (
           <View style={styles.empty}>
-            <Text style={[styles.emptyText, { color: c.badgeText }]}>
-              No servers saved yet.{'\n'}Scan a QR code to connect.
+            <PulsingQRIcon color={c.badgeText} />
+            <Text style={[styles.emptyTitle, { color: c.text }]}>
+              No servers saved yet
             </Text>
+            <Text style={[styles.emptyText, { color: c.badgeText }]}>
+              Scan a QR code to get started
+            </Text>
+            <BouncingArrow color={c.badgeText} />
           </View>
         )}
 
@@ -293,6 +406,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingBottom: 32,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 16,
+    letterSpacing: -0.3,
   },
   emptyText: {
     fontSize: 15,
@@ -314,10 +434,11 @@ const styles = StyleSheet.create({
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 2,
   },
   deleteBtnText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.2,
   },

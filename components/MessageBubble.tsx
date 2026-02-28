@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { GrassColors } from '@/constants/theme';
 import { markdownStyles } from '@/constants/markdownStyles';
@@ -29,6 +29,19 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
   const c = GrassColors[theme];
   const fenceRules = React.useMemo(() => makeFenceRules(theme), [theme]);
 
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(12)).current;
+  const didAnimate = useRef(false);
+
+  useEffect(() => {
+    if (didAnimate.current) return;
+    didAnimate.current = true;
+    Animated.parallel([
+      Animated.spring(fadeAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 4 }),
+      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 4 }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
+
   const bubbleStyle = role === 'user'
     ? { backgroundColor: c.userBubble, alignSelf: 'flex-end' as const, borderBottomRightRadius: 5 }
     : role === 'assistant'
@@ -42,7 +55,14 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
     : c.errorText;
 
   return (
-    <View style={[styles.bubble, bubbleStyle, role === 'assistant' && styles.assistantBubbleLayout]}>
+    <Animated.View
+      style={[
+        styles.bubble,
+        bubbleStyle,
+        role === 'assistant' && styles.assistantBubbleLayout,
+        { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+      ]}
+    >
       {role === 'assistant' ? (
         <View style={styles.markdownWrapper}>
           <Markdown style={markdownStyles(theme)} rules={fenceRules}>
@@ -53,7 +73,7 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
         <Text style={[styles.text, { color: textColor }]}>{content}</Text>
       )}
       {badge ? <Text style={[styles.badge, { color: c.badgeText }]}>{badge}</Text> : null}
-    </View>
+    </Animated.View>
   );
 }
 

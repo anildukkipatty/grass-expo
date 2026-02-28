@@ -16,7 +16,7 @@ function Dot({ delay, accent }: { delay: number; accent: string }) {
       Animated.sequence([
         Animated.delay(delay),
         Animated.parallel([
-          Animated.spring(scale, { toValue: 1.2, useNativeDriver: true, speed: 18, bounciness: 8 }),
+          Animated.spring(scale, { toValue: 1.3, useNativeDriver: true, speed: 18, bounciness: 8 }),
           Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
         ]),
         Animated.parallel([
@@ -35,10 +35,37 @@ function Dot({ delay, accent }: { delay: number; accent: string }) {
   );
 }
 
+function ShimmerBar({ accent }: { accent: string }) {
+  const translateX = useRef(new Animated.Value(-1)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.timing(translateX, { toValue: 1, duration: 2000, useNativeDriver: true }),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [translateX]);
+
+  const shimmerTranslateX = translateX.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [-200, 400],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.shimmer,
+        { backgroundColor: accent, transform: [{ translateX: shimmerTranslateX }] },
+      ]}
+    />
+  );
+}
+
 export function ActivityBar({ label, theme }: Props) {
   const c = GrassColors[theme];
   return (
     <View style={[styles.bar, { backgroundColor: c.barBg, borderTopColor: c.border }]}>
+      <ShimmerBar accent={c.accent} />
       <View style={styles.dots}>
         <Dot delay={0} accent={c.accent} />
         <Dot delay={160} accent={c.accent} />
@@ -58,6 +85,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     gap: 10,
     minHeight: 36,
+    overflow: 'hidden',
   },
   dots: {
     flexDirection: 'row',
@@ -65,13 +93,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   label: {
     fontSize: 13,
     flex: 1,
     letterSpacing: 0.1,
+  },
+  shimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 120,
+    opacity: 0.06,
   },
 });

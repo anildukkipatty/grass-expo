@@ -1,5 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { GrassColors } from '@/constants/theme';
 import { Fonts } from '@/constants/theme';
 import { fenceColors } from '@/constants/markdownStyles';
@@ -41,11 +42,35 @@ export function PermissionModal({ item, onAllow, onDeny, theme }: Props) {
   const sections = formatSections(item.toolName, item.input);
   const denyScale = useRef(new Animated.Value(1)).current;
   const allowScale = useRef(new Animated.Value(1)).current;
+  const cardScale = useRef(new Animated.Value(0.85)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(cardScale, { toValue: 1, useNativeDriver: true, speed: 16, bounciness: 6 }),
+      Animated.timing(cardOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+    ]).start();
+  }, [cardScale, cardOpacity]);
+
+  function handleAllow() {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onAllow();
+  }
+
+  function handleDeny() {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    onDeny();
+  }
 
   return (
-    <Modal transparent animationType="fade" visible>
-      <View style={[styles.overlay, { backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.72)' : 'rgba(0,0,0,0.45)' }]}>
-        <View style={[styles.card, { backgroundColor: c.assistantBubble, borderColor: c.border }]}>
+    <Modal transparent animationType="none" visible>
+      <View style={[styles.overlay, { backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.78)' : 'rgba(0,0,0,0.5)' }]}>
+        <Animated.View
+          style={[
+            styles.card,
+            { backgroundColor: c.assistantBubble, borderColor: c.border, transform: [{ scale: cardScale }], opacity: cardOpacity },
+          ]}
+        >
           <View style={styles.titleRow}>
             <View style={[styles.toolBadge, { backgroundColor: c.accentSoft }]}>
               <Text style={[styles.toolBadgeText, { color: c.accent }]}>{item.toolName}</Text>
@@ -68,7 +93,7 @@ export function PermissionModal({ item, onAllow, onDeny, theme }: Props) {
             <Animated.View style={{ transform: [{ scale: denyScale }] }}>
               <TouchableOpacity
                 style={[styles.denyBtn, { borderColor: c.border, backgroundColor: c.bg }]}
-                onPress={onDeny}
+                onPress={handleDeny}
                 onPressIn={() =>
                   Animated.spring(denyScale, { toValue: 0.94, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
                 }
@@ -83,7 +108,7 @@ export function PermissionModal({ item, onAllow, onDeny, theme }: Props) {
             <Animated.View style={{ transform: [{ scale: allowScale }] }}>
               <TouchableOpacity
                 style={styles.allowBtn}
-                onPress={onAllow}
+                onPress={handleAllow}
                 onPressIn={() =>
                   Animated.spring(allowScale, { toValue: 0.94, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
                 }
@@ -96,7 +121,7 @@ export function PermissionModal({ item, onAllow, onDeny, theme }: Props) {
               </TouchableOpacity>
             </Animated.View>
           </View>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
