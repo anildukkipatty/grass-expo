@@ -13,6 +13,7 @@ import { useWebSocket } from '@/hooks/use-websocket';
 import { getDiffsStore } from '@/store/connection-store';
 import { ExplorerPanel } from '@/components/ExplorerPanel';
 import { DiffViewer } from '@/components/DiffViewer';
+import { isIPad } from '@/utils/device';
 
 const AGENTS = [
   {
@@ -33,7 +34,7 @@ type SidebarMode = 'explorer' | 'agent' | 'diffs' | 'terminal';
 
 const SIDEBAR_ITEMS: { mode: SidebarMode; icon: React.ComponentProps<typeof Ionicons>['name']; disabled?: boolean }[] = [
   { mode: 'explorer', icon: 'folder-open-outline' },
-  { mode: 'agent',    icon: 'person-circle-outline' },
+  { mode: 'agent',    icon: 'code-slash-outline' },
   { mode: 'diffs',    icon: 'git-compare-outline' },
   { mode: 'terminal', icon: 'terminal-outline', disabled: true },
 ];
@@ -144,56 +145,58 @@ export default function Project() {
         </BlurView>
       </View>
 
-      {/* Body: sidebar + content */}
-      <View style={styles.body}>
-        {/* 52px sidebar */}
-        <View style={[styles.sidebar, { borderRightColor: c.border, backgroundColor: c.barBg }]}>
-          {SIDEBAR_ITEMS.map(item => {
-            const isActive = !item.disabled && (
-              item.mode === activeMode ||
-              (item.mode === 'agent' && agentModalVisible)
-            );
-            return (
-              <TouchableOpacity
-                key={item.mode}
-                style={styles.sidebarBtn}
-                onPress={() => handleSidebarTap(item.mode, item.disabled)}
-                activeOpacity={0.7}
-              >
-                {isActive && (
-                  <View style={[styles.activeIndicator, { backgroundColor: c.accent }]} />
-                )}
-                <Ionicons
-                  name={item.icon}
-                  size={24}
-                  color={item.disabled ? c.badgeText + '44' : isActive ? c.accent : c.badgeText}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+      {/* Body: sidebar + content (iPad only) */}
+      {isIPad && (
+        <View style={styles.body}>
+          {/* 52px sidebar */}
+          <View style={[styles.sidebar, { borderRightColor: c.border, backgroundColor: c.barBg }]}>
+            {SIDEBAR_ITEMS.map(item => {
+              const isActive = !item.disabled && (
+                item.mode === activeMode ||
+                (item.mode === 'agent' && agentModalVisible)
+              );
+              return (
+                <TouchableOpacity
+                  key={item.mode}
+                  style={styles.sidebarBtn}
+                  onPress={() => handleSidebarTap(item.mode, item.disabled)}
+                  activeOpacity={0.7}
+                >
+                  {isActive && (
+                    <View style={[styles.activeIndicator, { backgroundColor: c.accent }]} />
+                  )}
+                  <Ionicons
+                    name={item.icon}
+                    size={24}
+                    color={item.disabled ? c.badgeText + '44' : isActive ? c.accent : c.badgeText}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-        {/* Content area */}
-        <View style={styles.content}>
-          {activeMode === 'explorer' && wsUrl && repoPath ? (
-            <ExplorerPanel wsUrl={wsUrl} repoPath={repoPath} theme={theme} />
-          ) : activeMode === 'diffs' && wsUrl ? (
-            <DiffViewer wsUrl={wsUrl} />
-          ) : null}
+          {/* Content area */}
+          <View style={styles.content}>
+            {activeMode === 'explorer' && wsUrl && repoPath ? (
+              <ExplorerPanel wsUrl={wsUrl} repoPath={repoPath} theme={theme} />
+            ) : activeMode === 'diffs' && wsUrl ? (
+              <DiffViewer wsUrl={wsUrl} />
+            ) : null}
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Agent picker modal */}
       <Modal
         visible={agentModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setAgentModalVisible(false)}
+        onRequestClose={() => { if (isIPad) setAgentModalVisible(false); else router.back(); }}
       >
         <TouchableOpacity
           style={styles.modalBackdrop}
           activeOpacity={1}
-          onPress={() => setAgentModalVisible(false)}
+          onPress={() => { if (isIPad) setAgentModalVisible(false); }}
         >
           <View
             style={[styles.modalSheet, { backgroundColor: c.bg, borderTopColor: c.border }]}
@@ -201,7 +204,14 @@ export default function Project() {
             onStartShouldSetResponder={() => true}
           >
             <View style={[styles.modalHandle, { backgroundColor: c.badgeText }]} />
-            <Text style={[styles.modalTitle, { color: c.badgeText }]}>Select an agent</Text>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: c.badgeText }]}>Select an agent</Text>
+              {!isIPad && (
+                <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+                  <Ionicons name="close" size={20} color={c.badgeText} />
+                </TouchableOpacity>
+              )}
+            </View>
             <View style={styles.agentList}>
               {AGENTS.map(agent => (
                 <AgentCard
@@ -307,13 +317,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     opacity: 0.3,
   },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginBottom: 12,
+  },
   modalTitle: {
     fontSize: 13,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 12,
-    paddingHorizontal: 4,
   },
   agentList: {
     gap: 10,

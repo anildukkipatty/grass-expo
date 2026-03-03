@@ -68,6 +68,7 @@ interface ConnectionEntry {
   diffs: string | null;
   dirListing: DirEntry[] | null;
   fileContent: FileContentResult | null;
+  cloneStatus: { cloning: boolean; creating: boolean; error: string | null };
 
   listeners: Set<() => void>;
 }
@@ -216,6 +217,22 @@ function connect(url: string) {
     if (data.type === 'repos_list') { entry.repos = (data.repos as Repo[]) || []; notifyListeners(url); return; }
     if (data.type === 'repo_selected') { notifyListeners(url); return; }
 
+    if (data.type === 'repo_cloned') {
+      const repo: Repo = { path: data.path as string, name: data.name as string, isGit: true };
+      entry.repos = [...entry.repos, repo];
+      entry.cloneStatus = { cloning: false, creating: false, error: null };
+      notifyListeners(url);
+      return;
+    }
+
+    if (data.type === 'folder_created') {
+      const repo: Repo = { path: data.path as string, name: data.name as string, isGit: false };
+      entry.repos = [...entry.repos, repo];
+      entry.cloneStatus = { cloning: false, creating: false, error: null };
+      notifyListeners(url);
+      return;
+    }
+
     if (data.type === 'dir_listing') {
       entry.dirListing = (data.entries as DirEntry[]) ?? [];
       notifyListeners(url);
@@ -324,7 +341,11 @@ function connect(url: string) {
     } else if (data.type === 'error') {
       entry.streaming = false;
       entry.activity = null;
-      entry.messages = [...entry.messages, { role: 'error', content: data.message as string, complete: true, msgId: nextMsgId(entry) }];
+      if (entry.cloneStatus.cloning || entry.cloneStatus.creating) {
+        entry.cloneStatus = { ...entry.cloneStatus, cloning: false, creating: false, error: data.message as string };
+      } else {
+        entry.messages = [...entry.messages, { role: 'error', content: data.message as string, complete: true, msgId: nextMsgId(entry) }];
+      }
       notifyListeners(url);
     }
   };
@@ -383,6 +404,7 @@ export function openConnection(url: string) {
     diffs: null,
     dirListing: null,
     fileContent: null,
+    cloneStatus: { cloning: false, creating: false, error: null },
     listeners: new Set(),
   };
   _connections.set(url, entry);
@@ -512,6 +534,29 @@ export function listDirStore(url: string, path?: string) {
   entry.dirListing = null;
   notifyListeners(url);
   entry.ws.send(JSON.stringify({ type: 'list_dir', ...(path ? { path } : {}) }));
+}
+
+export function cloneRepoStore(url: string, gitUrl: string) {
+  const entry = _connections.get(url);
+  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
+  entry.cloneStatus = { cloning: true, creating: false, error: null };
+  notifyListeners(url);
+  entry.ws.send(JSON.stringify({ type: 'clone_repo', url: gitUrl }));
+}
+
+export function createFolderStore(url: string, name: string) {
+  const entry = _connections.get(url);
+  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
+  entry.cloneStatus = { cloning: false, creating: true, error: null };
+  notifyListeners(url);
+  entry.ws.send(JSON.stringify({ type: 'create_folder', name }));
+}
+
+export function clearCloneStatusStore(url: string) {
+  const entry = _connections.get(url);
+  if (!entry) return;
+  entry.cloneStatus = { cloning: false, creating: false, error: null };
+  notifyListeners(url);
 }
 
 export function readFileStore(url: string, path: string) {
