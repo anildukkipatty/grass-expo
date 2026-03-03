@@ -277,7 +277,7 @@ export default function Home() {
 
   function handleSelect(url: string) {
     reconnectNow(url);
-    router.push({ pathname: '/sessions', params: { wsUrl: url } });
+    router.push({ pathname: '/folders', params: { wsUrl: url } });
   }
 
   async function handleDelete(url: string) {

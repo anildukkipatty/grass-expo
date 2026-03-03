@@ -202,7 +202,7 @@ function SessionItem({ item, onPress, c }: {
 
 export default function Sessions() {
   const router = useRouter();
-  const { wsUrl } = useLocalSearchParams<{ wsUrl: string }>();
+  const { wsUrl, repoPath, repoName } = useLocalSearchParams<{ wsUrl: string; repoPath?: string; repoName?: string }>();
   const [theme] = useTheme();
   const c = GrassColors[theme];
   const newBtnScale = useRef(new Animated.Value(1)).current;
@@ -237,6 +237,7 @@ export default function Sessions() {
   function openChat(sessionId?: string) {
     const params: Record<string, string> = { wsUrl: wsUrl! };
     if (sessionId) params.sessionId = sessionId;
+    if (repoName) params.repoName = repoName;
     router.push({ pathname: '/chat', params });
   }
 
@@ -259,6 +260,11 @@ export default function Sessions() {
       <View style={[styles.headerWrap, { borderBottomColor: c.border }]}>
         <BlurView intensity={80} tint={theme === 'dark' ? 'dark' : 'light'} style={styles.header}>
           <View style={styles.headerTitleGroup}>
+            {repoName ? (
+              <Text style={[styles.headerTitle, { color: c.text }]} numberOfLines={1}>
+                {repoName}
+              </Text>
+            ) : null}
             {cwd ? (
               <Text style={[styles.headerCwd, { color: c.text }]} numberOfLines={1}>
                 {trimCwd(cwd)}

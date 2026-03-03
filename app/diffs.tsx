@@ -3,6 +3,7 @@ import { ScrollView, Text, StyleSheet, SafeAreaView, View, ActivityIndicator } f
 import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
+import { getEntry, getDiffsStore, subscribeToConnection } from '@/store/connection-store';
 
 type FileDiff = {
   filename: string;
@@ -144,92 +145,49 @@ export default function Diffs() {
   const [theme] = useTheme();
   const c = GrassColors[theme];
   const { wsUrl } = useLocalSearchParams<{ wsUrl: string }>();
-  const [text, setText] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const files = useMemo(() => parseFileDiffs(text), [text]);
+  const [, forceUpdate] = useState(0);
 
   useEffect(() => {
-    if (!wsUrl) {
-      setError('No server URL provided');
-      setLoading(false);
-      return;
-    }
-
-    let done = false;
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket(wsUrl);
-    } catch {
-      setError('Invalid server URL');
-      setLoading(false);
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      if (!done) {
-        done = true;
-        ws.close();
-        setError('Connection timed out');
-        setLoading(false);
-      }
-    }, 6000);
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'get_diffs' }));
-    };
-
-    ws.onmessage = (event) => {
-      if (done) return;
-      try {
-        const data = JSON.parse(event.data as string);
-        if (data.type === 'diffs') {
-          done = true;
-          clearTimeout(timeout);
-          const diff = (data.diff as string) || '';
-          setText(diff);
-          setLoading(false);
-          if (!diff) setError('No diffs available');
-          ws.close();
-        }
-      } catch {}
-    };
-
-    ws.onerror = () => {
-      if (!done) {
-        done = true;
-        clearTimeout(timeout);
-        setError('Failed to connect to server');
-        setLoading(false);
-      }
-    };
-
-    ws.onclose = () => {
-      if (!done) {
-        done = true;
-        clearTimeout(timeout);
-        setError('Connection closed');
-        setLoading(false);
-      }
-    };
-
-    return () => {
-      done = true;
-      clearTimeout(timeout);
-      ws.close();
-    };
+    if (!wsUrl) return;
+    // Send get_diffs on mount (or when connection becomes available)
+    getDiffsStore(wsUrl);
+    // Subscribe to connection updates so we re-render when diffs arrive
+    const unsub = subscribeToConnection(wsUrl, () => forceUpdate(n => n + 1));
+    return unsub;
   }, [wsUrl]);
+
+  if (!wsUrl) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
+        <View style={styles.empty}>
+          <Text style={[styles.emptyText, { color: c.badgeText }]}>No server URL provided</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const entry = getEntry(wsUrl);
+  const connected = entry?.connected ?? false;
+  const diffsText = entry?.diffs ?? null;
+
+  const files = useMemo(() => (diffsText ? parseFileDiffs(diffsText) : []), [diffsText]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
-      {loading ? (
+      {diffsText === null ? (
         <View style={styles.empty}>
-          <ActivityIndicator color={c.badgeText} style={{ marginBottom: 12 }} />
-          <Text style={[styles.emptyText, { color: c.badgeText }]}>Loading diffs…</Text>
+          {connected ? (
+            <>
+              <ActivityIndicator color={c.badgeText} style={{ marginBottom: 12 }} />
+              <Text style={[styles.emptyText, { color: c.badgeText }]}>Loading diffs…</Text>
+            </>
+          ) : (
+            <Text style={[styles.emptyText, { color: c.badgeText }]}>Not connected</Text>
+          )}
         </View>
-      ) : error && !text ? (
+      ) : diffsText === '' || files.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={[styles.emptyText, { color: c.badgeText }]}>{error}</Text>
+          <Text style={[styles.emptyText, { color: c.badgeText }]}>No diffs available</Text>
         </View>
       ) : (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>

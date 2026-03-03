@@ -8,10 +8,13 @@ import {
   respondPermissionStore,
   listSessionsStore,
   initSessionStore,
+  listReposStore,
+  selectRepoStore,
+  selectAgentStore,
 } from '@/store/connection-store';
 
 // Re-export types so existing importers keep working
-export type { Message, PermissionItem, Session } from '@/store/connection-store';
+export type { Message, PermissionItem, Session, Repo } from '@/store/connection-store';
 
 export interface UseWebSocketResult {
   connected: boolean;
@@ -23,11 +26,15 @@ export interface UseWebSocketResult {
   sessionId: string | null;
   sessionsList: import('@/store/connection-store').Session[];
   cwd: string | null;
+  repos: import('@/store/connection-store').Repo[];
   send: (text: string) => void;
   abort: () => void;
   respondPermission: (approved: boolean) => void;
   listSessions: () => void;
   initSession: (id: string | null) => void;
+  listRepos: () => void;
+  selectRepo: (path: string) => void;
+  selectAgent: (agent: string) => void;
 }
 
 export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
@@ -46,6 +53,9 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
   const respondPerm = useCallback((ok: boolean) => { if (wsUrl) respondPermissionStore(wsUrl, ok); }, [wsUrl]);
   const listSess    = useCallback(() => { if (wsUrl) listSessionsStore(wsUrl); }, [wsUrl]);
   const initSess    = useCallback((id: string | null) => { if (wsUrl) initSessionStore(wsUrl, id); }, [wsUrl]);
+  const listRepos   = useCallback(() => { if (wsUrl) listReposStore(wsUrl); }, [wsUrl]);
+  const selectRepo  = useCallback((path: string) => { if (wsUrl) selectRepoStore(wsUrl, path); }, [wsUrl]);
+  const selectAgent = useCallback((agent: string) => { if (wsUrl) selectAgentStore(wsUrl, agent); }, [wsUrl]);
 
   return {
     connected:       entry?.connected       ?? false,
@@ -57,10 +67,14 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
     sessionId:       entry?.sessionId       ?? null,
     sessionsList:    entry?.sessionsList    ?? [],
     cwd:             entry?.cwd             ?? null,
+    repos:           entry?.repos           ?? [],
     send,
     abort,
     respondPermission: respondPerm,
     listSessions: listSess,
     initSession: initSess,
+    listRepos,
+    selectRepo,
+    selectAgent,
   };
 }

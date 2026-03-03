@@ -43,7 +43,7 @@ function PulsingDot({ connected, reconnecting }: { connected: boolean; reconnect
 
 export default function Chat() {
   const router = useRouter();
-  const { wsUrl, sessionId: initialSessionId } = useLocalSearchParams<{ wsUrl: string; sessionId?: string }>();
+  const { wsUrl, sessionId: initialSessionId, repoName } = useLocalSearchParams<{ wsUrl: string; sessionId?: string; repoName?: string }>();
   const [theme, setTheme] = useTheme();
   const [inputText, setInputText] = useState('');
   const inputTextRef = useRef('');
@@ -108,7 +108,7 @@ export default function Chat() {
   const statusText = ws.reconnecting
     ? 'Reconnecting...'
     : ws.connected
-    ? ws.sessionId ? `${ws.sessionId.slice(0, 8)}…` : 'Connected'
+    ? ws.sessionId ? `${ws.sessionId.slice(0, 8)}…` : (repoName || 'Connected')
     : 'Disconnected';
 
   const canSend = ws.connected && !!inputText.trim() && !ws.streaming;
