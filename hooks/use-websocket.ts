@@ -11,10 +11,12 @@ import {
   listReposStore,
   selectRepoStore,
   selectAgentStore,
+  listDirStore,
+  readFileStore,
 } from '@/store/connection-store';
 
 // Re-export types so existing importers keep working
-export type { Message, PermissionItem, Session, Repo } from '@/store/connection-store';
+export type { Message, PermissionItem, Session, Repo, DirEntry, FileContentResult } from '@/store/connection-store';
 
 export interface UseWebSocketResult {
   connected: boolean;
@@ -35,6 +37,10 @@ export interface UseWebSocketResult {
   listRepos: () => void;
   selectRepo: (path: string) => void;
   selectAgent: (agent: string) => void;
+  dirListing: import('@/store/connection-store').DirEntry[] | null;
+  fileContent: import('@/store/connection-store').FileContentResult | null;
+  listDir: (path?: string) => void;
+  readFile: (path: string) => void;
 }
 
 export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
@@ -56,6 +62,8 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
   const listRepos   = useCallback(() => { if (wsUrl) listReposStore(wsUrl); }, [wsUrl]);
   const selectRepo  = useCallback((path: string) => { if (wsUrl) selectRepoStore(wsUrl, path); }, [wsUrl]);
   const selectAgent = useCallback((agent: string) => { if (wsUrl) selectAgentStore(wsUrl, agent); }, [wsUrl]);
+  const listDir     = useCallback((path?: string) => { if (wsUrl) listDirStore(wsUrl, path); }, [wsUrl]);
+  const readFile    = useCallback((path: string)  => { if (wsUrl) readFileStore(wsUrl, path); }, [wsUrl]);
 
   return {
     connected:       entry?.connected       ?? false,
@@ -68,6 +76,8 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
     sessionsList:    entry?.sessionsList    ?? [],
     cwd:             entry?.cwd             ?? null,
     repos:           entry?.repos           ?? [],
+    dirListing:      entry?.dirListing      ?? null,
+    fileContent:     entry?.fileContent     ?? null,
     send,
     abort,
     respondPermission: respondPerm,
@@ -76,5 +86,7 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
     listRepos,
     selectRepo,
     selectAgent,
+    listDir,
+    readFile,
   };
 }

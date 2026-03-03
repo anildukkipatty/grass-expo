@@ -30,6 +30,19 @@ export interface Repo {
   isGit: boolean;
 }
 
+export type DirEntry = {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size: number | null;
+};
+
+export type FileContentResult = {
+  path: string;
+  content: string;
+  size: number;
+};
+
 interface ConnectionEntry {
   ws: WebSocket | null;
   pingInterval: ReturnType<typeof setInterval> | null;
@@ -53,6 +66,8 @@ interface ConnectionEntry {
   agent: string | null;
   repos: Repo[];
   diffs: string | null;
+  dirListing: DirEntry[] | null;
+  fileContent: FileContentResult | null;
 
   listeners: Set<() => void>;
 }
@@ -200,6 +215,21 @@ function connect(url: string) {
 
     if (data.type === 'repos_list') { entry.repos = (data.repos as Repo[]) || []; notifyListeners(url); return; }
     if (data.type === 'repo_selected') { notifyListeners(url); return; }
+
+    if (data.type === 'dir_listing') {
+      entry.dirListing = (data.entries as DirEntry[]) ?? [];
+      notifyListeners(url);
+      return;
+    }
+    if (data.type === 'file_content') {
+      entry.fileContent = {
+        path: data.path as string,
+        content: data.content as string,
+        size: data.size as number,
+      };
+      notifyListeners(url);
+      return;
+    }
 
     if (data.type === 'session_status') {
       entry.streaming = data.streaming as boolean;
@@ -351,6 +381,8 @@ export function openConnection(url: string) {
     agent: null,
     repos: [],
     diffs: null,
+    dirListing: null,
+    fileContent: null,
     listeners: new Set(),
   };
   _connections.set(url, entry);
@@ -472,6 +504,20 @@ export function selectAgentStore(url: string, agent: string) {
   if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
   entry.ws.send(JSON.stringify({ type: 'select_agent', agent }));
   entry.ws.send(JSON.stringify({ type: 'list_sessions' }));
+}
+
+export function listDirStore(url: string, path?: string) {
+  const entry = _connections.get(url);
+  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
+  entry.dirListing = null;
+  notifyListeners(url);
+  entry.ws.send(JSON.stringify({ type: 'list_dir', ...(path ? { path } : {}) }));
+}
+
+export function readFileStore(url: string, path: string) {
+  const entry = _connections.get(url);
+  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
+  entry.ws.send(JSON.stringify({ type: 'read_file', path }));
 }
 
 export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';

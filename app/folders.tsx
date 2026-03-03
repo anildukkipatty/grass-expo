@@ -86,7 +86,7 @@ export default function Folders() {
   function openAgentPicker(repo: Repo) {
     ws.selectRepo(repo.path);
     router.push({
-      pathname: '/agent-picker',
+      pathname: '/project',
       params: { wsUrl: wsUrl!, repoPath: repo.path, repoName: repo.name },
     });
   }

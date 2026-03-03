@@ -29,6 +29,7 @@ export default function RootLayout() {
         <Stack.Screen name="home" options={{ headerShown: false }} />
         <Stack.Screen name="folders" options={{ headerShown: false }} />
         <Stack.Screen name="agent-picker" options={{ headerShown: false }} />
+        <Stack.Screen name="project" options={{ headerShown: false }} />
         <Stack.Screen
           name="sessions"
           options={{ title: 'Previous threads' }}
