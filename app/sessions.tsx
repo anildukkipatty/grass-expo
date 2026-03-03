@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState, useCallback } from 'react';
+import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated, Image, TextInput, RefreshControl,
 } from 'react-native';
@@ -212,8 +212,13 @@ export default function Sessions() {
   const ws = useWebSocket(wsUrl ?? null);
 
   useFocusEffect(useCallback(() => {
-    if (wsUrl) listSessionsStore(wsUrl);
-  }, [wsUrl]));
+    if (wsUrl && ws.connected) listSessionsStore(wsUrl);
+  }, [wsUrl, ws.connected]));
+
+  useEffect(() => {
+    if (wsUrl && ws.connected) listSessionsStore(wsUrl);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ws.connected]);
 
   const sessions = useMemo(() => {
     const sorted = [...ws.sessionsList].sort((a, b) => {

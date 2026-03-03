@@ -39,8 +39,8 @@ export interface UseWebSocketResult {
   selectAgent: (agent: string) => void;
   dirListing: import('@/store/connection-store').DirEntry[] | null;
   fileContent: import('@/store/connection-store').FileContentResult | null;
-  listDir: (path?: string) => void;
-  readFile: (path: string) => void;
+  listDir: (path: string, repoPath: string) => void;
+  readFile: (path: string, repoPath: string) => void;
 }
 
 export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
@@ -62,8 +62,8 @@ export function useWebSocket(wsUrl: string | null): UseWebSocketResult {
   const listRepos   = useCallback(() => { if (wsUrl) listReposStore(wsUrl); }, [wsUrl]);
   const selectRepo  = useCallback((path: string) => { if (wsUrl) selectRepoStore(wsUrl, path); }, [wsUrl]);
   const selectAgent = useCallback((agent: string) => { if (wsUrl) selectAgentStore(wsUrl, agent); }, [wsUrl]);
-  const listDir     = useCallback((path?: string) => { if (wsUrl) listDirStore(wsUrl, path); }, [wsUrl]);
-  const readFile    = useCallback((path: string)  => { if (wsUrl) readFileStore(wsUrl, path); }, [wsUrl]);
+  const listDir     = useCallback((path: string, repoPath: string) => { if (wsUrl) listDirStore(wsUrl, path, repoPath); }, [wsUrl]);
+  const readFile    = useCallback((path: string, repoPath: string) => { if (wsUrl) readFileStore(wsUrl, path, repoPath); }, [wsUrl]);
 
   return {
     connected:       entry?.connected       ?? false,

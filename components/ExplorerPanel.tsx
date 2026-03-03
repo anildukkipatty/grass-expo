@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet,
+  View, Text, TouchableOpacity, ScrollView, Animated, StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import SyntaxHighlighter from 'react-syntax-highlighter/dist/esm/prism-light';
@@ -77,6 +77,34 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}M`;
 }
 
+const SKELETON_WIDTHS = [120, 90, 140, 75, 110, 95, 130, 85, 105, 70];
+
+function SkeletonRows({ c }: { c: typeof GrassColors['light'] }) {
+  const opacity = useRef(new Animated.Value(0.35)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.7, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.35, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [opacity]);
+
+  return (
+    <View style={styles.listContent}>
+      {SKELETON_WIDTHS.map((w, i) => (
+        <Animated.View key={i} style={[styles.skeletonRow, { opacity }]}>
+          <View style={[styles.skeletonIcon, { backgroundColor: c.badgeText }]} />
+          <View style={[styles.skeletonLabel, { backgroundColor: c.badgeText, width: w }]} />
+        </Animated.View>
+      ))}
+    </View>
+  );
+}
+
 export function ExplorerPanel({
   wsUrl,
   repoPath,
@@ -91,15 +119,16 @@ export function ExplorerPanel({
   const [currentPath, setCurrentPath] = useState(repoPath);
 
   useEffect(() => {
-    ws.listDir(currentPath);
+    if (!ws.connected) return;
+    ws.listDir(currentPath, repoPath);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPath]);
+  }, [currentPath, ws.connected]);
 
   function handleEntryTap(entry: DirEntry) {
     if (entry.type === 'directory') {
       setCurrentPath(entry.path);
     } else {
-      ws.readFile(entry.path);
+      ws.readFile(entry.path, repoPath);
     }
   }
 
@@ -213,9 +242,7 @@ export function ExplorerPanel({
         </View>
 
         {ws.dirListing === null ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator color={c.accent} />
-          </View>
+          <SkeletonRows c={c} />
         ) : (
           <ScrollView contentContainerStyle={styles.listContent}>
             {ws.dirListing.length === 0 ? (
@@ -303,10 +330,24 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     fontFamily: 'ui-monospace',
   },
-  loadingBox: {
-    flex: 1,
+  skeletonRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    gap: 8,
+  },
+  skeletonIcon: {
+    width: 14,
+    height: 14,
+    borderRadius: 3,
+    opacity: 0.4,
+    flexShrink: 0,
+  },
+  skeletonLabel: {
+    height: 11,
+    borderRadius: 4,
+    opacity: 0.35,
   },
   listContent: {
     paddingVertical: 4,

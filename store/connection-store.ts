@@ -52,6 +52,8 @@ interface ConnectionEntry {
   reconnectDelay: number;
   msgCounter: number;
   currentSessionId: string | null;
+  currentAgent: string | null;
+  currentRepoPath: string | null;
   active: boolean;
 
   connected: boolean;
@@ -159,9 +161,15 @@ function connect(url: string) {
     entry.reconnecting = false;
     entry.reconnectDelay = 1000;
     startPing(url);
-    ws.send(JSON.stringify({ type: 'list_sessions' }));
     ws.send(JSON.stringify({ type: 'get_cwd' }));
     ws.send(JSON.stringify({ type: 'list_repos' }));
+    if (entry.currentRepoPath) {
+      ws.send(JSON.stringify({ type: 'select_repo', path: entry.currentRepoPath }));
+    }
+    if (entry.currentAgent) {
+      ws.send(JSON.stringify({ type: 'select_agent', agent: entry.currentAgent }));
+    }
+    ws.send(JSON.stringify({ type: 'list_sessions' }));
     if (entry.currentSessionId) {
       ws.send(JSON.stringify({ type: 'init', sessionId: entry.currentSessionId }));
     }
@@ -389,6 +397,8 @@ export function openConnection(url: string) {
     reconnectDelay: 1000,
     msgCounter: 0,
     currentSessionId: null,
+    currentAgent: null,
+    currentRepoPath: null,
     active: true,
     connected: false,
     reconnecting: true,
@@ -517,23 +527,26 @@ export function listReposStore(url: string) {
 
 export function selectRepoStore(url: string, path: string) {
   const entry = _connections.get(url);
-  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
+  if (!entry) return;
+  entry.currentRepoPath = path;
+  if (!entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
   entry.ws.send(JSON.stringify({ type: 'select_repo', path }));
 }
 
 export function selectAgentStore(url: string, agent: string) {
   const entry = _connections.get(url);
   if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
+  entry.currentAgent = agent;
   entry.ws.send(JSON.stringify({ type: 'select_agent', agent }));
   entry.ws.send(JSON.stringify({ type: 'list_sessions' }));
 }
 
-export function listDirStore(url: string, path?: string) {
+export function listDirStore(url: string, path: string, repoPath: string) {
   const entry = _connections.get(url);
   if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
   entry.dirListing = null;
   notifyListeners(url);
-  entry.ws.send(JSON.stringify({ type: 'list_dir', ...(path ? { path } : {}) }));
+  entry.ws.send(JSON.stringify({ type: 'list_dir', path, repoPath }));
 }
 
 export function cloneRepoStore(url: string, gitUrl: string) {
@@ -559,10 +572,10 @@ export function clearCloneStatusStore(url: string) {
   notifyListeners(url);
 }
 
-export function readFileStore(url: string, path: string) {
+export function readFileStore(url: string, path: string, repoPath: string) {
   const entry = _connections.get(url);
   if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
-  entry.ws.send(JSON.stringify({ type: 'read_file', path }));
+  entry.ws.send(JSON.stringify({ type: 'read_file', path, repoPath }));
 }
 
 export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';

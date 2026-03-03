@@ -10,7 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { useWebSocket } from '@/hooks/use-websocket';
-import { getDiffsStore } from '@/store/connection-store';
+import { getDiffsStore, useConnectionStatuses } from '@/store/connection-store';
 import { ExplorerPanel } from '@/components/ExplorerPanel';
 import { DiffViewer } from '@/components/DiffViewer';
 import { isIPad } from '@/utils/device';
@@ -83,6 +83,9 @@ export default function Project() {
   const [theme, setTheme] = useTheme();
   const c = GrassColors[theme];
   const ws = useWebSocket(wsUrl ?? null);
+  const statuses = useConnectionStatuses();
+  const connStatus = wsUrl ? (statuses.get(wsUrl) ?? 'disconnected') : 'disconnected';
+  const statusDotColor = connStatus === 'connected' ? '#34C759' : connStatus === 'reconnecting' ? '#FF9500' : '#FF3B30';
 
   const [activeMode, setActiveMode] = useState<'explorer' | 'diffs'>('explorer');
   const [agentModalVisible, setAgentModalVisible] = useState(false);
@@ -131,6 +134,7 @@ export default function Project() {
             {repoName || 'Project'}
           </Text>
           <View style={{ flex: 1 }} />
+          <View style={[styles.statusDot, { backgroundColor: statusDotColor }]} />
           <TouchableOpacity
             style={styles.themeBtn}
             onPress={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -262,6 +266,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: -0.3,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 4,
   },
   themeBtn: {
     minWidth: 44,
