@@ -10,7 +10,7 @@ import { BlurView } from 'expo-blur';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { Repo, useWebSocket } from '@/hooks/use-websocket';
-import { listReposStore, cloneRepoStore, createFolderStore, getEntry, subscribeToConnection } from '@/store/connection-store';
+import { listReposStore, cloneRepoStore, createFolderStore } from '@/store/connection-store';
 import { isIPad } from '@/utils/device';
 
 const AGENTS = [
@@ -62,7 +62,11 @@ function AgentCard({ agent, onPress, c }: {
 }
 
 function hostFromUrl(url: string): string {
-  return url.replace(/^wss?:\/\//, '').replace(/\/.*$/, '');
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
 }
 
 function RepoItem({ item, onPress, c }: {
@@ -117,9 +121,9 @@ function RepoItem({ item, onPress, c }: {
 
 type AddTab = 'clone' | 'new';
 
-function AddRepoModal({ visible, wsUrl, c, onClose, onSuccess }: {
+function AddRepoModal({ visible, serverUrl, c, onClose, onSuccess }: {
   visible: boolean;
-  wsUrl: string;
+  serverUrl: string;
   c: typeof GrassColors['light'];
   onClose: () => void;
   onSuccess: (repo: Repo) => void;
@@ -138,42 +142,39 @@ function AddRepoModal({ visible, wsUrl, c, onClose, onSuccess }: {
     onClose();
   }
 
-  function waitForResult() {
-    setBusy(true);
-    setCloneError(null);
-    const unsub = subscribeToConnection(wsUrl, () => {
-      const entry = getEntry(wsUrl);
-      if (!entry) return;
-      // Check for the specific success message type via repos growing
-      // The store handles repo_cloned/folder_created by appending to repos
-      // and resetting cloneStatus — so check cloneStatus
-      const cs = entry.cloneStatus;
-      if (!cs.cloning && !cs.creating) {
-        unsub();
-        if (cs.error) {
-          setBusy(false);
-          setCloneError(cs.error);
-        } else {
-          const latest = entry.repos[entry.repos.length - 1];
-          setBusy(false);
-          if (latest) onSuccess(latest);
-        }
-      }
-    });
-  }
-
-  function handleClone() {
+  async function handleClone() {
     const url = cloneUrl.trim();
     if (!url || busy) return;
-    waitForResult();
-    cloneRepoStore(wsUrl, url);
+    setBusy(true);
+    setCloneError(null);
+    await cloneRepoStore(serverUrl, url);
+    // Read result from store
+    const { getEntry } = await import('@/store/connection-store');
+    const entry = getEntry(serverUrl);
+    setBusy(false);
+    if (entry?.cloneStatus.error) {
+      setCloneError(entry.cloneStatus.error);
+    } else if (entry) {
+      const latest = entry.repos[entry.repos.length - 1];
+      if (latest) onSuccess(latest);
+    }
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     const name = folderName.trim();
     if (!name || busy) return;
-    waitForResult();
-    createFolderStore(wsUrl, name);
+    setBusy(true);
+    setCloneError(null);
+    await createFolderStore(serverUrl, name);
+    const { getEntry } = await import('@/store/connection-store');
+    const entry = getEntry(serverUrl);
+    setBusy(false);
+    if (entry?.cloneStatus.error) {
+      setCloneError(entry.cloneStatus.error);
+    } else if (entry) {
+      const latest = entry.repos[entry.repos.length - 1];
+      if (latest) onSuccess(latest);
+    }
   }
 
   return (
@@ -297,30 +298,38 @@ function AddRepoModal({ visible, wsUrl, c, onClose, onSuccess }: {
 
 export default function Folders() {
   const router = useRouter();
-  const { wsUrl } = useLocalSearchParams<{ wsUrl: string }>();
+  const { serverUrl } = useLocalSearchParams<{ serverUrl: string }>();
   const [theme] = useTheme();
   const c = GrassColors[theme];
   const [refreshing, setRefreshing] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
 
-  const ws = useWebSocket(wsUrl ?? null);
+  const ws = useWebSocket(serverUrl ?? null);
   const [pendingRepo, setPendingRepo] = useState<Repo | null>(null);
 
   useFocusEffect(useCallback(() => {
-    if (wsUrl) listReposStore(wsUrl);
-  }, [wsUrl]));
+    if (serverUrl) listReposStore(serverUrl);
+  }, [serverUrl]));
 
-  const loading = !ws.connected && ws.repos.length === 0;
-  const error = !ws.connected && !ws.reconnecting && ws.repos.length === 0
-    ? 'Could not connect to server'
-    : null;
+  // Show loading if repos haven't loaded yet
+  const [fetching, setFetching] = useState(true);
+  useFocusEffect(useCallback(() => {
+    setFetching(true);
+    if (serverUrl) {
+      listReposStore(serverUrl).then(() => setFetching(false));
+    } else {
+      setFetching(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverUrl]));
+
+  const loading = fetching && ws.repos.length === 0;
 
   function openAgentPicker(repo: Repo) {
-    ws.selectRepo(repo.path);
     if (isIPad) {
       router.push({
         pathname: '/project',
-        params: { wsUrl: wsUrl!, repoPath: repo.path, repoName: repo.name },
+        params: { serverUrl: serverUrl!, repoPath: repo.path, repoName: repo.name },
       });
     } else {
       setPendingRepo(repo);
@@ -328,21 +337,20 @@ export default function Folders() {
   }
 
   function handleSelectAgent(agentId: string) {
-    if (!pendingRepo || !wsUrl) return;
-    ws.selectAgent(agentId);
+    if (!pendingRepo || !serverUrl) return;
     setPendingRepo(null);
     router.push({
       pathname: '/sessions',
-      params: { wsUrl, repoPath: pendingRepo.path, repoName: pendingRepo.name },
+      params: { serverUrl, repoPath: pendingRepo.path, repoName: pendingRepo.name, agent: agentId },
     });
   }
 
   async function handleRefresh() {
-    if (!wsUrl) return;
+    if (!serverUrl) return;
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    listReposStore(wsUrl);
-    setTimeout(() => setRefreshing(false), 800);
+    await listReposStore(serverUrl);
+    setRefreshing(false);
   }
 
   function handleAddSuccess(repo: Repo) {
@@ -363,16 +371,15 @@ export default function Folders() {
           </TouchableOpacity>
           <View style={styles.headerTitleGroup}>
             <Text style={[styles.headerTitle, { color: c.text }]} numberOfLines={1}>
-              {wsUrl ? hostFromUrl(wsUrl) : 'Folders'}
+              {serverUrl ? hostFromUrl(serverUrl) : 'Folders'}
             </Text>
           </View>
           <TouchableOpacity
             style={styles.addBtn}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAddModalVisible(true); }}
             hitSlop={8}
-            disabled={!ws.connected}
           >
-            <Ionicons name="add" size={26} color={ws.connected ? c.accent : c.badgeText} />
+            <Ionicons name="add" size={26} color={c.accent} />
           </TouchableOpacity>
         </BlurView>
       </View>
@@ -382,11 +389,7 @@ export default function Folders() {
           <ActivityIndicator color={c.accent} size="large" />
           <Text style={[styles.statusText, { color: c.badgeText }]}>Loading folders…</Text>
         </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={[styles.errorText, { color: c.errorText }]}>{error}</Text>
-        </View>
-      ) : ws.repos.length === 0 && ws.connected ? (
+      ) : ws.repos.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="folder-open-outline" size={44} color={c.badgeText} style={styles.emptyIcon} />
           <Text style={[styles.emptyTitle, { color: c.text }]}>No folders found</Text>
@@ -412,10 +415,10 @@ export default function Folders() {
       )}
 
       {/* Add repo modal (clone / new folder) */}
-      {wsUrl && (
+      {serverUrl && (
         <AddRepoModal
           visible={addModalVisible}
-          wsUrl={wsUrl}
+          serverUrl={serverUrl}
           c={c}
           onClose={() => setAddModalVisible(false)}
           onSuccess={handleAddSuccess}
@@ -560,9 +563,6 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   statusText: {
-    fontSize: 15,
-  },
-  errorText: {
     fontSize: 15,
   },
   emptyIcon: {

@@ -15,7 +15,7 @@ import oneLight from 'react-syntax-highlighter/dist/esm/styles/prism/one-light';
 import oneDark from 'react-syntax-highlighter/dist/esm/styles/prism/one-dark';
 import { fenceColors } from '@/constants/markdownStyles';
 import { GrassColors } from '@/constants/theme';
-import { useWebSocket, DirEntry } from '@/hooks/use-websocket';
+import { useServer, DirEntry } from '@/hooks/use-server';
 
 SyntaxHighlighter.registerLanguage('tsx', tsx);
 SyntaxHighlighter.registerLanguage('typescript', typescript);
@@ -106,23 +106,22 @@ function SkeletonRows({ c }: { c: typeof GrassColors['light'] }) {
 }
 
 export function ExplorerPanel({
-  wsUrl,
+  serverUrl,
   repoPath,
   theme,
 }: {
-  wsUrl: string;
+  serverUrl: string;
   repoPath: string;
   theme: 'light' | 'dark';
 }) {
   const c = GrassColors[theme];
-  const ws = useWebSocket(wsUrl);
+  const ws = useServer(serverUrl);
   const [currentPath, setCurrentPath] = useState(repoPath);
 
   useEffect(() => {
-    if (!ws.connected) return;
     ws.listDir(currentPath, repoPath);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPath, ws.connected]);
+  }, [currentPath]);
 
   function handleEntryTap(entry: DirEntry) {
     if (entry.type === 'directory') {

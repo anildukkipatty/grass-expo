@@ -1,12 +1,13 @@
 import { AppState } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
+import { fetch } from 'expo/fetch';
 
 export interface Message {
   role: 'user' | 'assistant' | 'error';
   content: string;
   complete: boolean;
   msgId: string;
-  wsId?: string;
+  seq?: string;
   badge?: string;
 }
 
@@ -44,34 +45,35 @@ export type FileContentResult = {
 };
 
 interface ConnectionEntry {
-  ws: WebSocket | null;
-  pingInterval: ReturnType<typeof setInterval> | null;
-  pongTimeout: ReturnType<typeof setTimeout> | null;
-  reconnectTimeout: ReturnType<typeof setTimeout> | null;
-  connectTimeout: ReturnType<typeof setTimeout> | null;
-  reconnectDelay: number;
-  msgCounter: number;
-  currentSessionId: string | null;
-  currentAgent: string | null;
+  // Identity
+  baseUrl: string;
   currentRepoPath: string | null;
-  active: boolean;
+  currentAgent: string | null;
+  currentSessionId: string | null;
 
-  connected: boolean;
-  reconnecting: boolean;
+  // SSE stream state
+  sseAbortController: AbortController | null;
+  lastEventId: string | null;
+
+  // Reactive state
   streaming: boolean;
   messages: Message[];
   activity: { label: string } | null;
   permissionQueue: PermissionItem[];
   sessionId: string | null;
   sessionsList: Session[];
-  cwd: string | null;
-  agent: string | null;
   repos: Repo[];
   diffs: string | null;
   dirListing: DirEntry[] | null;
   fileContent: FileContentResult | null;
   cloneStatus: { cloning: boolean; creating: boolean; error: string | null };
+  serverCwd: string | null;
 
+  // TODO: Revisit connection health indicators
+  // connected: boolean;
+  // reconnecting: boolean;
+
+  msgCounter: number;
   listeners: Set<() => void>;
 }
 
@@ -89,274 +91,228 @@ function nextMsgId(entry: ConnectionEntry): string {
   return 'm' + (++entry.msgCounter);
 }
 
-function clearTimers(url: string) {
-  const entry = _connections.get(url);
-  if (!entry) return;
-  if (entry.pingInterval) { clearInterval(entry.pingInterval); entry.pingInterval = null; }
-  if (entry.pongTimeout) { clearTimeout(entry.pongTimeout); entry.pongTimeout = null; }
-  if (entry.reconnectTimeout) { clearTimeout(entry.reconnectTimeout); entry.reconnectTimeout = null; }
-  if (entry.connectTimeout) { clearTimeout(entry.connectTimeout); entry.connectTimeout = null; }
-}
+// --- SSE parser ---
+// Parses text/event-stream chunks from a ReadableStream reader.
+// Returns complete frames split by double newlines.
+function parseSSEChunk(buffer: string): { frames: { id?: string; event?: string; data?: string }[]; remainder: string } {
+  const frames: { id?: string; event?: string; data?: string }[] = [];
+  const parts = buffer.split('\n\n');
+  const remainder = parts.pop() ?? '';
 
-function stopPing(url: string) {
-  const entry = _connections.get(url);
-  if (!entry) return;
-  if (entry.pingInterval) { clearInterval(entry.pingInterval); entry.pingInterval = null; }
-  if (entry.pongTimeout) { clearTimeout(entry.pongTimeout); entry.pongTimeout = null; }
-}
-
-function startPing(url: string) {
-  const entry = _connections.get(url);
-  if (!entry) return;
-  stopPing(url);
-  entry.pingInterval = setInterval(() => {
-    if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
-      entry.ws.send(JSON.stringify({ type: 'ping' }));
-      entry.pongTimeout = setTimeout(() => {
-        entry.ws?.close();
-      }, 5000);
+  for (const part of parts) {
+    if (!part.trim()) continue;
+    const frame: { id?: string; event?: string; data?: string } = {};
+    for (const line of part.split('\n')) {
+      if (line.startsWith('id:')) {
+        frame.id = line.slice(3).trim();
+      } else if (line.startsWith('event:')) {
+        frame.event = line.slice(6).trim();
+      } else if (line.startsWith('data:')) {
+        frame.data = line.slice(5).trim();
+      }
     }
-  }, 30000);
-}
-
-function scheduleReconnect(url: string) {
-  const entry = _connections.get(url);
-  if (!entry || !entry.active) return;
-  const delay = entry.reconnectDelay;
-  entry.reconnectDelay = Math.min(delay * 2, 30000);
-  entry.reconnectTimeout = setTimeout(() => {
-    if (!entry.active) return;
-    entry.reconnecting = true;
-    notifyListeners(url);
-    connect(url);
-  }, delay);
-}
-
-function connect(url: string) {
-  const entry = _connections.get(url);
-  if (!entry) return;
-
-  if (entry.reconnectTimeout) { clearTimeout(entry.reconnectTimeout); entry.reconnectTimeout = null; }
-  if (entry.connectTimeout) { clearTimeout(entry.connectTimeout); entry.connectTimeout = null; }
-
-  let ws: WebSocket;
-  try {
-    ws = new WebSocket(url);
-  } catch {
-    scheduleReconnect(url);
-    return;
+    frames.push(frame);
   }
-  entry.ws = ws;
 
-  entry.connectTimeout = setTimeout(() => {
-    if (ws.readyState === WebSocket.CONNECTING) {
-      ws.close();
-    }
-  }, 5000);
+  return { frames, remainder };
+}
 
-  ws.onopen = () => {
-    if (entry.connectTimeout) { clearTimeout(entry.connectTimeout); entry.connectTimeout = null; }
-    if (!entry.active || !_connections.has(url)) { ws.close(); return; }
-    entry.connected = true;
-    entry.reconnecting = false;
-    entry.reconnectDelay = 1000;
-    startPing(url);
-    ws.send(JSON.stringify({ type: 'get_cwd' }));
-    ws.send(JSON.stringify({ type: 'list_repos' }));
-    if (entry.currentRepoPath) {
-      ws.send(JSON.stringify({ type: 'select_repo', path: entry.currentRepoPath }));
-    }
-    if (entry.currentAgent) {
-      ws.send(JSON.stringify({ type: 'select_agent', agent: entry.currentAgent }));
-    }
-    ws.send(JSON.stringify({ type: 'list_sessions' }));
-    if (entry.currentSessionId) {
-      ws.send(JSON.stringify({ type: 'init', sessionId: entry.currentSessionId }));
-    }
-    notifyListeners(url);
-  };
+// --- SSE event handler ---
+function handleSSEEvent(serverUrl: string, event: string | undefined, data: string | undefined) {
+  const entry = _connections.get(serverUrl);
+  if (!entry) return;
 
-  ws.onclose = () => {
-    if (entry.connectTimeout) { clearTimeout(entry.connectTimeout); entry.connectTimeout = null; }
-    if (!entry.active) return;
-    if (!_connections.has(url)) return;
-    entry.connected = false;
-    entry.permissionQueue = [];
-    stopPing(url);
-    scheduleReconnect(url);
-    notifyListeners(url);
-  };
+  let parsed: Record<string, unknown> = {};
+  if (data) {
+    try { parsed = JSON.parse(data); } catch { parsed = { raw: data }; }
+  }
 
-  ws.onerror = () => ws.close();
-
-  ws.onmessage = (event) => {
-    if (!_connections.has(url)) return;
-    let data: Record<string, unknown>;
-    try {
-      data = JSON.parse(event.data as string);
-    } catch {
-      return;
-    }
-
-    if (data.type === 'pong') {
-      if (entry.pongTimeout) { clearTimeout(entry.pongTimeout); entry.pongTimeout = null; }
-      return;
-    }
-
-    if (data.type === 'sessions_list') {
-      entry.sessionsList = (data.sessions as Session[]) || [];
-      notifyListeners(url);
-      return;
-    }
-
-    if (data.type === 'cwd') {
-      entry.cwd = (data.cwd as string) ?? null;
-      entry.agent = (data.agent as string) ?? null;
-      notifyListeners(url);
-      return;
-    }
-
-    if (data.type === 'diffs') {
-      entry.diffs = (data.diff as string) ?? null;
-      notifyListeners(url);
-      return;
-    }
-
-    if (data.type === 'repos_list') { entry.repos = (data.repos as Repo[]) || []; notifyListeners(url); return; }
-    if (data.type === 'repo_selected') { notifyListeners(url); return; }
-
-    if (data.type === 'repo_cloned') {
-      const repo: Repo = { path: data.path as string, name: data.name as string, isGit: true };
-      entry.repos = [...entry.repos, repo];
-      entry.cloneStatus = { cloning: false, creating: false, error: null };
-      notifyListeners(url);
-      return;
-    }
-
-    if (data.type === 'folder_created') {
-      const repo: Repo = { path: data.path as string, name: data.name as string, isGit: false };
-      entry.repos = [...entry.repos, repo];
-      entry.cloneStatus = { cloning: false, creating: false, error: null };
-      notifyListeners(url);
-      return;
-    }
-
-    if (data.type === 'dir_listing') {
-      entry.dirListing = (data.entries as DirEntry[]) ?? [];
-      notifyListeners(url);
-      return;
-    }
-    if (data.type === 'file_content') {
-      entry.fileContent = {
-        path: data.path as string,
-        content: data.content as string,
-        size: data.size as number,
-      };
-      notifyListeners(url);
-      return;
-    }
-
-    if (data.type === 'session_status') {
-      entry.streaming = data.streaming as boolean;
-      if (data.streaming) {
-        entry.activity = { label: 'Working...' };
-      }
-      notifyListeners(url);
-      return;
-    }
-
-    if (data.type === 'permission_request') {
-      if (!entry.permissionQueue.some(p => p.toolUseID === data.toolUseID)) {
-        entry.permissionQueue = [...entry.permissionQueue, {
-          toolUseID: data.toolUseID as string,
-          toolName: data.toolName as string,
-          input: (data.input as Record<string, unknown>) || {},
-        }];
-        notifyListeners(url);
-      }
-      return;
-    }
-
-    if (data.type === 'system' && data.subtype === 'init') {
-      const d = data.data as Record<string, unknown> | undefined;
-      if (d?.session_id) {
-        const sid = d.session_id as string;
-        entry.currentSessionId = sid;
-        entry.sessionId = sid;
-        notifyListeners(url);
-      }
-      return;
-    }
-
-    if (data.type === 'history') {
-      const msgs = (data.messages as Array<{ role: string; content: string }>) || [];
-      entry.messages = msgs.map((m) => ({
-        role: m.role as Message['role'],
-        content: m.content,
+  if (event === 'user_prompt') {
+    // Server replays buffered events including user_prompt on reconnect.
+    // Skip if the message is already in the list (we add it optimistically in sendMessageStore).
+    const content = (parsed.content as string) ?? (parsed.prompt as string) ?? '';
+    const alreadyPresent = entry.messages.some(m => m.role === 'user' && m.content === content);
+    if (!alreadyPresent && content) {
+      entry.messages = [...entry.messages, {
+        role: 'user',
+        content,
         complete: true,
         msgId: nextMsgId(entry),
-      }));
-      notifyListeners(url);
-      return;
+      }];
+      notifyListeners(serverUrl);
     }
+    return;
+  }
 
-    if (data.type === 'assistant') {
-      entry.activity = null;
-      const wsId = data.id as string;
-      const content = data.content as string;
-      const prev = entry.messages;
-      const last = prev[prev.length - 1];
-      if (last && last.role === 'assistant' && !last.complete && last.wsId === wsId) {
-        entry.messages = [...prev.slice(0, -1), { ...last, content }];
-      } else {
-        entry.messages = [...prev, { role: 'assistant', content, complete: false, msgId: nextMsgId(entry), wsId }];
-      }
-      notifyListeners(url);
-    } else if (data.type === 'status') {
-      const status = data.status as string;
-      if (status === 'thinking') {
-        entry.activity = { label: 'Thinking' };
-      } else if (status === 'tool') {
-        const elapsed = data.elapsed != null ? Math.round(data.elapsed as number) + 's' : '';
-        entry.activity = { label: (data.tool_name as string) + (elapsed ? ' (' + elapsed + ')' : '') };
-      } else if (status === 'tool_summary') {
-        entry.activity = { label: data.summary as string };
-      } else {
-        entry.activity = null;
-      }
-      notifyListeners(url);
-    } else if (data.type === 'tool_use') {
-      entry.activity = { label: (data.tool_name as string) + ': ' + (data.tool_input as string) };
-      notifyListeners(url);
-    } else if (data.type === 'result') {
-      entry.streaming = false;
-      entry.activity = null;
-      const cost = data.cost != null ? '$' + (data.cost as number).toFixed(4) : null;
-      const duration = data.duration_ms != null ? ((data.duration_ms as number) / 1000).toFixed(1) + 's' : null;
-      const badge = [cost, duration].filter(Boolean).join(' · ');
-      const lastIdx = entry.messages.length - 1;
-      entry.messages = entry.messages.map((msg, i) =>
-        msg.role === 'assistant' && !msg.complete
-          ? { ...msg, complete: true, ...(i === lastIdx ? { badge } : {}) }
-          : msg
-      );
-      notifyListeners(url);
-    } else if (data.type === 'aborted') {
-      entry.streaming = false;
-      entry.activity = null;
-      entry.messages = [...entry.messages, { role: 'error', content: '⚠️ ' + (data.message as string), complete: true, msgId: nextMsgId(entry) }];
-      notifyListeners(url);
-    } else if (data.type === 'error') {
-      entry.streaming = false;
-      entry.activity = null;
-      if (entry.cloneStatus.cloning || entry.cloneStatus.creating) {
-        entry.cloneStatus = { ...entry.cloneStatus, cloning: false, creating: false, error: data.message as string };
-      } else {
-        entry.messages = [...entry.messages, { role: 'error', content: data.message as string, complete: true, msgId: nextMsgId(entry) }];
-      }
-      notifyListeners(url);
+  if (event === 'system') {
+    // Record the SDK session ID for display, but don't overwrite currentSessionId
+    // (which holds the grass UUID used for abort/permission endpoints).
+    const d = parsed.data as Record<string, unknown> | undefined;
+    const sessionIdVal = (d?.session_id ?? parsed.session_id) as string | undefined;
+    if (sessionIdVal && !entry.sessionId) {
+      entry.sessionId = sessionIdVal;
+      notifyListeners(serverUrl);
     }
-  };
+    return;
+  }
+
+  if (event === 'status') {
+    const status = parsed.status as string;
+    if (status === 'thinking') {
+      entry.activity = { label: 'Thinking' };
+    } else if (status === 'tool') {
+      const elapsed = parsed.elapsed != null ? Math.round(parsed.elapsed as number) + 's' : '';
+      entry.activity = { label: (parsed.tool_name as string) + (elapsed ? ' (' + elapsed + ')' : '') };
+    } else if (status === 'tool_summary') {
+      entry.activity = { label: parsed.summary as string };
+    } else {
+      entry.activity = null;
+    }
+    notifyListeners(serverUrl);
+    return;
+  }
+
+  if (event === 'tool_use') {
+    entry.activity = { label: (parsed.tool_name as string) + ': ' + (parsed.tool_input as string) };
+    notifyListeners(serverUrl);
+    return;
+  }
+
+  if (event === 'assistant') {
+    // Don't clear activity here — let result/done handle it so the activity bar
+    // stays visible during streaming even if events are batched.
+    const seq = parsed.seq as string | undefined;
+    const content = parsed.content as string;
+    const prev = entry.messages;
+    const last = prev[prev.length - 1];
+    if (last && last.role === 'assistant' && !last.complete) {
+      entry.messages = [...prev.slice(0, -1), { ...last, content, seq }];
+    } else {
+      entry.messages = [...prev, { role: 'assistant', content, complete: false, msgId: nextMsgId(entry), seq }];
+    }
+    notifyListeners(serverUrl);
+    return;
+  }
+
+  if (event === 'result') {
+    entry.streaming = false;
+    entry.activity = null;
+    const cost = parsed.cost != null ? '$' + (parsed.cost as number).toFixed(4) : null;
+    const duration = parsed.duration_ms != null ? ((parsed.duration_ms as number) / 1000).toFixed(1) + 's' : null;
+    const badge = [cost, duration].filter(Boolean).join(' · ');
+    const lastIdx = entry.messages.length - 1;
+    entry.messages = entry.messages.map((msg, i) =>
+      msg.role === 'assistant' && !msg.complete
+        ? { ...msg, complete: true, ...(i === lastIdx ? { badge } : {}) }
+        : msg
+    );
+    notifyListeners(serverUrl);
+    return;
+  }
+
+  if (event === 'permission_request') {
+    if (!entry.permissionQueue.some(p => p.toolUseID === parsed.toolUseID)) {
+      entry.permissionQueue = [...entry.permissionQueue, {
+        toolUseID: parsed.toolUseID as string,
+        toolName: parsed.toolName as string,
+        input: (parsed.input as Record<string, unknown>) || {},
+      }];
+      notifyListeners(serverUrl);
+    }
+    return;
+  }
+
+  if (event === 'done') {
+    entry.streaming = false;
+    entry.activity = null;
+    entry.messages = entry.messages.map(msg =>
+      msg.role === 'assistant' && !msg.complete ? { ...msg, complete: true } : msg
+    );
+    notifyListeners(serverUrl);
+    return;
+  }
+
+  if (event === 'error') {
+    entry.streaming = false;
+    entry.activity = null;
+    if (entry.cloneStatus.cloning || entry.cloneStatus.creating) {
+      entry.cloneStatus = { ...entry.cloneStatus, cloning: false, creating: false, error: parsed.message as string };
+    } else {
+      entry.messages = [...entry.messages, { role: 'error', content: parsed.message as string, complete: true, msgId: nextMsgId(entry) }];
+    }
+    notifyListeners(serverUrl);
+    return;
+  }
+
+  if (event === 'aborted') {
+    entry.streaming = false;
+    entry.activity = null;
+    entry.messages = [...entry.messages, { role: 'error', content: '⚠️ ' + (parsed.message as string ?? 'Aborted'), complete: true, msgId: nextMsgId(entry) }];
+    notifyListeners(serverUrl);
+    return;
+  }
+}
+
+// --- SSE stream ---
+async function openSSEStream(serverUrl: string, sessionId: string) {
+  const entry = _connections.get(serverUrl);
+  if (!entry) return;
+
+  // Close any existing stream
+  closeSSEStream(serverUrl);
+
+  const controller = new AbortController();
+  entry.sseAbortController = controller;
+
+  const headers: Record<string, string> = { Accept: 'text/event-stream' };
+  if (entry.lastEventId) headers['Last-Event-ID'] = entry.lastEventId;
+
+  let buffer = '';
+
+  try {
+    const response = await fetch(
+      `${serverUrl}/events?sessionId=${encodeURIComponent(sessionId)}`,
+      { headers, signal: controller.signal, reactNativeFetchMode: 'stream' } as unknown as Parameters<typeof fetch>[1]
+    );
+
+    if (!response.body) return;
+    const reader = (response.body as ReadableStream<Uint8Array>).getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const { frames, remainder } = parseSSEChunk(buffer);
+      buffer = remainder;
+
+      for (const frame of frames) {
+        if (frame.id) {
+          entry.lastEventId = frame.id;
+        }
+        handleSSEEvent(serverUrl, frame.event, frame.data);
+      }
+    }
+  } catch {
+    // aborted or network error — streaming stops, no auto-reconnect
+  }
+
+  const e = _connections.get(serverUrl);
+  if (e) {
+    e.sseAbortController = null;
+    e.streaming = false;
+    notifyListeners(serverUrl);
+  }
+}
+
+export function closeSSEStream(serverUrl: string) {
+  const entry = _connections.get(serverUrl);
+  if (!entry) return;
+  if (entry.sseAbortController) {
+    entry.sseAbortController.abort();
+    entry.sseAbortController = null;
+  }
+  entry.streaming = false;
 }
 
 // AppState handling — runs once on import
@@ -365,85 +321,55 @@ AppState.addEventListener('change', (next) => {
   if (_appStateValue === next) return;
   _appStateValue = next;
   if (next !== 'active') {
-    for (const [url, entry] of _connections) {
-      entry.active = false;
-      clearTimers(url);
-      entry.ws?.close();
-      entry.ws = null;
-      entry.connected = false;
-      entry.reconnecting = false;
-    }
+    // Background: close all SSE streams
+    for (const [url] of _connections) closeSSEStream(url);
     _globalListeners.forEach(fn => fn());
   } else {
+    // Foreground: re-attach SSE if a session was streaming
     for (const [url, entry] of _connections) {
-      entry.active = true;
-      entry.reconnecting = true;
-      connect(url);
+      if (entry.currentSessionId && entry.streaming) {
+        openSSEStream(url, entry.currentSessionId);
+      }
     }
     _globalListeners.forEach(fn => fn());
   }
 });
 
-// Exported functions
+// --- Connection lifecycle ---
 
-export function openConnection(url: string) {
-  if (_connections.has(url)) return;
+export function openConnection(serverUrl: string) {
+  if (_connections.has(serverUrl)) return;
   const entry: ConnectionEntry = {
-    ws: null,
-    pingInterval: null,
-    pongTimeout: null,
-    reconnectTimeout: null,
-    connectTimeout: null,
-    reconnectDelay: 1000,
-    msgCounter: 0,
-    currentSessionId: null,
-    currentAgent: null,
+    baseUrl: serverUrl,
     currentRepoPath: null,
-    active: true,
-    connected: false,
-    reconnecting: true,
+    currentAgent: null,
+    currentSessionId: null,
+    sseAbortController: null,
+    lastEventId: null,
     streaming: false,
     messages: [],
     activity: null,
     permissionQueue: [],
     sessionId: null,
     sessionsList: [],
-    cwd: null,
-    agent: null,
     repos: [],
     diffs: null,
     dirListing: null,
     fileContent: null,
     cloneStatus: { cloning: false, creating: false, error: null },
+    serverCwd: null,
+    msgCounter: 0,
     listeners: new Set(),
   };
-  _connections.set(url, entry);
-  connect(url);
+  _connections.set(serverUrl, entry);
+  healthStore(serverUrl);
+  listReposStore(serverUrl);
   _globalListeners.forEach(fn => fn());
 }
 
-export function reconnectNow(url: string) {
-  const entry = _connections.get(url);
-  if (!entry) return;
-  if (entry.connected) return;
-  clearTimers(url);
-  entry.ws?.close();
-  entry.ws = null;
-  entry.reconnectDelay = 1000;
-  entry.reconnecting = true;
-  entry.active = true;
-  notifyListeners(url);
-  connect(url);
-}
-
-export function closeConnection(url: string) {
-  const entry = _connections.get(url);
-  if (!entry) return;
-  entry.active = false;
-  clearTimers(url);
-  entry.ws?.close();
-  entry.ws = null;
-  _connections.delete(url);
+export function closeConnection(serverUrl: string) {
+  closeSSEStream(serverUrl);
+  _connections.delete(serverUrl);
   _globalListeners.forEach(fn => fn());
 }
 
@@ -463,137 +389,309 @@ export function getEntry(url: string): ConnectionEntry | undefined {
   return _connections.get(url);
 }
 
-export function sendMessage(url: string, text: string) {
-  const entry = _connections.get(url);
-  if (!entry || !text.trim() || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
+// --- Chat ---
+
+export async function sendMessageStore(serverUrl: string, text: string) {
+  const entry = _connections.get(serverUrl);
+  if (!entry || !text.trim()) return;
+
   entry.messages = [...entry.messages, { role: 'user', content: text, complete: true, msgId: nextMsgId(entry) }];
-  entry.ws.send(JSON.stringify({ type: 'message', content: text }));
   entry.streaming = true;
   entry.activity = { label: 'Thinking' };
-  notifyListeners(url);
+  notifyListeners(serverUrl);
+
+  try {
+    const res = await fetch(`${serverUrl}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repoPath: entry.currentRepoPath,
+        agent: entry.currentAgent,
+        prompt: text,
+        ...(entry.currentSessionId ? { sessionId: entry.currentSessionId } : {}),
+      }),
+    });
+    const json = await res.json() as { sessionId?: string };
+    const sid = json.sessionId ?? entry.currentSessionId;
+    if (sid) {
+      entry.currentSessionId = sid;
+      entry.sessionId = sid;
+      entry.lastEventId = null;
+      notifyListeners(serverUrl);
+      openSSEStream(serverUrl, sid);
+    }
+  } catch {
+    entry.streaming = false;
+    entry.activity = null;
+    entry.messages = [...entry.messages, { role: 'error', content: 'Failed to send message', complete: true, msgId: nextMsgId(entry) }];
+    notifyListeners(serverUrl);
+  }
 }
 
-export function abortConnection(url: string) {
-  const entry = _connections.get(url);
-  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
-  entry.ws.send(JSON.stringify({ type: 'abort' }));
+// Keep legacy name as alias
+export const sendMessage = sendMessageStore;
+
+export async function abortStore(serverUrl: string) {
+  const entry = _connections.get(serverUrl);
+  if (!entry || !entry.currentSessionId) return;
   entry.permissionQueue = [];
-  notifyListeners(url);
+  notifyListeners(serverUrl);
+  try {
+    await fetch(`${serverUrl}/sessions/${entry.currentSessionId}/abort`, { method: 'POST' });
+  } catch { /* ignore */ }
 }
 
-export function respondPermissionStore(url: string, approved: boolean) {
-  const entry = _connections.get(url);
-  if (!entry || entry.permissionQueue.length === 0 || !entry.ws) return;
+// Keep legacy name as alias
+export const abortConnection = abortStore;
+
+export async function respondPermissionStore(serverUrl: string, approved: boolean) {
+  const entry = _connections.get(serverUrl);
+  if (!entry || entry.permissionQueue.length === 0 || !entry.currentSessionId) return;
   const current = entry.permissionQueue[0];
-  entry.ws.send(JSON.stringify({
-    type: 'permission_response',
-    toolUseID: current.toolUseID,
-    approved,
-  }));
   entry.permissionQueue = entry.permissionQueue.slice(1);
-  notifyListeners(url);
+  notifyListeners(serverUrl);
+  try {
+    await fetch(`${serverUrl}/sessions/${entry.currentSessionId}/permission`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolUseID: current.toolUseID, approved }),
+    });
+  } catch { /* ignore */ }
 }
 
-export function listSessionsStore(url: string) {
-  const entry = _connections.get(url);
-  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
-  entry.ws.send(JSON.stringify({ type: 'list_sessions' }));
+// --- Health ---
+
+export async function healthStore(serverUrl: string) {
+  const entry = _connections.get(serverUrl);
+  if (!entry) return;
+  try {
+    const res = await fetch(`${serverUrl}/health`);
+    const json = await res.json() as { cwd?: string };
+    if (_connections.has(serverUrl) && json.cwd) {
+      entry.serverCwd = json.cwd;
+      notifyListeners(serverUrl);
+    }
+  } catch { /* ignore */ }
 }
 
-export function initSessionStore(url: string, id: string | null) {
-  const entry = _connections.get(url);
+// --- Repos ---
+
+export async function listReposStore(serverUrl: string) {
+  const entry = _connections.get(serverUrl);
+  if (!entry) return;
+  try {
+    const res = await fetch(`${serverUrl}/repos`);
+    const json = await res.json() as { repos?: Repo[] };
+    if (_connections.has(serverUrl)) {
+      entry.repos = json.repos ?? [];
+      notifyListeners(serverUrl);
+    }
+  } catch { /* ignore */ }
+}
+
+export async function cloneRepoStore(serverUrl: string, gitUrl: string): Promise<void> {
+  const entry = _connections.get(serverUrl);
+  if (!entry) return;
+  entry.cloneStatus = { cloning: true, creating: false, error: null };
+  notifyListeners(serverUrl);
+  try {
+    const res = await fetch(`${serverUrl}/repos/clone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: gitUrl }),
+    });
+    const json = await res.json() as { path?: string; name?: string; error?: string };
+    if (!_connections.has(serverUrl)) return;
+    if (json.error) {
+      entry.cloneStatus = { cloning: false, creating: false, error: json.error };
+    } else {
+      const repo: Repo = { path: json.path!, name: json.name!, isGit: true };
+      entry.repos = [...entry.repos, repo];
+      entry.cloneStatus = { cloning: false, creating: false, error: null };
+    }
+    notifyListeners(serverUrl);
+  } catch (err) {
+    if (_connections.has(serverUrl)) {
+      entry.cloneStatus = { cloning: false, creating: false, error: String(err) };
+      notifyListeners(serverUrl);
+    }
+  }
+}
+
+export async function createFolderStore(serverUrl: string, name: string): Promise<void> {
+  const entry = _connections.get(serverUrl);
+  if (!entry) return;
+  entry.cloneStatus = { cloning: false, creating: true, error: null };
+  notifyListeners(serverUrl);
+  try {
+    const res = await fetch(`${serverUrl}/folders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const json = await res.json() as { path?: string; name?: string; error?: string };
+    if (!_connections.has(serverUrl)) return;
+    if (json.error) {
+      entry.cloneStatus = { cloning: false, creating: false, error: json.error };
+    } else {
+      const repo: Repo = { path: json.path!, name: json.name!, isGit: false };
+      entry.repos = [...entry.repos, repo];
+      entry.cloneStatus = { cloning: false, creating: false, error: null };
+    }
+    notifyListeners(serverUrl);
+  } catch (err) {
+    if (_connections.has(serverUrl)) {
+      entry.cloneStatus = { cloning: false, creating: false, error: String(err) };
+      notifyListeners(serverUrl);
+    }
+  }
+}
+
+export function clearCloneStatusStore(serverUrl: string) {
+  const entry = _connections.get(serverUrl);
+  if (!entry) return;
+  entry.cloneStatus = { cloning: false, creating: false, error: null };
+  notifyListeners(serverUrl);
+}
+
+// --- Sessions ---
+
+export async function listSessionsStore(serverUrl: string, repoPath?: string, agent?: string) {
+  const entry = _connections.get(serverUrl);
+  if (!entry) return;
+  try {
+    const params = new URLSearchParams();
+    if (repoPath) params.set('repoPath', repoPath);
+    if (agent) params.set('agent', agent);
+    const qs = params.toString();
+    const res = await fetch(`${serverUrl}/sessions${qs ? '?' + qs : ''}`);
+    const json = await res.json() as { sessions?: Session[] };
+    if (_connections.has(serverUrl)) {
+      entry.sessionsList = json.sessions ?? [];
+      notifyListeners(serverUrl);
+    }
+  } catch { /* ignore */ }
+}
+
+export async function initSessionStore(serverUrl: string, id: string | null, agent?: string | null, repoPath?: string | null) {
+  const entry = _connections.get(serverUrl);
   if (!entry) return;
   entry.currentSessionId = id;
   entry.sessionId = id;
+  if (agent !== undefined) entry.currentAgent = agent ?? null;
+  if (repoPath !== undefined) entry.currentRepoPath = repoPath ?? null;
   entry.messages = [];
   entry.activity = null;
-  if (entry.ws && entry.ws.readyState === WebSocket.OPEN && id) {
-    entry.ws.send(JSON.stringify({ type: 'init', sessionId: id }));
+  notifyListeners(serverUrl);
+
+  if (id) {
+    try {
+      const params = new URLSearchParams();
+      if (agent) params.set('agent', agent);
+      if (repoPath) params.set('repoPath', repoPath);
+      const qs = params.toString();
+      const res = await fetch(`${serverUrl}/sessions/${id}/history${qs ? '?' + qs : ''}`);
+      const json = await res.json() as { messages?: Array<{ role: string; content: string }> };
+      if (_connections.has(serverUrl)) {
+        const msgs = json.messages ?? [];
+        entry.messages = msgs.map(m => ({
+          role: m.role as Message['role'],
+          content: m.content,
+          complete: true,
+          msgId: nextMsgId(entry),
+        }));
+        notifyListeners(serverUrl);
+      }
+    } catch { /* ignore */ }
   }
-  notifyListeners(url);
 }
 
-export function getDiffsStore(url: string) {
-  const entry = _connections.get(url);
-  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
-  entry.ws.send(JSON.stringify({ type: 'get_diffs' }));
-}
+// --- File ops ---
 
-export function listReposStore(url: string) {
-  const entry = _connections.get(url);
-  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
-  entry.ws.send(JSON.stringify({ type: 'list_repos' }));
-}
+const _dirAbortControllers = new Map<string, AbortController>();
+const _fileAbortControllers = new Map<string, AbortController>();
 
-export function selectRepoStore(url: string, path: string) {
-  const entry = _connections.get(url);
+export async function listDirStore(serverUrl: string, path: string, repoPath: string) {
+  const entry = _connections.get(serverUrl);
   if (!entry) return;
-  entry.currentRepoPath = path;
-  if (!entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
-  entry.ws.send(JSON.stringify({ type: 'select_repo', path }));
-}
 
-export function selectAgentStore(url: string, agent: string) {
-  const entry = _connections.get(url);
-  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
-  entry.currentAgent = agent;
-  entry.ws.send(JSON.stringify({ type: 'select_agent', agent }));
-  entry.ws.send(JSON.stringify({ type: 'list_sessions' }));
-}
+  // Cancel previous inflight request
+  const prevCtrl = _dirAbortControllers.get(serverUrl);
+  if (prevCtrl) prevCtrl.abort();
+  const ctrl = new AbortController();
+  _dirAbortControllers.set(serverUrl, ctrl);
 
-export function listDirStore(url: string, path: string, repoPath: string) {
-  const entry = _connections.get(url);
-  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
   entry.dirListing = null;
-  notifyListeners(url);
-  entry.ws.send(JSON.stringify({ type: 'list_dir', path, repoPath }));
+  notifyListeners(serverUrl);
+
+  try {
+    const params = new URLSearchParams({ repoPath, path });
+    const res = await fetch(`${serverUrl}/dir?${params.toString()}`, { signal: ctrl.signal });
+    const json = await res.json() as { entries?: DirEntry[] };
+    if (_connections.has(serverUrl)) {
+      entry.dirListing = json.entries ?? [];
+      notifyListeners(serverUrl);
+    }
+  } catch { /* aborted or error */ }
 }
 
-export function cloneRepoStore(url: string, gitUrl: string) {
-  const entry = _connections.get(url);
-  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
-  entry.cloneStatus = { cloning: true, creating: false, error: null };
-  notifyListeners(url);
-  entry.ws.send(JSON.stringify({ type: 'clone_repo', url: gitUrl }));
-}
-
-export function createFolderStore(url: string, name: string) {
-  const entry = _connections.get(url);
-  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
-  entry.cloneStatus = { cloning: false, creating: true, error: null };
-  notifyListeners(url);
-  entry.ws.send(JSON.stringify({ type: 'create_folder', name }));
-}
-
-export function clearCloneStatusStore(url: string) {
-  const entry = _connections.get(url);
+export async function readFileStore(serverUrl: string, path: string, repoPath: string) {
+  const entry = _connections.get(serverUrl);
   if (!entry) return;
-  entry.cloneStatus = { cloning: false, creating: false, error: null };
-  notifyListeners(url);
+
+  // Cancel previous inflight request
+  const prevCtrl = _fileAbortControllers.get(serverUrl);
+  if (prevCtrl) prevCtrl.abort();
+  const ctrl = new AbortController();
+  _fileAbortControllers.set(serverUrl, ctrl);
+
+  try {
+    const params = new URLSearchParams({ repoPath, path });
+    const res = await fetch(`${serverUrl}/file?${params.toString()}`, { signal: ctrl.signal });
+    const json = await res.json() as { content: string; size: number };
+    if (_connections.has(serverUrl)) {
+      entry.fileContent = { path, content: json.content, size: json.size };
+      notifyListeners(serverUrl);
+    }
+  } catch { /* aborted or error */ }
 }
 
-export function readFileStore(url: string, path: string, repoPath: string) {
-  const entry = _connections.get(url);
-  if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
-  entry.ws.send(JSON.stringify({ type: 'read_file', path, repoPath }));
+export async function getDiffsStore(serverUrl: string, repoPath?: string) {
+  const entry = _connections.get(serverUrl);
+  if (!entry) return;
+  try {
+    const params = new URLSearchParams();
+    if (repoPath) params.set('repoPath', repoPath);
+    const qs = params.toString();
+    const res = await fetch(`${serverUrl}/diffs${qs ? '?' + qs : ''}`);
+    const json = await res.json() as { diff?: string };
+    if (_connections.has(serverUrl)) {
+      entry.diffs = json.diff ?? null;
+      notifyListeners(serverUrl);
+    }
+  } catch { /* ignore */ }
 }
 
-export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
+// TODO: Revisit connection health indicators
+// export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
+// export function useConnectionStatuses(): Map<string, ConnectionStatus> { ... }
+// export function reconnectNow(url: string) { ... }
 
-export function useConnectionStatuses(): Map<string, ConnectionStatus> {
+// TODO: Revisit connection health indicators
+// export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
+// export function useConnectionStatuses(): Map<string, ConnectionStatus> { ... }
+export function useConnectionStatuses(): Map<string, never> {
+  return new Map<string, never>();
+}
+
+export function useServerCount(): number {
   const [, forceUpdate] = useState(0);
   const unsubRef = useRef<(() => void) | null>(null);
   if (!unsubRef.current) {
     unsubRef.current = subscribeToAll(() => forceUpdate(n => n + 1));
   }
-
   useEffect(() => {
     return () => { unsubRef.current?.(); unsubRef.current = null; };
   }, []);
-
-  const result = new Map<string, ConnectionStatus>();
-  for (const [url, entry] of _connections) {
-    result.set(url, entry.connected ? 'connected' : entry.reconnecting ? 'reconnecting' : 'disconnected');
-  }
-  return result;
+  return _connections.size;
 }

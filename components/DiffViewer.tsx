@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, StyleSheet, View, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
-import { getEntry, getDiffsStore, subscribeToConnection } from '@/store/connection-store';
+import { getDiffsStore, subscribeToConnection, getEntry } from '@/store/connection-store';
 
 type FileDiff = {
   filename: string;
@@ -139,34 +139,34 @@ function FileBox({ file, colors }: { file: FileDiff; colors: typeof GrassColors.
   );
 }
 
-export function DiffViewer({ wsUrl }: { wsUrl: string }) {
+export function DiffViewer({ serverUrl, repoPath }: { serverUrl: string; repoPath: string }) {
   const [theme] = useTheme();
   const c = GrassColors[theme];
-  const [, forceUpdate] = useState(0);
+  const [diffsText, setDiffsText] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getDiffsStore(wsUrl);
-    const unsub = subscribeToConnection(wsUrl, () => forceUpdate(n => n + 1));
+    setLoading(true);
+    setDiffsText(null);
+    // Subscribe first, then fetch so we don't miss the update
+    const unsub = subscribeToConnection(serverUrl, () => {
+      const entry = getEntry(serverUrl);
+      if (entry?.diffs !== undefined) {
+        setDiffsText(entry.diffs);
+        setLoading(false);
+      }
+    });
+    getDiffsStore(serverUrl, repoPath);
     return unsub;
-  }, [wsUrl]);
-
-  const entry = getEntry(wsUrl);
-  const connected = entry?.connected ?? false;
-  const diffsText = entry?.diffs ?? null;
+  }, [serverUrl, repoPath]);
 
   const files = useMemo(() => (diffsText ? parseFileDiffs(diffsText) : []), [diffsText]);
 
-  if (diffsText === null) {
+  if (loading || diffsText === null) {
     return (
       <View style={styles.empty}>
-        {connected ? (
-          <>
-            <ActivityIndicator color={c.badgeText} style={{ marginBottom: 12 }} />
-            <Text style={[styles.emptyText, { color: c.badgeText }]}>Loading diffs…</Text>
-          </>
-        ) : (
-          <Text style={[styles.emptyText, { color: c.badgeText }]}>Not connected</Text>
-        )}
+        <ActivityIndicator color={c.badgeText} style={{ marginBottom: 12 }} />
+        <Text style={[styles.emptyText, { color: c.badgeText }]}>Loading diffs…</Text>
       </View>
     );
   }

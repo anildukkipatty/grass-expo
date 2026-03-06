@@ -6,11 +6,11 @@ import { GrassColors } from '@/constants/theme';
 import { DiffViewer } from '@/components/DiffViewer';
 
 export default function Diffs() {
-  const { wsUrl } = useLocalSearchParams<{ wsUrl: string }>();
+  const { serverUrl, repoPath } = useLocalSearchParams<{ serverUrl: string; repoPath?: string }>();
   const [theme] = useTheme();
   const c = GrassColors[theme];
 
-  if (!wsUrl) {
+  if (!serverUrl) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
         <View style={styles.empty}>
@@ -22,7 +22,7 @@ export default function Diffs() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
-      <DiffViewer wsUrl={wsUrl} />
+      <DiffViewer serverUrl={serverUrl} repoPath={repoPath ?? ''} />
     </SafeAreaView>
   );
 }

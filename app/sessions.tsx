@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useMemo, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated, Image, TextInput, RefreshControl,
 } from 'react-native';
@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
-import { Session, useWebSocket } from '@/hooks/use-websocket';
+import { Session, useServer } from '@/hooks/use-server';
 import { listSessionsStore } from '@/store/connection-store';
 
 
@@ -33,11 +33,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.3,
   },
-  headerCwd: {
-    fontSize: 12,
-    fontFamily: 'ui-monospace',
-    opacity: 0.55,
-  },
+  // headerCwd removed — no REST push equivalent
   searchBar: {
     marginHorizontal: 16,
     marginTop: 12,
@@ -88,9 +84,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 15,
   },
-  errorText: {
-    fontSize: 15,
-  },
   list: {
     padding: 16,
     gap: 8,
@@ -132,18 +125,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
 });
-
-function trimCwd(path: string, maxLen = 30): string {
-  if (path.length <= maxLen) return path;
-  const parts = path.split('/');
-  let result = parts[parts.length - 1];
-  for (let i = parts.length - 2; i >= 0; i--) {
-    const candidate = parts.slice(i).join('/');
-    if (candidate.length + 4 > maxLen) break;
-    result = candidate;
-  }
-  return '.../' + result;
-}
 
 function timeAgo(isoString?: string): string {
   if (!isoString) return '';
@@ -202,23 +183,21 @@ function SessionItem({ item, onPress, c }: {
 
 export default function Sessions() {
   const router = useRouter();
-  const { wsUrl, repoPath, repoName } = useLocalSearchParams<{ wsUrl: string; repoPath?: string; repoName?: string }>();
+  const { serverUrl, repoPath, repoName, agent } = useLocalSearchParams<{ serverUrl: string; repoPath?: string; repoName?: string; agent?: string }>();
   const [theme] = useTheme();
   const c = GrassColors[theme];
   const newBtnScale = useRef(new Animated.Value(1)).current;
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [fetching, setFetching] = useState(true);
 
-  const ws = useWebSocket(wsUrl ?? null);
+  const ws = useServer(serverUrl ?? null);
 
   useFocusEffect(useCallback(() => {
-    if (wsUrl && ws.connected) listSessionsStore(wsUrl);
-  }, [wsUrl, ws.connected]));
-
-  useEffect(() => {
-    if (wsUrl && ws.connected) listSessionsStore(wsUrl);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ws.connected]);
+    if (!serverUrl) return;
+    setFetching(true);
+    listSessionsStore(serverUrl, repoPath, agent).then(() => setFetching(false));
+  }, [serverUrl, repoPath, agent]));
 
   const sessions = useMemo(() => {
     const sorted = [...ws.sessionsList].sort((a, b) => {
@@ -233,31 +212,29 @@ export default function Sessions() {
     );
   }, [ws.sessionsList, query]);
 
-  const loading = !ws.connected && ws.sessionsList.length === 0;
-  const error = !ws.connected && !ws.reconnecting && ws.sessionsList.length === 0
-    ? 'Could not connect to server'
-    : null;
-  const cwd = ws.cwd;
+  const loading = fetching && ws.sessionsList.length === 0;
 
   function openChat(sessionId?: string) {
-    const params: Record<string, string> = { wsUrl: wsUrl! };
+    const params: Record<string, string> = { serverUrl: serverUrl! };
     if (sessionId) params.sessionId = sessionId;
     if (repoName) params.repoName = repoName;
+    if (repoPath) params.repoPath = repoPath;
+    if (agent) params.agent = agent;
     router.push({ pathname: '/chat', params });
   }
 
   function goDiffs() {
-    if (!wsUrl) return;
+    if (!serverUrl) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push({ pathname: '/diffs', params: { wsUrl } });
+    router.push({ pathname: '/diffs', params: { serverUrl, repoPath: repoPath ?? '' } });
   }
 
   async function handleRefresh() {
-    if (!wsUrl) return;
+    if (!serverUrl) return;
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    listSessionsStore(wsUrl);
-    setTimeout(() => setRefreshing(false), 800);
+    await listSessionsStore(serverUrl, repoPath, agent);
+    setRefreshing(false);
   }
 
   return (
@@ -270,11 +247,7 @@ export default function Sessions() {
                 {repoName}
               </Text>
             ) : null}
-            {cwd ? (
-              <Text style={[styles.headerCwd, { color: c.text }]} numberOfLines={1}>
-                {trimCwd(cwd)}
-              </Text>
-            ) : null}
+            {/* cwd display removed — no REST push equivalent */}
           </View>
           <TouchableOpacity style={styles.diffsBtn} onPress={goDiffs} hitSlop={8}>
             <View style={styles.diffsBtnInner}>
@@ -319,10 +292,6 @@ export default function Sessions() {
         <View style={styles.center}>
           <ActivityIndicator color={c.accent} size="large" />
           <Text style={[styles.statusText, { color: c.badgeText }]}>Loading sessions…</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={[styles.errorText, { color: c.errorText }]}>{error}</Text>
         </View>
       ) : sessions.length === 0 ? (
         <View style={styles.center}>

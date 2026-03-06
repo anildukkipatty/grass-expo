@@ -11,67 +11,26 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { getUrls, removeUrl, saveUrl } from '@/store/url-store';
-import { openConnection, closeConnection, reconnectNow, useConnectionStatuses, getEntry, type ConnectionStatus } from '@/store/connection-store';
+import { openConnection, closeConnection, subscribeToAll, getEntry } from '@/store/connection-store';
 
 const DELETE_WIDTH = 72;
 
-const STATUS_COLORS: Record<ConnectionStatus, string> = {
-  connected: '#22c55e',
-  reconnecting: '#f59e0b',
-  disconnected: '#ef4444',
-};
 
-function folderName(cwd: string | null | undefined): string | null {
-  if (!cwd) return null;
-  const parts = cwd.replace(/\/+$/, '').split('/');
-  return parts[parts.length - 1] || null;
+function hostFromUrl(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
 }
 
-const AGENT_LOGOS: Record<string, ReturnType<typeof require>> = {
-  'claude-code': require('@/assets/images/cluade-logo.jpg'),
-  'opencode': require('@/assets/images/open-code.png'),
-};
-
-/* ── Pulsing status dot ── */
-function PulsingDot({ status }: { status: ConnectionStatus }) {
-  const pulse = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (status === 'disconnected') {
-      pulse.setValue(1);
-      return;
-    }
-    const speed = status === 'reconnecting' ? 600 : 1800;
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.4, duration: speed / 2, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: speed / 2, useNativeDriver: true }),
-      ]),
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [status, pulse]);
-
-  const opacity = pulse.interpolate({ inputRange: [1, 1.4], outputRange: [1, 0.5] });
-
-  return (
-    <Animated.View
-      style={[
-        styles.dot,
-        { backgroundColor: STATUS_COLORS[status], transform: [{ scale: pulse }], opacity },
-      ]}
-    />
-  );
-}
-
-function ServerItem({ item, onPress, onDelete, c, status, cwd, agent }: {
+function ServerItem({ item, onPress, onDelete, c, cwd, health }: {
   item: string;
   onPress: () => void;
   onDelete: () => void;
   c: typeof GrassColors['light'];
-  status: ConnectionStatus;
   cwd: string | null | undefined;
-  agent: string | null | undefined;
+  health: 'healthy' | 'unreachable' | undefined;
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -124,10 +83,6 @@ function ServerItem({ item, onPress, onDelete, c, status, cwd, agent }: {
     ]).start(() => onDelete());
   }
 
-  function displayUrl(url: string) {
-    return url.replace(/^wss?:\/\//, '');
-  }
-
   return (
     <Animated.View style={{ overflow: 'hidden', borderRadius: 14, opacity: itemOpacity, transform: [{ scaleY: itemHeight }] }}>
       <Animated.View style={[styles.deleteBtn, { opacity: deleteOpacity }]}>
@@ -157,25 +112,18 @@ function ServerItem({ item, onPress, onDelete, c, status, cwd, agent }: {
           }
           activeOpacity={1}
         >
-          <PulsingDot status={status} />
-          {agent && AGENT_LOGOS[agent] && (
-            <Image source={AGENT_LOGOS[agent]} style={styles.agentLogo} contentFit="contain" />
-          )}
+          <View style={[styles.dot, {
+            backgroundColor: health === 'healthy' ? '#22c55e' : health === 'unreachable' ? '#ef4444' : '#9ca3af',
+          }]} />
           <View style={styles.serverTextGroup}>
-            {folderName(cwd) ? (
-              <>
-                <Text style={[styles.serverFolder, { color: c.text }]} numberOfLines={1}>
-                  {folderName(cwd)}
-                </Text>
-                <Text style={[styles.serverUrl, { color: c.badgeText }]} numberOfLines={1}>
-                  {displayUrl(item)}
-                </Text>
-              </>
-            ) : (
-              <Text style={[styles.serverFolder, { color: c.text }]} numberOfLines={1}>
-                {displayUrl(item)}
+            <Text style={[styles.serverFolder, { color: c.text }]} numberOfLines={1}>
+              {cwd ? cwd.split('/').pop() || hostFromUrl(item) : hostFromUrl(item)}
+            </Text>
+            {cwd ? (
+              <Text style={[styles.serverSubtitle, { color: c.badgeText }]} numberOfLines={1}>
+                {hostFromUrl(item)}
               </Text>
-            )}
+            ) : null}
           </View>
           <Text style={[styles.chevron, { color: c.badgeText }]}>›</Text>
         </TouchableOpacity>
@@ -235,32 +183,91 @@ function BouncingArrow({ color }: { color: string }) {
   );
 }
 
+const HEALTH_POLL_MS = 10_000;
+
 export default function Home() {
   const router = useRouter();
   const [theme] = useTheme();
   const c = GrassColors[theme];
   const [urls, setUrls] = useState<string[]>([]);
+  const [, forceUpdate] = useState(0);
+  const [healthMap, setHealthMap] = useState<Map<string, 'healthy' | 'unreachable'>>(new Map());
   const scanScale = useRef(new Animated.Value(1)).current;
-  const statuses = useConnectionStatuses();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const generationRef = useRef(0);
+
+  useEffect(() => {
+    const unsub = subscribeToAll(() => forceUpdate(n => n + 1));
+    return unsub;
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
+      // Kill any previously running interval before starting a new one.
+      // This handles the rapid-navigation race where cleanup from the last
+      // focus cycle hasn't fired yet when the new focus cycle starts.
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+
+      // Increment generation so any in-flight fetches from prior cycles
+      // will discard their results when they resolve.
+      const gen = ++generationRef.current;
+
+      let currentUrls: string[] = [];
+
+      async function pollHealth(urlsToCheck: string[]) {
+        if (gen !== generationRef.current) return;
+        const results = await Promise.allSettled(
+          urlsToCheck.map(async (url) => {
+            try {
+              const res = await fetch(`${url}/health`);
+              return { url, ok: res.ok };
+            } catch {
+              return { url, ok: false };
+            }
+          })
+        );
+        if (gen !== generationRef.current) return;
+        setHealthMap(prev => {
+          const next = new Map(prev);
+          for (const r of results) {
+            if (r.status === 'fulfilled') {
+              next.set(r.value.url, r.value.ok ? 'healthy' : 'unreachable');
+            }
+          }
+          return next;
+        });
+      }
+
       getUrls().then(loadedUrls => {
+        if (gen !== generationRef.current) return;
+        currentUrls = loadedUrls;
         setUrls(loadedUrls);
         loadedUrls.forEach(openConnection);
+        pollHealth(loadedUrls);
+        intervalRef.current = setInterval(() => pollHealth(currentUrls), HEALTH_POLL_MS);
       });
+
+      return () => {
+        if (intervalRef.current !== null) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        generationRef.current++;
+      };
     }, [])
   );
 
   useEffect(() => {
     const subscription = CameraView.onModernBarcodeScanned(async (result) => {
       const raw = result.data;
-      const wsUrl = raw
-        .replace(/^http:\/\//, 'ws://')
-        .replace(/^https:\/\//, 'wss://');
+      // QR codes now emit http:// directly — just use raw URL
+      const serverUrl = raw;
       await CameraView.dismissScanner();
-      await saveUrl(wsUrl);
-      openConnection(wsUrl);
+      await saveUrl(serverUrl);
+      openConnection(serverUrl);
       setUrls(await getUrls());
     });
     return () => subscription.remove();
@@ -275,15 +282,14 @@ export default function Home() {
     }
   }
 
-  function handleSelect(url: string) {
-    reconnectNow(url);
-    router.push({ pathname: '/folders', params: { wsUrl: url } });
+  function handleSelect(serverUrl: string) {
+    router.push({ pathname: '/folders', params: { serverUrl } });
   }
 
-  async function handleDelete(url: string) {
-    closeConnection(url);
-    await removeUrl(url);
-    setUrls(prev => prev.filter(u => u !== url));
+  async function handleDelete(serverUrl: string) {
+    closeConnection(serverUrl);
+    await removeUrl(serverUrl);
+    setUrls(prev => prev.filter(u => u !== serverUrl));
   }
 
   return (
@@ -303,9 +309,8 @@ export default function Home() {
                 key={item}
                 item={item}
                 c={c}
-                status={statuses.get(item) ?? 'disconnected'}
-                cwd={getEntry(item)?.cwd}
-                agent={getEntry(item)?.agent}
+                cwd={getEntry(item)?.serverCwd}
+                health={healthMap.get(item)}
                 onPress={() => handleSelect(item)}
                 onDelete={() => handleDelete(item)}
               />
@@ -376,12 +381,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     flexShrink: 0,
   },
-  agentLogo: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    flexShrink: 0,
-  },
   serverTextGroup: {
     flex: 1,
     gap: 2,
@@ -391,11 +390,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: -0.2,
   },
-  serverUrl: {
+  serverSubtitle: {
     fontSize: 12,
-    fontFamily: 'ui-monospace',
-    letterSpacing: -0.2,
-    opacity: 0.55,
+    letterSpacing: -0.1,
   },
   chevron: {
     fontSize: 22,

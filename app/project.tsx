@@ -9,11 +9,12 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
-import { useWebSocket } from '@/hooks/use-websocket';
-import { getDiffsStore, useConnectionStatuses } from '@/store/connection-store';
 import { ExplorerPanel } from '@/components/ExplorerPanel';
 import { DiffViewer } from '@/components/DiffViewer';
 import { isIPad } from '@/utils/device';
+
+// TODO: Revisit useConnectionStatuses when connection health indicators are restored
+// import { useConnectionStatuses } from '@/store/connection-store';
 
 const AGENTS = [
   {
@@ -75,17 +76,16 @@ function AgentCard({ agent, onPress, c }: {
 
 export default function Project() {
   const router = useRouter();
-  const { wsUrl, repoPath, repoName } = useLocalSearchParams<{
-    wsUrl: string;
+  const { serverUrl, repoPath, repoName } = useLocalSearchParams<{
+    serverUrl: string;
     repoPath: string;
     repoName: string;
   }>();
   const [theme, setTheme] = useTheme();
   const c = GrassColors[theme];
-  const ws = useWebSocket(wsUrl ?? null);
-  const statuses = useConnectionStatuses();
-  const connStatus = wsUrl ? (statuses.get(wsUrl) ?? 'disconnected') : 'disconnected';
-  const statusDotColor = connStatus === 'connected' ? '#34C759' : connStatus === 'reconnecting' ? '#FF9500' : '#FF3B30';
+  // TODO: Revisit connection health indicators
+  // const statuses = useConnectionStatuses();
+  // const statusDotColor = ...;
 
   const [activeMode, setActiveMode] = useState<'explorer' | 'diffs'>('explorer');
   const [agentModalVisible, setAgentModalVisible] = useState(false);
@@ -106,15 +106,14 @@ export default function Project() {
       return;
     }
     setActiveMode(mode as 'explorer' | 'diffs');
-    if (mode === 'diffs' && wsUrl) getDiffsStore(wsUrl);
+    // DiffViewer now fetches directly on mount — no WS call needed
   }
 
   function handleSelectAgent(agentId: string) {
-    ws.selectAgent(agentId);
     setAgentModalVisible(false);
     router.push({
       pathname: '/sessions',
-      params: { wsUrl: wsUrl!, repoPath: repoPath!, repoName: repoName! },
+      params: { serverUrl: serverUrl!, repoPath: repoPath!, repoName: repoName!, agent: agentId },
     });
   }
 
@@ -134,7 +133,8 @@ export default function Project() {
             {repoName || 'Project'}
           </Text>
           <View style={{ flex: 1 }} />
-          <View style={[styles.statusDot, { backgroundColor: statusDotColor }]} />
+          {/* Static grey dot — TODO: replace with live status dot when connection health is restored */}
+          <View style={[styles.statusDot, { backgroundColor: '#9ca3af' }]} />
           <TouchableOpacity
             style={styles.themeBtn}
             onPress={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -181,10 +181,10 @@ export default function Project() {
 
           {/* Content area */}
           <View style={styles.content}>
-            {activeMode === 'explorer' && wsUrl && repoPath ? (
-              <ExplorerPanel wsUrl={wsUrl} repoPath={repoPath} theme={theme} />
-            ) : activeMode === 'diffs' && wsUrl ? (
-              <DiffViewer wsUrl={wsUrl} />
+            {activeMode === 'explorer' && serverUrl && repoPath ? (
+              <ExplorerPanel serverUrl={serverUrl} repoPath={repoPath} theme={theme} />
+            ) : activeMode === 'diffs' && serverUrl ? (
+              <DiffViewer serverUrl={serverUrl} repoPath={repoPath ?? ''} />
             ) : null}
           </View>
         </View>
@@ -204,7 +204,6 @@ export default function Project() {
         >
           <View
             style={[styles.modalSheet, { backgroundColor: c.bg, borderTopColor: c.border }]}
-            // Prevent modal from closing when tapping inside the sheet
             onStartShouldSetResponder={() => true}
           >
             <View style={[styles.modalHandle, { backgroundColor: c.badgeText }]} />
