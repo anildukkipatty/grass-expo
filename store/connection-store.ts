@@ -263,6 +263,8 @@ async function openSSEStream(serverUrl: string, sessionId: string) {
 
   const controller = new AbortController();
   entry.sseAbortController = controller;
+  entry.streaming = true;
+  notifyListeners(serverUrl);
 
   const headers: Record<string, string> = { Accept: 'text/event-stream' };
   if (entry.lastEventId) headers['Last-Event-ID'] = entry.lastEventId;

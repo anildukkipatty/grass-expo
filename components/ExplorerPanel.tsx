@@ -1,21 +1,25 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  View, Text, TouchableOpacity, ScrollView, Animated, StyleSheet,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import SyntaxHighlighter from 'react-syntax-highlighter/dist/esm/prism-light';
-import tsx from 'react-syntax-highlighter/dist/esm/languages/prism/tsx';
-import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
-import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript';
-import jsx from 'react-syntax-highlighter/dist/esm/languages/prism/jsx';
-import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash';
-import json from 'react-syntax-highlighter/dist/esm/languages/prism/json';
-import python from 'react-syntax-highlighter/dist/esm/languages/prism/python';
-import oneLight from 'react-syntax-highlighter/dist/esm/styles/prism/one-light';
-import oneDark from 'react-syntax-highlighter/dist/esm/styles/prism/one-dark';
 import { fenceColors } from '@/constants/markdownStyles';
 import { GrassColors } from '@/constants/theme';
-import { useServer, DirEntry } from '@/hooks/use-server';
+import { DirEntry, useServer } from '@/hooks/use-server';
+import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  ScrollView,
+  StyleSheet,
+  Text, TouchableOpacity,
+  View,
+} from 'react-native';
+import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash';
+import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript';
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json';
+import jsx from 'react-syntax-highlighter/dist/esm/languages/prism/jsx';
+import python from 'react-syntax-highlighter/dist/esm/languages/prism/python';
+import tsx from 'react-syntax-highlighter/dist/esm/languages/prism/tsx';
+import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
+import SyntaxHighlighter from 'react-syntax-highlighter/dist/esm/prism-light';
+import oneDark from 'react-syntax-highlighter/dist/esm/styles/prism/one-dark';
+import oneLight from 'react-syntax-highlighter/dist/esm/styles/prism/one-light';
 
 SyntaxHighlighter.registerLanguage('tsx', tsx);
 SyntaxHighlighter.registerLanguage('typescript', typescript);
