@@ -556,6 +556,14 @@ export function clearCloneStatusStore(serverUrl: string) {
   notifyListeners(serverUrl);
 }
 
+export function resetFileViewStore(serverUrl: string) {
+  const entry = _connections.get(serverUrl);
+  if (!entry) return;
+  entry.fileContent = null;
+  entry.dirListing = null;
+  notifyListeners(serverUrl);
+}
+
 // --- Sessions ---
 
 export async function listSessionsStore(serverUrl: string, repoPath?: string, agent?: string) {

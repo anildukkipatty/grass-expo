@@ -1,10 +1,12 @@
 import { fenceColors } from '@/constants/markdownStyles';
 import { GrassColors } from '@/constants/theme';
 import { DirEntry, useServer } from '@/hooks/use-server';
+import { resetFileViewStore } from '@/store/connection-store';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  InteractionManager,
   ScrollView,
   StyleSheet,
   Text, TouchableOpacity,
@@ -121,6 +123,18 @@ export function ExplorerPanel({
   const c = GrassColors[theme];
   const ws = useServer(serverUrl);
   const [currentPath, setCurrentPath] = useState(repoPath);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => setReady(true));
+    return () => task.cancel();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      resetFileViewStore(serverUrl);
+    };
+  }, [serverUrl]);
 
   useEffect(() => {
     ws.listDir(currentPath, repoPath);
@@ -148,7 +162,7 @@ export function ExplorerPanel({
 
   // --- right panel content ---
   function renderFileContent() {
-    if (!ws.fileContent) {
+    if (!ready || !ws.fileContent) {
       return (
         <View style={styles.placeholder}>
           <Ionicons name="document-text-outline" size={40} color={c.badgeText} style={{ opacity: 0.4 }} />
@@ -281,7 +295,7 @@ export function ExplorerPanel({
 
       {/* Right panel — file content */}
       <View style={[styles.rightPanel, { backgroundColor: c.bg }]}>
-        {ws.fileContent && (
+        {ready && ws.fileContent && (
           <View style={[styles.fileHeaderBar, { backgroundColor: c.barBg, borderBottomColor: c.border }]}>
             <Ionicons
               name={isImage(ws.fileContent.path) ? 'image-outline' : 'document-text-outline'}
