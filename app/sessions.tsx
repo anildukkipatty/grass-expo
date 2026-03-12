@@ -44,6 +44,16 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     fontSize: 15,
   },
+  backBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backBtnText: {
+    fontSize: 28,
+    lineHeight: 30,
+  },
   diffsBtn: {
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -241,6 +251,13 @@ export default function Sessions() {
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
       <View style={[styles.headerWrap, { borderBottomColor: c.border }]}>
         <BlurView intensity={80} tint={theme === 'dark' ? 'dark' : 'light'} style={styles.header}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+            hitSlop={8}
+          >
+            <Text style={[styles.backBtnText, { color: c.text }]}>‹</Text>
+          </TouchableOpacity>
           <View style={styles.headerTitleGroup}>
             {repoName ? (
               <Text style={[styles.headerTitle, { color: c.text }]} numberOfLines={1}>
