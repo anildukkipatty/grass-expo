@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.grass-ide.ios",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Used to scan QR codes to connect to sandboxes."
       }
     },
     "android": {

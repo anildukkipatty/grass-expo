@@ -3,9 +3,72 @@ import { GrassColors } from '@/constants/theme';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import {
+  subscribeToAll,
+  subscribeToPermissions,
+  getPermissions,
+  getConnectedUrls,
+  respondGlobalPermission,
+  GlobalPermissionItem,
+} from '@/store/connection-store';
+import { PermissionModal } from '@/components/PermissionModal';
 
 SplashScreen.preventAutoHideAsync();
+
+// Tracks which server URLs currently have active connections so we can open
+// a permissions SSE for each one.
+function useConnectedServers(): string[] {
+  const [servers, setServers] = useState<string[]>(() => getConnectedUrls());
+  useEffect(() => {
+    const update = () => setServers(getConnectedUrls());
+    const unsub = subscribeToAll(update);
+    return unsub;
+  }, []);
+  return servers;
+}
+
+// Renders the PermissionModal for the first pending permission across all connected servers.
+function GlobalPermissionsManager({ theme }: { theme: 'light' | 'dark' }) {
+  const servers = useConnectedServers();
+  // Collect all pending permissions across servers, tag with serverUrl
+  const [allPerms, setAllPerms] = useState<Array<GlobalPermissionItem & { serverUrl: string }>>([]);
+
+  // Re-subscribe whenever server list changes — we collect via a single state update
+  useEffect(() => {
+    if (servers.length === 0) {
+      setAllPerms([]);
+      return;
+    }
+    const unsubscribers: (() => void)[] = [];
+    const collect = () => {
+      const merged: Array<GlobalPermissionItem & { serverUrl: string }> = [];
+      for (const url of servers) {
+        for (const p of getPermissions(url)) {
+          merged.push({ ...p, serverUrl: url });
+        }
+      }
+      setAllPerms(merged);
+    };
+    for (const url of servers) {
+      unsubscribers.push(subscribeToPermissions(url, collect));
+    }
+    collect();
+    return () => unsubscribers.forEach(fn => fn());
+  }, [servers]);
+
+  const first = allPerms[0];
+  if (!first) return null;
+
+  return (
+    <PermissionModal
+      item={{ toolUseID: first.toolUseID, toolName: first.toolName, input: first.input }}
+      onAllow={() => respondGlobalPermission(first.serverUrl, first.sessionId, first.toolUseID, true)}
+      onDeny={() => respondGlobalPermission(first.serverUrl, first.sessionId, first.toolUseID, false)}
+      theme={theme}
+    />
+  );
+}
 
 export default function RootLayout() {
   const [theme] = useTheme();
@@ -42,6 +105,7 @@ export default function RootLayout() {
         />
       </Stack>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <GlobalPermissionsManager theme={theme} />
     </>
   );
 }

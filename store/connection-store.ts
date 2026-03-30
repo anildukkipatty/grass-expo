@@ -17,6 +17,16 @@ export interface PermissionItem {
   input: Record<string, unknown>;
 }
 
+export interface GlobalPermissionItem {
+  sessionId: string;
+  agent: 'claude-code' | 'opencode' | string;
+  repoPath: string;
+  repoName: string;
+  toolUseID: string;
+  toolName: string;
+  input: Record<string, unknown>;
+}
+
 export interface Session {
   id: string;
   label?: string;
@@ -29,6 +39,12 @@ export interface Repo {
   path: string;
   name: string;
   isGit: boolean;
+}
+
+export interface RepoDetails {
+  branch: string | null;
+  lastCommit: { message: string; hash: string; timestamp: number } | null;
+  dominantLanguage: string | null;
 }
 
 export type DirEntry = {
@@ -63,6 +79,7 @@ interface ConnectionEntry {
   sessionId: string | null;
   sessionsList: Session[];
   repos: Repo[];
+  repoDetails: Map<string, RepoDetails>;
   diffs: string | null;
   dirListing: DirEntry[] | null;
   fileContent: FileContentResult | null;
@@ -79,6 +96,119 @@ interface ConnectionEntry {
 
 const _connections = new Map<string, ConnectionEntry>();
 const _globalListeners = new Set<() => void>();
+
+// --- Global permissions SSE (one per server URL) ---
+
+interface PermissionsSSEEntry {
+  abortController: AbortController | null;
+  permissions: GlobalPermissionItem[];
+  listeners: Set<() => void>;
+}
+
+const _permissionsSSE = new Map<string, PermissionsSSEEntry>();
+
+function notifyPermissionsListeners(serverUrl: string) {
+  const e = _permissionsSSE.get(serverUrl);
+  if (!e) return;
+  e.listeners.forEach(fn => fn());
+}
+
+async function openPermissionsSSE(serverUrl: string) {
+  let entry = _permissionsSSE.get(serverUrl);
+  if (!entry) {
+    entry = { abortController: null, permissions: [], listeners: new Set() };
+    _permissionsSSE.set(serverUrl, entry);
+  }
+
+  // Already open
+  if (entry.abortController) return;
+
+  const controller = new AbortController();
+  entry.abortController = controller;
+
+  let buffer = '';
+
+  try {
+    const response = await fetch(
+      `${serverUrl}/permissions/events`,
+      { headers: { Accept: 'text/event-stream' }, signal: controller.signal, reactNativeFetchMode: 'stream' } as unknown as Parameters<typeof fetch>[1]
+    );
+
+    if (!response.body) return;
+    const reader = (response.body as ReadableStream<Uint8Array>).getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const { frames, remainder } = parseSSEChunk(buffer);
+      buffer = remainder;
+
+      for (const frame of frames) {
+        if (frame.event === 'permissions' && frame.data) {
+          try {
+            const parsed = JSON.parse(frame.data) as { permissions: GlobalPermissionItem[] };
+            const e2 = _permissionsSSE.get(serverUrl);
+            if (e2) {
+              e2.permissions = parsed.permissions ?? [];
+              notifyPermissionsListeners(serverUrl);
+            }
+          } catch { /* ignore parse error */ }
+        }
+      }
+    }
+  } catch {
+    // aborted or network error
+  }
+
+  const e2 = _permissionsSSE.get(serverUrl);
+  if (e2) {
+    e2.abortController = null;
+  }
+}
+
+export function closePermissionsSSE(serverUrl: string) {
+  const entry = _permissionsSSE.get(serverUrl);
+  if (!entry) return;
+  entry.abortController?.abort();
+  entry.abortController = null;
+}
+
+export function subscribeToPermissions(serverUrl: string, fn: () => void): () => void {
+  let entry = _permissionsSSE.get(serverUrl);
+  if (!entry) {
+    entry = { abortController: null, permissions: [], listeners: new Set() };
+    _permissionsSSE.set(serverUrl, entry);
+  }
+  entry.listeners.add(fn);
+  // Start SSE if not already open
+  openPermissionsSSE(serverUrl);
+  return () => {
+    const e = _permissionsSSE.get(serverUrl);
+    if (e) e.listeners.delete(fn);
+  };
+}
+
+export function getPermissions(serverUrl: string): GlobalPermissionItem[] {
+  return _permissionsSSE.get(serverUrl)?.permissions ?? [];
+}
+
+export async function respondGlobalPermission(serverUrl: string, sessionId: string, toolUseID: string, approved: boolean) {
+  // Optimistically remove from local list
+  const entry = _permissionsSSE.get(serverUrl);
+  if (entry) {
+    entry.permissions = entry.permissions.filter(p => p.toolUseID !== toolUseID);
+    notifyPermissionsListeners(serverUrl);
+  }
+  try {
+    await fetch(`${serverUrl}/sessions/${sessionId}/permission`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolUseID, approved }),
+    });
+  } catch { /* ignore */ }
+}
 
 function notifyListeners(url: string) {
   const entry = _connections.get(url);
@@ -211,14 +341,8 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
   }
 
   if (event === 'permission_request') {
-    if (!entry.permissionQueue.some(p => p.toolUseID === parsed.toolUseID)) {
-      entry.permissionQueue = [...entry.permissionQueue, {
-        toolUseID: parsed.toolUseID as string,
-        toolName: parsed.toolName as string,
-        input: (parsed.input as Record<string, unknown>) || {},
-      }];
-      notifyListeners(serverUrl);
-    }
+    // Permissions are now handled exclusively by the global /permissions/events SSE.
+    // Ignore permission_request events from the per-session stream.
     return;
   }
 
@@ -325,6 +449,7 @@ AppState.addEventListener('change', (next) => {
   if (next !== 'active') {
     // Background: close all SSE streams
     for (const [url] of _connections) closeSSEStream(url);
+    for (const [url] of _permissionsSSE) closePermissionsSSE(url);
     _globalListeners.forEach(fn => fn());
   } else {
     // Foreground: re-attach SSE if a session was streaming
@@ -332,6 +457,10 @@ AppState.addEventListener('change', (next) => {
       if (entry.currentSessionId && entry.streaming) {
         openSSEStream(url, entry.currentSessionId);
       }
+    }
+    // Re-open permissions SSE for any server that had listeners
+    for (const [url, pEntry] of _permissionsSSE) {
+      if (pEntry.listeners.size > 0) openPermissionsSSE(url);
     }
     _globalListeners.forEach(fn => fn());
   }
@@ -355,6 +484,7 @@ export function openConnection(serverUrl: string) {
     sessionId: null,
     sessionsList: [],
     repos: [],
+    repoDetails: new Map(),
     diffs: null,
     dirListing: null,
     fileContent: null,
@@ -371,6 +501,8 @@ export function openConnection(serverUrl: string) {
 
 export function closeConnection(serverUrl: string) {
   closeSSEStream(serverUrl);
+  closePermissionsSSE(serverUrl);
+  _permissionsSSE.delete(serverUrl);
   _connections.delete(serverUrl);
   _globalListeners.forEach(fn => fn());
 }
@@ -389,6 +521,10 @@ export function subscribeToAll(fn: () => void): () => void {
 
 export function getEntry(url: string): ConnectionEntry | undefined {
   return _connections.get(url);
+}
+
+export function getConnectedUrls(): string[] {
+  return Array.from(_connections.keys());
 }
 
 // --- Chat ---
@@ -486,6 +622,19 @@ export async function listReposStore(serverUrl: string) {
     const json = await res.json() as { repos?: Repo[] };
     if (_connections.has(serverUrl)) {
       entry.repos = json.repos ?? [];
+      notifyListeners(serverUrl);
+    }
+  } catch { /* ignore */ }
+}
+
+export async function getRepoDetailsStore(serverUrl: string, repoPath: string): Promise<void> {
+  const entry = _connections.get(serverUrl);
+  if (!entry) return;
+  try {
+    const res = await fetch(`${serverUrl}/repos/details?repoPath=${encodeURIComponent(repoPath)}`);
+    const json = await res.json() as RepoDetails;
+    if (_connections.has(serverUrl)) {
+      entry.repoDetails = new Map(entry.repoDetails).set(repoPath, json);
       notifyListeners(serverUrl);
     }
   } catch { /* ignore */ }

@@ -7,11 +7,11 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { useServer } from '@/hooks/use-server';
+import { closeSSEStream } from '@/store/connection-store';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { MessageBubble } from '@/components/MessageBubble';
 import { ActivityBar } from '@/components/ActivityBar';
-import { PermissionModal } from '@/components/PermissionModal';
 
 // TODO: Revisit PulsingDot when connection health indicators are restored
 // function PulsingDot({ connected, reconnecting }: { ... }) { ... }
@@ -58,12 +58,14 @@ export default function Chat() {
     return () => sub.remove();
   }, [ws.messages.length]);
 
-  // Init session once on mount
+  // Init session once on mount; close SSE stream on unmount so the server
+  // buffers remaining events for replay when the user returns to this session.
   useEffect(() => {
     if (!sessionInitialized.current && serverUrl) {
       sessionInitialized.current = true;
       ws.initSession(initialSessionId ?? null, agent ?? null, repoPath ?? null);
     }
+    return () => { if (serverUrl) closeSSEStream(serverUrl); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -228,15 +230,6 @@ export default function Chat() {
         </View>
       </KeyboardAvoidingView>
 
-      {/* Permission modal */}
-      {ws.permissionQueue.length > 0 && (
-        <PermissionModal
-          item={ws.permissionQueue[0]}
-          onAllow={() => ws.respondPermission(true)}
-          onDeny={() => ws.respondPermission(false)}
-          theme={theme}
-        />
-      )}
     </SafeAreaView>
   );
 }

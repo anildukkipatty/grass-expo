@@ -12,8 +12,16 @@ import { Session, useServer } from '@/hooks/use-server';
 import { listSessionsStore } from '@/store/connection-store';
 
 
+// Green theme palette (used in place of c.* for this screen)
+const BG = '#0f1a0f';
+const CARD_BG = 'rgba(30, 42, 30, 0.6)';
+const CARD_BORDER = 'rgba(100, 140, 100, 0.1)';
+const TEXT = '#d4e8d4';
+const SUBTEXT = '#7a9a7a';
+const ACCENT = '#7CB9A8';
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: BG },
   headerWrap: {
     borderBottomWidth: 1,
   },
@@ -162,7 +170,7 @@ function SessionItem({ item, onPress, c }: {
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
-        style={[styles.sessionItem, { backgroundColor: c.assistantBubble, borderColor: c.border }]}
+        style={[styles.sessionItem, { backgroundColor: CARD_BG, borderColor: CARD_BORDER }]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           onPress();
@@ -175,16 +183,16 @@ function SessionItem({ item, onPress, c }: {
         }
         activeOpacity={1}
       >
-        <Text style={[styles.sessionPreview, { color: c.text }]} numberOfLines={2}>
+        <Text style={[styles.sessionPreview, { color: TEXT }]} numberOfLines={2}>
           {(item.label || item.preview || 'Session').replace(/\n/g, ' ')}
         </Text>
         <View style={styles.sessionMeta}>
           {(item.updatedAt || item.createdAt) ? (
-            <Text style={[styles.sessionTime, { color: c.badgeText }]}>
+            <Text style={[styles.sessionTime, { color: SUBTEXT }]}>
               {timeAgo(item.updatedAt || item.createdAt)}
             </Text>
           ) : null}
-          <Text style={[styles.sessionId, { color: c.badgeText }]}>{item.id}</Text>
+          <Text style={[styles.sessionId, { color: SUBTEXT }]}>{item.id}</Text>
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -248,33 +256,32 @@ export default function Sessions() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
-      <View style={[styles.headerWrap, { borderBottomColor: c.border }]}>
-        <BlurView intensity={80} tint={theme === 'dark' ? 'dark' : 'light'} style={styles.header}>
+    <SafeAreaView style={styles.container}>
+      <View style={[styles.headerWrap, { borderBottomColor: 'rgba(100, 140, 100, 0.15)' }]}>
+        <BlurView intensity={40} tint="dark" style={styles.header}>
           <TouchableOpacity
             style={styles.backBtn}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
             hitSlop={8}
           >
-            <Text style={[styles.backBtnText, { color: c.text }]}>‹</Text>
+            <Text style={[styles.backBtnText, { color: TEXT }]}>‹</Text>
           </TouchableOpacity>
           <View style={styles.headerTitleGroup}>
             {repoName ? (
-              <Text style={[styles.headerTitle, { color: c.text }]} numberOfLines={1}>
+              <Text style={[styles.headerTitle, { color: TEXT }]} numberOfLines={1}>
                 {repoName}
               </Text>
             ) : null}
-            {/* cwd display removed — no REST push equivalent */}
           </View>
           <TouchableOpacity style={styles.diffsBtn} onPress={goDiffs} hitSlop={8}>
             <View style={styles.diffsBtnInner}>
               <Image source={require('@/assets/images/diff-logo.png')} style={styles.diffsBtnIcon} />
-              <Text style={[styles.diffsBtnText, { color: c.badgeText }]}>Diffs</Text>
+              <Text style={[styles.diffsBtnText, { color: SUBTEXT }]}>Diffs</Text>
             </View>
           </TouchableOpacity>
           <Animated.View style={{ transform: [{ scale: newBtnScale }] }}>
             <TouchableOpacity
-              style={[styles.newBtn, { backgroundColor: c.accent }]}
+              style={[styles.newBtn, { backgroundColor: ACCENT }]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 openChat();
@@ -287,17 +294,17 @@ export default function Sessions() {
               }
               activeOpacity={1}
             >
-              <Ionicons name="add" size={18} color="#fff" />
-              <Text style={styles.newBtnText}>New</Text>
+              <Ionicons name="add" size={18} color="#0f1a0f" />
+              <Text style={[styles.newBtnText, { color: '#0f1a0f' }]}>New</Text>
             </TouchableOpacity>
           </Animated.View>
         </BlurView>
       </View>
 
       <TextInput
-        style={[styles.searchBar, { backgroundColor: c.assistantBubble, borderColor: c.border, color: c.text }]}
+        style={[styles.searchBar, { backgroundColor: CARD_BG, borderColor: CARD_BORDER, color: TEXT }]}
         placeholder="Search history…"
-        placeholderTextColor={c.badgeText}
+        placeholderTextColor={SUBTEXT}
         value={query}
         onChangeText={setQuery}
         clearButtonMode="while-editing"
@@ -307,16 +314,16 @@ export default function Sessions() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={c.accent} size="large" />
-          <Text style={[styles.statusText, { color: c.badgeText }]}>Loading sessions…</Text>
+          <ActivityIndicator color={ACCENT} size="large" />
+          <Text style={[styles.statusText, { color: SUBTEXT }]}>Loading sessions…</Text>
         </View>
       ) : sessions.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="chatbubbles-outline" size={44} color={c.badgeText} style={styles.emptyIcon} />
-          <Text style={[styles.emptyTitle, { color: c.text }]}>
+          <Ionicons name="chatbubbles-outline" size={44} color={SUBTEXT} style={styles.emptyIcon} />
+          <Text style={[styles.emptyTitle, { color: TEXT }]}>
             {query.trim() ? 'No matching sessions' : 'No threads yet'}
           </Text>
-          <Text style={[styles.statusText, { color: c.badgeText }]}>
+          <Text style={[styles.statusText, { color: SUBTEXT }]}>
             {query.trim() ? 'Try a different search' : 'Start a new conversation'}
           </Text>
         </View>
@@ -329,8 +336,8 @@ export default function Sessions() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={c.accent}
-              colors={[c.accent]}
+              tintColor={ACCENT}
+              colors={[ACCENT]}
             />
           }
           renderItem={({ item }) => (
