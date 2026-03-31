@@ -1,47 +1,49 @@
-import React, { useRef, useState, useEffect } from 'react';
+import { NationalPark } from "@/constants/theme";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ImageBackground,
-  SafeAreaView,
-  Dimensions,
-  Modal,
   Animated,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableWithoutFeedback,
-  Keyboard,
-  ScrollView,
+  Dimensions,
   FlatList,
+  ImageBackground,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
-} from 'react-native';
-import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.72;
 
 // ─── Carousel data ───────────────────────────────────────────────────────────
 
 const CAROUSEL_CARDS = [
   {
-    icon: '🌐',
-    title: 'Remote Access',
-    body: 'Connect to your development machine from anywhere in the world.',
+    icon: "🌐",
+    title: "Remote Access",
+    body: "Connect to your development machine from anywhere in the world.",
   },
   {
-    icon: '⚡',
-    title: 'Always-on VM',
-    body: 'Your machine runs 24/7. Close the app, the agent keeps working.',
+    icon: "⚡",
+    title: "Always-on VM",
+    body: "Your machine runs 24/7. Close the app, the agent keeps working.",
   },
   {
-    icon: '🔒',
-    title: 'Secure & Private',
-    body: 'End-to-end encrypted. Your code stays on your machine.',
+    icon: "🔒",
+    title: "Secure & Private",
+    body: "End-to-end encrypted. Your code stays on your machine.",
   },
 ];
 
@@ -102,7 +104,7 @@ function SetupLoadingModal({
         toValue: 1,
         duration: 1000,
         useNativeDriver: true,
-      })
+      }),
     );
     loop.start();
     return () => loop.stop();
@@ -110,12 +112,12 @@ function SetupLoadingModal({
 
   const spinDeg = spinAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
+    outputRange: ["0deg", "360deg"],
   });
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
+    outputRange: ["0%", "100%"],
   });
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -133,81 +135,111 @@ function SetupLoadingModal({
     >
       <View style={setup.container}>
         {/* Full-screen banner image */}
-        <Image
-          source={require('@/assets/images/setup/banner.png')}
-          style={setup.banner}
-          contentFit="cover"
-        />
+        <View style={setup.bannerContainer}>
+          <Image
+            source={require("@/assets/images/setup/banner.png")}
+            style={setup.banner}
+            contentFit="fill"
+          />
+        </View>
 
         {/* Gradient overlay at bottom so cards are readable */}
         <View style={setup.gradientOverlay} />
 
         <SafeAreaView style={setup.safeArea}>
           {/* Title */}
-          <Text style={setup.title}>{'Setting up\nyour GrassVM'}</Text>
+          <Text style={setup.title}>{"Setting up\nyour GrassVM"}</Text>
 
-          {/* Push cards to bottom */}
-          <View style={{ flex: 1 }} />
-
-          {/* Card carousel */}
-          <FlatList
-            ref={flatListRef}
-            data={CAROUSEL_CARDS}
-            keyExtractor={(_, i) => String(i)}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={handleScroll}
-            getItemLayout={(_, index) => ({
-              length: SCREEN_WIDTH,
-              offset: SCREEN_WIDTH * index,
-              index,
-            })}
-            renderItem={({ item }) => (
-              <View style={setup.cardWrapper}>
-                <View style={setup.card}>
-                  <Text style={setup.cardIcon}>{item.icon}</Text>
-                  <View style={setup.cardText}>
-                    <Text style={setup.cardTitle}>{item.title}</Text>
-                    <Text style={setup.cardBody}>{item.body}</Text>
+          {/* Card carousel — centered vertically */}
+          {!completed && (
+            <View style={{ flex: 1, justifyContent: "center" }}>
+              <FlatList
+                ref={flatListRef}
+                data={CAROUSEL_CARDS}
+                keyExtractor={(_, i) => String(i)}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={handleScroll}
+                style={setup.carouselList}
+                getItemLayout={(_, index) => ({
+                  length: SCREEN_WIDTH,
+                  offset: SCREEN_WIDTH * index,
+                  index,
+                })}
+                renderItem={({ item }) => (
+                  <View style={setup.cardWrapper}>
+                    <View style={setup.card}>
+                      <Image
+                        source={require("@/assets/images/setup/tabler-power.png")}
+                        style={setup.cardIcon}
+                        contentFit="contain"
+                      />
+                      <View style={setup.cardText}>
+                        <Text style={setup.cardTitle} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        <Text style={setup.cardBody}>{item.body}</Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </View>
-            )}
-          />
-
-          {/* Pagination dots */}
-          <View style={setup.dotsRow}>
-            {CAROUSEL_CARDS.map((_, i) => (
-              <View
-                key={i}
-                style={[setup.dot, i === activeIndex && setup.dotActive]}
+                )}
               />
-            ))}
-          </View>
+
+              {/* Pagination dots */}
+              <View style={setup.dotsRow}>
+                {CAROUSEL_CARDS.map((_, i) => (
+                  <View
+                    key={i}
+                    style={[setup.dot, i === activeIndex && setup.dotActive]}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Status & progress */}
+
+          {completed && <View style={{ flex: 1 }} />}
           <View style={setup.bottomArea}>
             {completed ? (
               <TouchableOpacity
-                style={setup.commitButton}
-                onPress={() => { onComplete(); router.push('/push-commit'); }}
+                style={setup.commitButtonOuter}
+                onPress={() => {
+                  onComplete();
+                  router.push("/push-commit");
+                }}
                 activeOpacity={0.88}
               >
-                <Text style={setup.commitButtonText}>Push your first commit  →</Text>
+                <LinearGradient
+                  colors={["#00FF40", "#E0FF47"]}
+                  locations={[0.2806, 1]}
+                  start={{ x: 0.17, y: 0.12 }}
+                  end={{ x: 0.83, y: 0.88 }}
+                  style={setup.commitButton}
+                >
+                  <Text style={setup.commitButtonText}>
+                    Push your first commit →
+                  </Text>
+                </LinearGradient>
               </TouchableOpacity>
             ) : (
               <>
                 <View style={setup.statusRow}>
                   <Animated.Text
-                    style={[setup.spinnerIcon, { transform: [{ rotate: spinDeg }] }]}
+                    style={[
+                      setup.spinnerIcon,
+                      { transform: [{ rotate: spinDeg }] },
+                    ]}
                   >
                     ✳
                   </Animated.Text>
                   <Text style={setup.statusText}>Planting the seeds...</Text>
                 </View>
                 <View style={setup.progressTrack}>
-                  <Animated.View style={[setup.progressFill, { width: progressWidth }]} />
+                  <Animated.View
+                    style={[setup.progressFill, { width: progressWidth }]}
+                  />
                 </View>
               </>
             )}
@@ -273,106 +305,142 @@ function AuthSheet({
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); onClose(); }}>
-          <Animated.View
-            style={[styles.backdrop, { opacity: backdropAnim }]}
-          />
+        <TouchableWithoutFeedback
+          onPress={() => {
+            Keyboard.dismiss();
+            onClose();
+          }}
+        >
+          <Animated.View style={[styles.backdrop, { opacity: backdropAnim }]} />
         </TouchableWithoutFeedback>
 
         <Animated.View
           style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
         >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View>
-              {/* Drag handle */}
-              <View style={styles.dragHandle} />
+          <LinearGradient
+            colors={["#FFFFFF", "#CCFFD9"]}
+            style={styles.container}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View>
+                {/* Drag handle */}
+                <View style={styles.dragHandle} />
 
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.sheetContent}
-              >
-                <Text style={styles.sheetTitle}>Create your account</Text>
-                <Text style={styles.sheetSubtitle}>
-                  Join thousands of people coding remotely
-                </Text>
-
-                {/* Email field */}
-                <Text style={styles.fieldLabel}>EMAIL</Text>
-                <View style={styles.inputRow}>
-                  <Text style={styles.inputIcon}>✉</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="name@email.com"
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    returnKeyType="next"
-                  />
-                </View>
-
-                {/* Password field */}
-                <Text style={[styles.fieldLabel, { marginTop: 16 }]}>PASSWORD</Text>
-                <View style={styles.inputRow}>
-                  <Text style={styles.inputIcon}>🔒</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="••••••••••••"
-                    placeholderTextColor="#9CA3AF"
-                    secureTextEntry
-                    returnKeyType="done"
-                    onSubmitEditing={Keyboard.dismiss}
-                  />
-                </View>
-
-                {/* Primary CTA */}
-                <TouchableOpacity
-                  style={styles.ctaButton}
-                  onPress={onGetStarted}
-                  activeOpacity={0.88}
+                <ScrollView
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.sheetContent}
                 >
-                  <Text style={styles.ctaButtonText}>Get started  →</Text>
-                </TouchableOpacity>
+                  <Text style={styles.sheetTitle}>Create your account</Text>
+                  <Text style={styles.sheetSubtitle}>
+                    Join thousands of people coding remotely
+                  </Text>
 
-                {/* Divider */}
-                <View style={styles.dividerRow}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>or continue with</Text>
-                  <View style={styles.dividerLine} />
-                </View>
+                  {/* Email field */}
+                  <Text style={styles.fieldLabel}>EMAIL</Text>
+                  <View style={styles.inputRow}>
+                    <Image
+                      source={require("@/assets/images/home-screen/email-placeholder-icon.png")}
+                      style={styles.inputIconImage}
+                      contentFit="contain"
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="name@email.com"
+                      placeholderTextColor="#59B26E"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="next"
+                    />
+                  </View>
 
-                {/* Social buttons */}
-                <View style={styles.socialRow}>
+                  {/* Password field */}
+                  <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                    PASSWORD
+                  </Text>
+                  <View style={styles.inputRow}>
+                    <Image
+                      source={require("@/assets/images/home-screen/password-placeholder-icon.svg")}
+                      style={styles.inputIconImage}
+                      contentFit="contain"
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="••••••••••••"
+                      placeholderTextColor="#9CA3AF"
+                      secureTextEntry
+                      returnKeyType="done"
+                      onSubmitEditing={Keyboard.dismiss}
+                    />
+                  </View>
+
+                  {/* Primary CTA */}
                   <TouchableOpacity
-                    style={styles.socialButton}
-                    activeOpacity={0.82}
                     onPress={onGetStarted}
+                    activeOpacity={0.88}
+                    style={styles.ctaButtonShadow}
                   >
-                    <Text style={styles.socialButtonText}> Apple</Text>
+                    <LinearGradient
+                      style={styles.ctaButton}
+                      colors={["#00FF40", "#E0FF47"]}
+                      locations={[0.2806, 1]}
+                      start={{ x: 0.85, y: 0.15 }}
+                      end={{ x: 0.15, y: 0.85 }}
+                    >
+                      <Text style={styles.ctaButtonText}>Get started →</Text>
+                    </LinearGradient>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.socialButton}
-                    activeOpacity={0.82}
-                    onPress={onGetStarted}
-                  >
-                    <Text style={styles.socialButtonText}>G  Google</Text>
-                  </TouchableOpacity>
-                </View>
 
-                {/* Legal */}
-                <Text style={styles.legal}>
-                  By continuing, you agree to our{'\n'}
-                  <Text style={styles.legalLink}>Terms of Service</Text>
-                  <Text> and </Text>
-                  <Text style={styles.legalLink}>Privacy Policy.</Text>
-                </Text>
-              </ScrollView>
-            </View>
-          </TouchableWithoutFeedback>
+                  {/* Divider */}
+                  <View style={styles.dividerRow}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>or continue with</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+
+                  {/* Social buttons */}
+                  <View style={styles.socialRow}>
+                    <TouchableOpacity
+                      style={styles.socialButton}
+                      activeOpacity={0.82}
+                      onPress={onGetStarted}
+                    >
+                      <Image
+                        source={require("@/assets/images/home-screen/apple-icon.svg")}
+                        style={styles.socialIcon}
+                        contentFit="contain"
+                      />
+                      <Text style={styles.socialButtonText}>Apple</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.socialButton}
+                      activeOpacity={0.82}
+                      onPress={onGetStarted}
+                    >
+                      <Image
+                        source={require("@/assets/images/home-screen/google-icon.svg")}
+                        style={styles.socialIcon}
+                        contentFit="contain"
+                      />
+                      <Text style={styles.socialButtonText}>Google</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Legal */}
+                  <Text style={styles.legal}>
+                    By continuing, you agree to our{"\n "}
+                    <Text style={styles.legalLink}>Terms of Service</Text>
+                    <Text style={styles.legal}> and </Text>
+                    <Text style={styles.legalLink}>Privacy Policy.</Text>
+                  </Text>
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </LinearGradient>
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
@@ -394,35 +462,42 @@ export default function WelcomeScreen() {
   return (
     <View style={styles.container}>
       <ImageBackground
-        source={require('@/assets/images/banner-image.png')}
+        source={require("@/assets/images/banner-image.png")}
         style={styles.background}
         resizeMode="cover"
       >
         {/* Multi-layer overlay simulating a top-to-bottom darkening gradient */}
-        <View style={styles.gradientLayer1} />
+        {/* <View style={styles.gradientLayer1} />
         <View style={styles.gradientLayer2} />
-        <View style={styles.gradientLayer3} />
+        <View style={styles.gradientLayer3} /> */}
 
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.content}>
             <Image
-              source={require('@/assets/images/home-screen/welcome-text-background-image.png')}
+              source={require("@/assets/images/home-screen/welcome-text-background-image.png")}
               style={styles.logo}
               contentFit="cover"
             />
 
-            <Text style={styles.title}>{'Welcome\nto Grass'}</Text>
+            <Text style={styles.title}>{"Welcome\nto Grass"}</Text>
 
             <Text style={styles.subtitle}>
-              Control your coding agent{'\n'}from anywhere.
+              Control your coding agent{"\n"}from anywhere
             </Text>
 
             <TouchableOpacity
-              style={styles.button}
               onPress={() => setSheetVisible(true)}
               activeOpacity={0.88}
             >
-              <Text style={styles.buttonText}>Get started  →</Text>
+              <LinearGradient
+                style={styles.button}
+                colors={["#00FF26", "#E0FF47"]}
+                locations={[0.2806, 1]}
+                start={{ x: 0.85, y: 0.15 }}
+                end={{ x: 0.15, y: 0.85 }}
+              >
+                <Text style={styles.buttonText}>Get started →</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -447,98 +522,99 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    fontFamily: "NationalPark-Regular",
   },
   background: {
     flex: 1,
   },
   gradientLayer1: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     height: SCREEN_HEIGHT * 0.55,
-    backgroundColor: 'rgba(0,0,0,0.15)',
+    backgroundColor: "rgba(0,0,0,0.15)",
   },
   gradientLayer2: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     height: SCREEN_HEIGHT * 0.38,
-    backgroundColor: 'rgba(0,0,0,0.30)',
+    backgroundColor: "rgba(0,0,0,0.30)",
   },
   gradientLayer3: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     height: SCREEN_HEIGHT * 0.22,
-    backgroundColor: 'rgba(0,0,0,0.30)',
+    backgroundColor: "rgba(0,0,0,0.30)",
   },
   safeArea: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   content: {
     paddingHorizontal: 28,
     paddingBottom: 32,
   },
   logo: {
-    width: 72,
-    height: 72,
-    borderRadius: 16,
+    width: 69,
+    height: 69,
+    borderRadius: 20,
     marginBottom: 20,
   },
   title: {
+    fontFamily: NationalPark.bold,
     fontSize: 48,
-    fontWeight: '800',
-    color: '#ffffff',
-    lineHeight: 54,
-    letterSpacing: -0.5,
-    marginBottom: 12,
+    fontWeight: "600",
+    color: "#E5FFEC",
+    lineHeight: 48,
+    letterSpacing: -1,
   },
   subtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.72)',
-    lineHeight: 23,
-    marginBottom: 32,
+    color: "#66806C",
+    fontFamily: NationalPark.semiBold,
+    fontSize: 20,
+    fontWeight: 600,
+    marginBottom: 25,
   },
   button: {
-    backgroundColor: '#7FE63A',
-    borderRadius: 50,
+    borderRadius: 63,
+    borderColor: "#00CC1E",
     paddingVertical: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#0a1a00',
-    letterSpacing: 0.2,
+    color: "#000",
+    fontFamily: NationalPark.bold,
+    fontSize: 20,
+    fontWeight: 700,
   },
 
   // --- Sheet ---
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: "rgba(0,0,0,0.45)",
   },
   sheet: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     height: SHEET_HEIGHT,
-    backgroundColor: '#F0FAE8',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   dragHandle: {
     width: 36,
     height: 5,
     borderRadius: 3,
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    alignSelf: 'center',
+    backgroundColor: "rgba(0,0,0,0.18)",
+    alignSelf: "center",
     marginTop: 10,
     marginBottom: 4,
   },
@@ -548,102 +624,136 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   sheetTitle: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: '#0D2600',
-    letterSpacing: -0.3,
-    marginBottom: 6,
+    color: "#00330C",
+    fontFamily: NationalPark.bold,
+    fontSize: 36,
+    fontWeight: 600,
+    letterSpacing: -1,
+    marginBottom: 5,
   },
   sheetSubtitle: {
-    fontSize: 15,
-    color: '#4B6B30',
-    marginBottom: 28,
+    color: "#59B26E",
+    fontFamily: NationalPark.regular,
+    fontSize: 16,
+    fontWeight: 500,
+    marginBottom: 30,
   },
   fieldLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-    color: '#4B6B30',
-    marginBottom: 6,
+    color: "#59B26E",
+    fontFamily: NationalPark.regular,
+    fontSize: 14,
+    fontWeight: 600,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    marginBottom: 10,
   },
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#D1E8BC',
+    borderColor: "#D1E8BC",
     paddingHorizontal: 14,
     height: 52,
   },
-  inputIcon: {
-    fontSize: 16,
+  inputIconImage: {
+    width: 20,
+    height: 20,
     marginRight: 10,
-    color: '#7FE63A',
   },
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#0D2600',
+    borderRadius: 80,
+    borderColor: "#A1E5B2",
+    backgroundColor: "#FFF",
+    color: "#00330C",
+    fontFamily: NationalPark.bold,
+  },
+  ctaButtonShadow: {
+    marginTop: 28,
+    borderRadius: 63,
+    shadowColor: "rgba(0, 255, 38, 1)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 8,
   },
   ctaButton: {
-    backgroundColor: '#7FE63A',
-    borderRadius: 50,
+    borderRadius: 63,
+    borderWidth: 1,
+    borderColor: "#00CC33",
     paddingVertical: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
   ctaButtonText: {
     fontSize: 17,
-    fontWeight: '700',
-    color: '#0a1a00',
+    fontWeight: "700",
+    color: "#0a1a00",
+    fontFamily: NationalPark.bold,
     letterSpacing: 0.2,
   },
   dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginVertical: 20,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#C8E6A8',
+    backgroundColor: "#C8E6A8",
   },
   dividerText: {
     fontSize: 13,
-    color: '#6B8F4A',
+    fontFamily: NationalPark.regular,
+    color: "#6B8F4A",
     marginHorizontal: 12,
   },
   socialRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   socialButton: {
     flex: 1,
-    backgroundColor: '#E4F5D0',
-    borderRadius: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
     paddingVertical: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#C8E6A8',
+    shadowColor: "rgba(0,0,0,0.08)",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 2,
+    borderRadius: 80,
+    borderColor: "#95E5A9",
+    backgroundColor: "#A6FFBC",
+  },
+  socialIcon: {
+    width: 20,
+    height: 20,
   },
   socialButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#0D2600',
+    fontSize: 20,
+    fontFamily: NationalPark.bold,
+    fontWeight: 600,
+    color: "#004D13",
   },
   legal: {
-    fontSize: 12,
-    color: '#6B8F4A',
-    textAlign: 'center',
+    fontSize: 14,
+    fontFamily: NationalPark.regular,
+    color: "#55AA69",
+    textAlign: "center",
     marginTop: 20,
     lineHeight: 18,
   },
   legalLink: {
-    textDecorationLine: 'underline',
-    color: '#4B6B30',
+    fontFamily: NationalPark.semiBold,
+    textDecorationLine: "underline",
+    color: "#55AA69",
   },
 });
 
@@ -651,81 +761,103 @@ const styles = StyleSheet.create({
 const setup = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#a8d4f0',
+    fontFamily: NationalPark.regular,
+  },
+  bannerContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#D3D3D3",
+    overflow: "hidden",
   },
   banner: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    left: 0,
+    top: -263.316,
+    width: "100%",
+    height: "142.509%",
   },
   gradientOverlay: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     height: SCREEN_HEIGHT * 0.5,
-    backgroundColor: 'rgba(10, 30, 60, 0.45)',
   },
   safeArea: {
     flex: 1,
   },
   title: {
-    fontSize: 34,
-    fontWeight: '800',
-    color: '#0D1A00',
+    fontSize: 36,
+    fontWeight: "800",
+    color: "#2E2E2E",
     letterSpacing: -0.5,
     lineHeight: 40,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 24,
     paddingHorizontal: 32,
+    fontFamily: NationalPark.bold,
   },
   // Carousel
+  carouselList: {
+    height: 120,
+    flexGrow: 0,
+  },
   cardWrapper: {
     width: SCREEN_WIDTH,
+    height: 120,
     paddingHorizontal: 20,
   },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.88)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.60)",
     borderRadius: 20,
-    padding: 18,
+    borderColor: "#DCDCDC",
+    borderWidth: 1,
+    padding: 16,
     gap: 14,
+    flex: 1,
+    overflow: "hidden",
   },
   cardIcon: {
-    fontSize: 32,
-    width: 48,
-    textAlign: 'center',
+    width: 44,
+    height: 44,
+    flexShrink: 0,
   },
   cardText: {
     flex: 1,
+    overflow: "hidden",
   },
   cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#0D2600',
+    fontSize: 15,
+    fontWeight: 600,
+    color: "#000",
     marginBottom: 4,
+    fontFamily: NationalPark.bold,
   },
   cardBody: {
     fontSize: 14,
-    color: '#3A5220',
-    lineHeight: 20,
+    color: "#000",
+    lineHeight: 19,
   },
   // Dots
   dotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 6,
-    marginTop: 14,
-    marginBottom: 20,
+    marginTop: 8,
+    marginBottom: 16,
   },
   dot: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.4)',
+    borderColor: "#000",
+    borderWidth: 1,
+    backgroundColor: "transparent",
   },
   dotActive: {
-    backgroundColor: '#ffffff',
-    width: 20,
+    backgroundColor: "#000",
+    width: 7,
   },
   // Bottom
   bottomArea: {
@@ -734,42 +866,51 @@ const setup = StyleSheet.create({
     gap: 14,
   },
   statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   spinnerIcon: {
     fontSize: 18,
-    color: '#7FE63A',
+    color: "#7FE63A",
   },
   statusText: {
     fontSize: 15,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.9)',
+    fontWeight: "500",
+    color: "#000",
   },
   progressTrack: {
     height: 8,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: "rgba(255,255,255,0.25)",
     borderRadius: 4,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   progressFill: {
-    height: '100%',
-    backgroundColor: '#7FE63A',
+    height: "100%",
+    backgroundColor: "#7FE63A",
     borderRadius: 4,
   },
+  commitButtonOuter: {
+    borderRadius: 63,
+    shadowColor: "rgba(0, 255, 38, 1)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 8,
+  },
   commitButton: {
-    backgroundColor: '#7FE63A',
-    borderRadius: 50,
+    borderRadius: 63,
+    borderWidth: 1,
+    borderColor: "#00CC33",
     paddingVertical: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   commitButtonText: {
     fontSize: 17,
-    fontWeight: '700',
-    color: '#0a1a00',
+    fontWeight: "700",
+    color: "#004D13",
     letterSpacing: 0.2,
   },
 });

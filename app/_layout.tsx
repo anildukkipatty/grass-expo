@@ -9,13 +9,19 @@ import {
   subscribeToPermissions,
 } from "@/store/connection-store";
 import { useTheme } from "@/store/theme-store";
+import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
+import { Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 SplashScreen.preventAutoHideAsync();
+
+// Apply National Park as the default font for all Text components
+if (Text.defaultProps == null) (Text as any).defaultProps = {};
+(Text.defaultProps as any).style = { fontFamily: 'NationalPark-Regular' };
 
 // Tracks which server URLs currently have active connections so we can open
 // a permissions SSE for each one.
@@ -95,9 +101,21 @@ export default function RootLayout() {
   const [theme] = useTheme();
   const c = GrassColors[theme];
 
+  const [fontsLoaded] = useFonts({
+    'NationalPark-ExtraLight': require('@/assets/fonts/national-park/National_Park/static/NationalPark-ExtraLight.ttf'),
+    'NationalPark-Light':      require('@/assets/fonts/national-park/National_Park/static/NationalPark-Light.ttf'),
+    'NationalPark-Regular':    require('@/assets/fonts/national-park/National_Park/static/NationalPark-Regular.ttf'),
+    'NationalPark-Medium':     require('@/assets/fonts/national-park/National_Park/static/NationalPark-Medium.ttf'),
+    'NationalPark-SemiBold':   require('@/assets/fonts/national-park/National_Park/static/NationalPark-SemiBold.ttf'),
+    'NationalPark-Bold':       require('@/assets/fonts/national-park/National_Park/static/NationalPark-Bold.ttf'),
+    'NationalPark-ExtraBold':  require('@/assets/fonts/national-park/National_Park/static/NationalPark-ExtraBold.ttf'),
+  });
+
   useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
+    if (fontsLoaded) SplashScreen.hideAsync();
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

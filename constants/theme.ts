@@ -64,27 +64,33 @@ export const Colors = {
   },
 };
 
+export const NationalPark = {
+  extraLight: 'NationalPark-ExtraLight',
+  light:      'NationalPark-Light',
+  regular:    'NationalPark-Regular',
+  medium:     'NationalPark-Medium',
+  semiBold:   'NationalPark-SemiBold',
+  bold:       'NationalPark-Bold',
+  extraBold:  'NationalPark-ExtraBold',
+} as const;
+
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
+    sans:    NationalPark.regular,
+    serif:   'ui-serif',
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
+    mono:    'ui-monospace',
   },
   default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
+    sans:    NationalPark.regular,
+    serif:   'serif',
+    rounded: NationalPark.regular,
+    mono:    'monospace',
   },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+    sans:    `'NationalPark-Regular', system-ui, -apple-system, sans-serif`,
+    serif:   "Georgia, 'Times New Roman', serif",
+    rounded: `'NationalPark-Regular', system-ui, sans-serif`,
+    mono:    "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });

@@ -1,45 +1,43 @@
-import React from 'react';
+import { NationalPark } from "@/constants/theme";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import React from "react";
 import {
-  View,
+  SafeAreaView,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-} from 'react-native';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+  View,
+} from "react-native";
 
 const REPO = {
-  name: 'Grass/CommunityWebsite',
-  linesAdded: 243,
-  linesChanged: 322,
+  name: "Grass/\nCommunityWesbite",
+  stars: 243,
+  contributors: 322,
 };
 
 export default function PushCommitScreen() {
   const router = useRouter();
 
   return (
-    <LinearGradient
-      colors={['#FFFFFF', '#CCFFD9']}
-      style={styles.container}
-    >
+    <LinearGradient colors={["#FFFFFF", "#CCFFD9"]} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.inner}>
-
           {/* Header */}
           <Text style={styles.heading}>
-            Make your first{'\n'}commit with Grass.
+            Make your first{"\n"}commit with Grass.
           </Text>
           <Text style={styles.subheading}>
-            We've loaded a few repos below. Ask the agent to make any change, it'll commit & push your code soon.
+            We&#39;ve loaded a live repo below. Ask the agent to make any
+            change, it&#39;ll push a commit with your name on it.
           </Text>
 
           {/* Repo card */}
           <View style={styles.card}>
             {/* SVG card background */}
             <Image
-              source={require('@/assets/images/push-commit/card-background.svg')}
+              source={require("@/assets/images/push-commit/card-background.svg")}
               style={StyleSheet.absoluteFill}
               contentFit="fill"
             />
@@ -50,7 +48,7 @@ export default function PushCommitScreen() {
                 <Text style={styles.repoName}>{REPO.name}</Text>
               </View>
               <Image
-                source={require('@/assets/images/push-commit/repo-image.png')}
+                source={require("@/assets/images/push-commit/repo-image.png")}
                 style={styles.repoThumb}
                 contentFit="cover"
               />
@@ -59,41 +57,80 @@ export default function PushCommitScreen() {
             {/* Stats row */}
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>⊕ {REPO.linesAdded}</Text>
-                <Text style={styles.statLabel}>Lines</Text>
+                <View style={styles.statValueRow}>
+                  <Image
+                    source={require("@/assets/images/push-commit/git-stars.svg")}
+                    style={styles.statIcon}
+                    contentFit="contain"
+                  />
+                  <Text style={styles.statNumber}>{REPO.stars}</Text>
+                </View>
+                <Text style={styles.statLabel}>Stars</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>+ {REPO.linesChanged}</Text>
-                <Text style={styles.statLabel}>Lines</Text>
+                <View style={styles.statValueRow}>
+                  <Image
+                    source={require("@/assets/images/push-commit/git-contributers.svg")}
+                    style={styles.statIcon}
+                    contentFit="contain"
+                  />
+                  <Text style={styles.statNumber}>{REPO.contributors}</Text>
+                </View>
+                <Text style={styles.statLabel}>Contributors</Text>
               </View>
+              <View style={{ flex: 1 }} />
+              <Image
+                source={require("@/assets/images/push-commit/git.png")}
+                style={styles.gitIcon}
+                contentFit="contain"
+              />
             </View>
           </View>
 
           <View style={{ flex: 1 }} />
 
           {/* Heads-up note */}
-          <Text style={styles.note}>
-            Heads up, we're running this on Open Code live. Connect your own Claude in 'Open Code' for the optimal experience.
-          </Text>
+          <View style={styles.openCodeRow}>
+            <Image
+              source={require("@/assets/images/push-commit/open-code.svg")}
+              contentFit="cover"
+              style={styles.OpenCodeThumb}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.note}>
+                Heads up, we&#39;re running this on Open {"\n"}Code free tier.
+                Connect your own Claude {"\n"}or OpenCode for the optimal
+                experience.
+              </Text>
+            </View>
+          </View>
 
           {/* Action buttons */}
           <TouchableOpacity
-            style={styles.commitButton}
             activeOpacity={0.88}
-            onPress={() => router.push('/navbar')}
+            onPress={() => router.push("/navbar")}
           >
-            <Text style={styles.commitButtonText}>Push your first commit  →</Text>
+            <LinearGradient
+              colors={["#00FF40", "#E0FF47"]}
+              locations={[0.2806, 1]}
+              start={{ x: 0.17, y: 0.12 }}
+              end={{ x: 0.83, y: 0.88 }}
+              style={styles.commitButton}
+            >
+              <Text style={styles.commitButtonText}>
+                Push your first commit →
+              </Text>
+            </LinearGradient>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.skipButton}
             activeOpacity={0.6}
-            onPress={() => router.push('/navbar')}
+            onPress={() => router.push("/navbar")}
           >
             <Text style={styles.skipButtonText}>Skip for now</Text>
           </TouchableOpacity>
-
         </View>
       </SafeAreaView>
     </LinearGradient>
@@ -116,34 +153,36 @@ const styles = StyleSheet.create({
 
   // Header
   heading: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#0D2600',
-    letterSpacing: -0.5,
-    lineHeight: 38,
-    marginBottom: 12,
+    fontFamily: NationalPark.extraBold,
+    fontSize: 36,
+    fontWeight: "700",
+    color: "#004410",
+    letterSpacing: -1,
+    lineHeight: 42,
+    marginBottom: 20,
   },
   subheading: {
-    fontSize: 14,
-    color: '#4B6B30',
+    fontFamily: NationalPark.regular,
+    fontSize: 16,
+    color: "#59B26E",
     lineHeight: 21,
-    marginBottom: 28,
+    marginBottom: 30,
+    fontWeight: 500,
   },
 
   // Card
   card: {
-    width: '100%',
-    borderRadius: 22,
-    overflow: 'hidden',
+    width: "100%",
+    overflow: "hidden",
     aspectRatio: 1.55,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 20,
     paddingVertical: 20,
   },
   repoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
   repoInfo: {
@@ -151,75 +190,108 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   repoName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0D2600',
-    letterSpacing: -0.2,
-    lineHeight: 24,
+    fontFamily: NationalPark.bold,
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#0D2600",
+    lineHeight: 30,
   },
   repoThumb: {
     width: 56,
     height: 56,
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 16,
   },
   statItem: {
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
+  },
+  statValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  statIcon: {
+    width: 16,
+    height: 16,
+  },
+  gitIcon: {
+    width: 22,
+    height: 22,
+    // opacity: 0.45,
   },
   statNumber: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#2D6A00',
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#000",
+    fontFamily: NationalPark.bold,
   },
   statLabel: {
-    fontSize: 12,
-    color: '#6B8F4A',
-    marginTop: 2,
+    fontSize: 14,
+    color: "#767676",
+    fontFamily: NationalPark.bold,
+    fontWeight: "500",
   },
   statDivider: {
     width: 1,
     height: 28,
-    backgroundColor: 'rgba(13,38,0,0.12)',
+    backgroundColor: "rgba(13,38,0,0.12)",
   },
 
+  openCodeRow: {
+    flexDirection: "row",
+    // justifyContent: "center",
+    alignItems: "center",
+    gap: 20,
+    marginBottom: 20,
+  },
+
+  OpenCodeThumb: {
+    width: 44,
+    height: 44,
+  },
   // Note
   note: {
-    fontSize: 12,
-    color: '#6B8F4A',
-    lineHeight: 18,
-    textAlign: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 8,
+    fontSize: 14,
+    color: "#1E9E39",
+    fontFamily: NationalPark.regular,
   },
 
   // Buttons
   commitButton: {
-    backgroundColor: '#7FE63A',
-    borderRadius: 50,
+    borderRadius: 63,
+    borderColor: "#0C3",
+    borderWidth: 1,
     paddingVertical: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 12,
   },
   commitButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#0a1a00',
+    fontSize: 20,
+    fontWeight: "600",
     letterSpacing: 0.2,
+    color: "#004D13",
+    fontFamily: NationalPark.bold,
   },
   skipButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 63,
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.30)",
+    borderColor: "#A8E9B8",
+    borderWidth: 1,
   },
   skipButtonText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#4B6B30',
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#004D13",
+    fontFamily: NationalPark.bold,
+    paddingVertical: 10,
   },
 });
