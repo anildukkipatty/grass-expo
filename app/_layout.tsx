@@ -105,6 +105,13 @@ export default function RootLayout() {
             presentation: 'modal',
           }}
         />
+        <Stack.Screen
+          name="get-more"
+          options={{
+            headerShown: false,
+            animation: 'fade',
+          }}
+        />
       </Stack>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       <GlobalPermissionsManager theme={theme} />
