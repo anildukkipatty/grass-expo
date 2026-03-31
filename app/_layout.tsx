@@ -1,6 +1,7 @@
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { Stack } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -79,7 +80,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack
         screenOptions={{
           animation: 'slide_from_right',
@@ -89,6 +90,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="navbar" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="welcome" options={{ headerShown: false }} />
         <Stack.Screen name="home" options={{ headerShown: false }} />
         <Stack.Screen name="folders" options={{ headerShown: false }} />
@@ -115,6 +117,6 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       <GlobalPermissionsManager theme={theme} />
-    </>
+    </GestureHandlerRootView>
   );
 }
