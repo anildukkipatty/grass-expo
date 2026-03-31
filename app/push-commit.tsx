@@ -81,7 +81,7 @@ export default function PushCommitScreen() {
           <TouchableOpacity
             style={styles.commitButton}
             activeOpacity={0.88}
-            onPress={() => router.push('/home')}
+            onPress={() => router.push('/navbar')}
           >
             <Text style={styles.commitButtonText}>Push your first commit  →</Text>
           </TouchableOpacity>
@@ -89,7 +89,7 @@ export default function PushCommitScreen() {
           <TouchableOpacity
             style={styles.skipButton}
             activeOpacity={0.6}
-            onPress={() => router.push('/home')}
+            onPress={() => router.push('/navbar')}
           >
             <Text style={styles.skipButtonText}>Skip for now</Text>
           </TouchableOpacity>

@@ -1,19 +1,19 @@
-import { useTheme } from '@/store/theme-store';
-import { GrassColors } from '@/constants/theme';
-import { Stack } from 'expo-router';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { PermissionModal } from "@/components/PermissionModal";
+import { GrassColors } from "@/constants/theme";
 import {
+  getConnectedUrls,
+  getPermissions,
+  GlobalPermissionItem,
+  respondGlobalPermission,
   subscribeToAll,
   subscribeToPermissions,
-  getPermissions,
-  getConnectedUrls,
-  respondGlobalPermission,
-  GlobalPermissionItem,
-} from '@/store/connection-store';
-import { PermissionModal } from '@/components/PermissionModal';
+} from "@/store/connection-store";
+import { useTheme } from "@/store/theme-store";
+import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -30,10 +30,12 @@ function useConnectedServers(): string[] {
 }
 
 // Renders the PermissionModal for the first pending permission across all connected servers.
-function GlobalPermissionsManager({ theme }: { theme: 'light' | 'dark' }) {
+function GlobalPermissionsManager({ theme }: { theme: "light" | "dark" }) {
   const servers = useConnectedServers();
   // Collect all pending permissions across servers, tag with serverUrl
-  const [allPerms, setAllPerms] = useState<Array<GlobalPermissionItem & { serverUrl: string }>>([]);
+  const [allPerms, setAllPerms] = useState<
+    Array<GlobalPermissionItem & { serverUrl: string }>
+  >([]);
 
   // Re-subscribe whenever server list changes — we collect via a single state update
   useEffect(() => {
@@ -55,7 +57,7 @@ function GlobalPermissionsManager({ theme }: { theme: 'light' | 'dark' }) {
       unsubscribers.push(subscribeToPermissions(url, collect));
     }
     collect();
-    return () => unsubscribers.forEach(fn => fn());
+    return () => unsubscribers.forEach((fn) => fn());
   }, [servers]);
 
   const first = allPerms[0];
@@ -63,9 +65,27 @@ function GlobalPermissionsManager({ theme }: { theme: 'light' | 'dark' }) {
 
   return (
     <PermissionModal
-      item={{ toolUseID: first.toolUseID, toolName: first.toolName, input: first.input }}
-      onAllow={() => respondGlobalPermission(first.serverUrl, first.sessionId, first.toolUseID, true)}
-      onDeny={() => respondGlobalPermission(first.serverUrl, first.sessionId, first.toolUseID, false)}
+      item={{
+        toolUseID: first.toolUseID,
+        toolName: first.toolName,
+        input: first.input,
+      }}
+      onAllow={() =>
+        respondGlobalPermission(
+          first.serverUrl,
+          first.sessionId,
+          first.toolUseID,
+          true,
+        )
+      }
+      onDeny={() =>
+        respondGlobalPermission(
+          first.serverUrl,
+          first.sessionId,
+          first.toolUseID,
+          false,
+        )
+      }
       theme={theme}
     />
   );
@@ -83,15 +103,18 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack
         screenOptions={{
-          animation: 'slide_from_right',
+          animation: "slide_from_right",
           headerStyle: { backgroundColor: c.barBg },
           headerTintColor: c.text,
           headerTitleStyle: { color: c.text },
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="navbar" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="welcome" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="navbar"
+          options={{ headerShown: false, animation: "none" }}
+        />
         <Stack.Screen name="home" options={{ headerShown: false }} />
         <Stack.Screen name="folders" options={{ headerShown: false }} />
         <Stack.Screen name="agent-picker" options={{ headerShown: false }} />
@@ -102,20 +125,20 @@ export default function RootLayout() {
         <Stack.Screen
           name="diffs"
           options={{
-            title: 'Diffs',
-            animation: 'fade_from_bottom',
-            presentation: 'modal',
+            title: "Diffs",
+            animation: "fade_from_bottom",
+            presentation: "modal",
           }}
         />
         <Stack.Screen
           name="get-more"
           options={{
             headerShown: false,
-            animation: 'fade',
+            animation: "fade",
           }}
         />
       </Stack>
-      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={theme === "dark" ? "light" : "dark"} />
       <GlobalPermissionsManager theme={theme} />
     </GestureHandlerRootView>
   );

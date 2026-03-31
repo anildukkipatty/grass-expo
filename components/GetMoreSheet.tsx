@@ -9,6 +9,7 @@ import {
   Clipboard,
   Dimensions,
   Modal,
+  PanResponder,
   ScrollView,
   StyleSheet,
   Text,
@@ -35,6 +36,7 @@ interface Props {
 export function GetMoreSheet({ visible, onClose }: Props) {
   const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
+  const panY = useRef(new Animated.Value(0)).current;
   const [currentView, setCurrentView] = useState<SheetView>("home");
   const [activeTab, setActiveTab] = useState<AgentTab>("claude");
   const [claudeCode, setClaudeCode] = useState("");
@@ -45,8 +47,43 @@ export function GetMoreSheet({ visible, onClose }: Props) {
   const setAuthCode = activeTab === "claude" ? setClaudeCode : setOpencodeCode;
   const authUrl = activeTab === "claude" ? CLAUDE_AUTH_URL : OPENCODE_AUTH_URL;
 
+  // Keep a stable ref to onClose for use inside PanResponder
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gs) =>
+        gs.dy > 8 && Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderMove: (_, gs) => {
+        if (gs.dy > 0) panY.setValue(gs.dy);
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > 120 || gs.vy > 1.2) {
+          Animated.timing(panY, {
+            toValue: SHEET_HEIGHT,
+            duration: 250,
+            useNativeDriver: true,
+          }).start(() => {
+            panY.setValue(0);
+            onCloseRef.current();
+          });
+        } else {
+          Animated.spring(panY, {
+            toValue: 0,
+            damping: 20,
+            stiffness: 200,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
   useEffect(() => {
     if (visible) {
+      panY.setValue(0);
       Animated.parallel([
         Animated.spring(slideAnim, {
           toValue: 0,
@@ -498,9 +535,14 @@ export function GetMoreSheet({ visible, onClose }: Props) {
       </TouchableWithoutFeedback>
 
       <Animated.View
-        style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
+        style={[styles.sheet, { transform: [{ translateY: Animated.add(slideAnim, panY) }] }]}
       >
-        <View style={styles.dragHandle} />
+        <View
+          style={styles.dragHandleArea}
+          {...panResponder.panHandlers}
+        >
+          <View style={styles.dragHandle} />
+        </View>
 
         {currentView === "home" && renderHomeView()}
         {currentView === "connect-agent" && renderConnectAgentView()}
@@ -527,14 +569,17 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 26,
     overflow: "hidden",
   },
+  dragHandleArea: {
+    paddingTop: 12,
+    paddingBottom: 8,
+    paddingHorizontal: 80,
+    alignItems: "center",
+  },
   dragHandle: {
     width: 38,
     height: 5,
     borderRadius: 3,
     backgroundColor: "rgba(0,0,0,0.15)",
-    alignSelf: "center",
-    marginTop: 12,
-    marginBottom: 4,
   },
   content: {
     paddingHorizontal: 18,

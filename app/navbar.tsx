@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { GetMoreSheet } from '@/components/GetMoreSheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Image as ExpoImage } from 'expo-image';
@@ -384,8 +384,8 @@ export default function NavbarScreen() {
   const [activeNav, setActiveNav] = useState<NavTab>('home');
   const [permissions, setPermissions] = useState<PermissionCardData[]>(PERMISSIONS);
   const [repos, setRepos] = useState<RepoItem[]>(INITIAL_REPOS);
+  const [getMoreVisible, setGetMoreVisible] = useState(false);
   const insets = useSafeAreaInsets();
-  const router = useRouter();
 
   const challengeIdxRef = useRef(0);
 
@@ -461,7 +461,7 @@ export default function NavbarScreen() {
           {!isPerms && !isRepos && (
             <TouchableOpacity
               style={styles.getMoreCard}
-              onPress={() => router.push('/get-more')}
+              onPress={() => setGetMoreVisible(true)}
               activeOpacity={0.85}
             >
               <BlurView
@@ -685,6 +685,12 @@ export default function NavbarScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* ─────────────────── GET MORE SHEET ─────────────────── */}
+      <GetMoreSheet
+        visible={getMoreVisible}
+        onClose={() => setGetMoreVisible(false)}
+      />
     </View>
   );
 }
