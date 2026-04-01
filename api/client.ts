@@ -24,9 +24,12 @@ export async function apiRequest<T = unknown>(
   const { method = "GET", body, headers = {}, token } = options;
 
   const reqHeaders: Record<string, string> = {
-    "Content-Type": "application/json",
     ...headers,
   };
+
+  if (body) {
+    reqHeaders["Content-Type"] = "application/json";
+  }
 
   if (token) {
     reqHeaders["Authorization"] = `Bearer ${token}`;

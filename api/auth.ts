@@ -19,6 +19,7 @@ export type VerifyOtpResponse = {
   user: {
     id: string;
     email: string;
+    userType: "new" | "old";
   };
 };
 

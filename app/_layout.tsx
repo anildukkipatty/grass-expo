@@ -127,6 +127,7 @@ export default function RootLayout() {
         <Stack.Screen name="project" options={{ headerShown: false }} />
         <Stack.Screen name="sessions" options={{ headerShown: false }} />
         <Stack.Screen name="chat" options={{ headerShown: false }} />
+        <Stack.Screen name="container-setup" options={{ headerShown: false }} />
         <Stack.Screen name="push-commit" options={{ headerShown: false }} />
         <Stack.Screen
           name="diffs"

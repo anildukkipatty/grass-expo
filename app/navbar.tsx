@@ -1,15 +1,21 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
+  Alert,
   View,
   Text,
   Image,
   FlatList,
+  Modal,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   ImageBackground,
   Dimensions,
   ViewToken,
 } from 'react-native';
+import { useRouter } from 'expo-router';
+import { clearAuth, getToken } from '@/store/auth-store';
+import { heartbeat } from '@/api/containers';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GetMoreSheet } from '@/components/GetMoreSheet';
@@ -385,6 +391,40 @@ export default function NavbarScreen() {
   const [permissions, setPermissions] = useState<PermissionCardData[]>(PERMISSIONS);
   const [repos, setRepos] = useState<RepoItem[]>(INITIAL_REPOS);
   const [getMoreVisible, setGetMoreVisible] = useState(false);
+  const [profileMenuVisible, setProfileMenuVisible] = useState(false);
+  const router = useRouter();
+
+  // Check container health on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function checkContainer() {
+      const token = await getToken();
+      if (!token || cancelled) return;
+
+      const hb = await heartbeat(token);
+      if (cancelled) return;
+
+      if (!hb.ok || hb.data.container !== "running" || !hb.data.grass) {
+        router.replace("/container-setup");
+      }
+    }
+    checkContainer();
+    return () => { cancelled = true; };
+  }, [router]);
+
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          await clearAuth();
+          router.replace("/welcome");
+        },
+      },
+    ]);
+  };
   const insets = useSafeAreaInsets();
 
   const challengeIdxRef = useRef(0);
@@ -447,7 +487,10 @@ export default function NavbarScreen() {
                   <Text style={styles.betaText}>BETA</Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.avatarWrap}>
+              <TouchableOpacity
+                style={styles.avatarWrap}
+                onPress={() => setProfileMenuVisible(true)}
+              >
                 <ExpoImage
                   source={require('@/assets/images/navbar-screens/user-icon.svg')}
                   style={styles.avatarImg}
@@ -691,6 +734,33 @@ export default function NavbarScreen() {
         visible={getMoreVisible}
         onClose={() => setGetMoreVisible(false)}
       />
+
+      {/* Profile menu */}
+      <Modal
+        visible={profileMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setProfileMenuVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setProfileMenuVisible(false)}>
+          <View style={profileStyles.overlay}>
+            <TouchableWithoutFeedback>
+              <View style={[profileStyles.menu, { top: insets.top + 50, right: 20 }]}>
+                <TouchableOpacity
+                  style={profileStyles.menuItem}
+                  onPress={() => {
+                    setProfileMenuVisible(false);
+                    handleLogout();
+                  }}
+                >
+                  <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+                  <Text style={profileStyles.logoutText}>Logout</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
@@ -1384,5 +1454,40 @@ const repoStyles = StyleSheet.create({
     color: '#8E8E93',
     marginTop: 8,
     marginBottom: 10,
+  },
+});
+
+const profileStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  menu: {
+    position: 'absolute',
+    backgroundColor: '#1e2a1e',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(100,140,100,0.2)',
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    minWidth: 150,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  logoutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ef4444',
   },
 });

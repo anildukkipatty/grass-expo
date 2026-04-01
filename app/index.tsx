@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 
 export default function Index() {
-  const [route, setRoute] = useState<"/home" | "/welcome" | null>(null);
+  const [route, setRoute] = useState< "/navbar" | "/welcome" | null>(null);
 
   useEffect(() => {
     getToken().then((token) => {
-      setRoute(token ? "/home" : "/welcome");
+      setRoute(token ? "/navbar" : "/welcome");
     });
   }, []);
 
