@@ -63,6 +63,7 @@ function SetupLoadingModal({
 }) {
   const router = useRouter();
   const spinAnim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
   const [activeIndex, setActiveIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
@@ -72,8 +73,27 @@ function SetupLoadingModal({
     if (!visible) return;
     setError(null);
     setActiveIndex(0);
+    progressAnim.setValue(0);
 
     let cancelled = false;
+    const progressTimer = Animated.timing(progressAnim, {
+      toValue: 0.95,
+      duration: 18000,
+      useNativeDriver: false,
+    });
+    progressTimer.start();
+
+    const finishAndRedirect = (path: "/push-commit" | "/navbar") => {
+      Animated.timing(progressAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: false,
+      }).start(() => {
+        if (!cancelled) {
+          router.replace(path);
+        }
+      });
+    };
 
     async function provision() {
       const token = await getToken();
@@ -84,8 +104,9 @@ function SetupLoadingModal({
         const result = await requestContainer(token);
         if (cancelled) return;
         if (result.ok) {
-          router.replace("/push-commit");
+          finishAndRedirect("/push-commit");
         } else {
+          progressTimer.stop();
           setError(result.error);
         }
       } else {
@@ -94,7 +115,7 @@ function SetupLoadingModal({
         if (cancelled) return;
 
         if (hb.ok && hb.data.container === "running") {
-          router.replace("/navbar");
+          finishAndRedirect("/navbar");
           return;
         }
 
@@ -107,7 +128,7 @@ function SetupLoadingModal({
             const poll = await heartbeat(token);
             if (cancelled) return;
             if (poll.ok && poll.data.container === "running") {
-              router.replace("/navbar");
+              finishAndRedirect("/navbar");
               return;
             }
             if (poll.ok && poll.data.container !== "provisioning") {
@@ -122,8 +143,9 @@ function SetupLoadingModal({
         const result = await requestContainer(token);
         if (cancelled) return;
         if (result.ok) {
-          router.replace("/navbar");
+          finishAndRedirect("/navbar");
         } else {
+          progressTimer.stop();
           setError(result.error);
         }
       }
@@ -141,9 +163,10 @@ function SetupLoadingModal({
 
     return () => {
       cancelled = true;
+      progressTimer.stop();
       clearInterval(cardInterval);
     };
-  }, [visible, userType, router]);
+  }, [visible, userType, router, progressAnim]);
 
   // Spinner rotation loop
   useEffect(() => {
@@ -162,6 +185,11 @@ function SetupLoadingModal({
   const spinDeg = spinAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "360deg"],
+  });
+
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "100%"],
   });
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -269,7 +297,7 @@ function SetupLoadingModal({
                   </Text>
                 </View>
                 <View style={setup.progressTrack}>
-                  <View style={[setup.progressFill, { width: "100%" }]} />
+                  <Animated.View style={[setup.progressFill, { width: progressWidth }]} />
                 </View>
               </>
             )}
