@@ -84,7 +84,7 @@ function SetupLoadingModal({
         const result = await requestContainer(token);
         if (cancelled) return;
         if (result.ok) {
-          router.replace("/navbar");
+          router.replace("/push-commit");
         } else {
           setError(result.error);
         }

@@ -12,7 +12,7 @@ import {
 } from "react-native";
 
 const REPO = {
-  name: "Grass/\nCommunityWesbite",
+  name: "Grass/\ndemo-app",
   stars: 243,
   contributors: 322,
 };
