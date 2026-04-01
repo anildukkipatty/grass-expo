@@ -9,7 +9,6 @@ import {
   subscribeToPermissions,
 } from "@/store/connection-store";
 import { useTheme } from "@/store/theme-store";
-import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -20,8 +19,9 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 SplashScreen.preventAutoHideAsync();
 
 // Apply National Park as the default font for all Text components
-if (Text.defaultProps == null) (Text as any).defaultProps = {};
-(Text.defaultProps as any).style = { fontFamily: 'NationalPark-Regular' };
+const DefaultText = Text as any;
+if (DefaultText.defaultProps == null) DefaultText.defaultProps = {};
+DefaultText.defaultProps.style = {};
 
 // Tracks which server URLs currently have active connections so we can open
 // a permissions SSE for each one.
@@ -40,7 +40,7 @@ function GlobalPermissionsManager({ theme }: { theme: "light" | "dark" }) {
   const servers = useConnectedServers();
   // Collect all pending permissions across servers, tag with serverUrl
   const [allPerms, setAllPerms] = useState<
-    Array<GlobalPermissionItem & { serverUrl: string }>
+    (GlobalPermissionItem & { serverUrl: string })[]
   >([]);
 
   // Re-subscribe whenever server list changes — we collect via a single state update
@@ -51,7 +51,7 @@ function GlobalPermissionsManager({ theme }: { theme: "light" | "dark" }) {
     }
     const unsubscribers: (() => void)[] = [];
     const collect = () => {
-      const merged: Array<GlobalPermissionItem & { serverUrl: string }> = [];
+      const merged: (GlobalPermissionItem & { serverUrl: string })[] = [];
       for (const url of servers) {
         for (const p of getPermissions(url)) {
           merged.push({ ...p, serverUrl: url });
@@ -101,21 +101,9 @@ export default function RootLayout() {
   const [theme] = useTheme();
   const c = GrassColors[theme];
 
-  const [fontsLoaded] = useFonts({
-    'NationalPark-ExtraLight': require('@/assets/fonts/national-park/National_Park/static/NationalPark-ExtraLight.ttf'),
-    'NationalPark-Light':      require('@/assets/fonts/national-park/National_Park/static/NationalPark-Light.ttf'),
-    'NationalPark-Regular':    require('@/assets/fonts/national-park/National_Park/static/NationalPark-Regular.ttf'),
-    'NationalPark-Medium':     require('@/assets/fonts/national-park/National_Park/static/NationalPark-Medium.ttf'),
-    'NationalPark-SemiBold':   require('@/assets/fonts/national-park/National_Park/static/NationalPark-SemiBold.ttf'),
-    'NationalPark-Bold':       require('@/assets/fonts/national-park/National_Park/static/NationalPark-Bold.ttf'),
-    'NationalPark-ExtraBold':  require('@/assets/fonts/national-park/National_Park/static/NationalPark-ExtraBold.ttf'),
-  });
-
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
-  }, [fontsLoaded]);
-
-  if (!fontsLoaded) return null;
+    SplashScreen.hideAsync();
+  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

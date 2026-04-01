@@ -1,9 +1,13 @@
+import { requestOtp, verifyOtp } from "@/api/auth";
+import { saveAuth } from "@/store/auth-store";
 import { NationalPark } from "@/constants/theme";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   FlatList,
@@ -252,20 +256,126 @@ function SetupLoadingModal({
 
 // ─── AuthSheet ────────────────────────────────────────────────────────────────
 
+const RESEND_COOLDOWN = 30;
+
 function AuthSheet({
   visible,
   onClose,
-  onGetStarted,
+  onVerified,
 }: {
   visible: boolean;
   onClose: () => void;
-  onGetStarted: () => void;
+  onVerified: () => void;
 }) {
   const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
 
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [step, setStep] = useState<"email" | "otp">("email");
+  const [loading, setLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startResendTimer = useCallback(() => {
+    setResendTimer(RESEND_COOLDOWN);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setResendTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current!);
+          timerRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  // Reset state when sheet closes
+  useEffect(() => {
+    if (!visible) {
+      setStep("email");
+      setEmail("");
+      setOtp("");
+      setLoading(false);
+      setResendTimer(0);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  }, [visible]);
+
+  const handleRequestOtp = useCallback(async () => {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      Alert.alert("Email required", "Please enter your email address.");
+      return;
+    }
+
+    setLoading(true);
+    Keyboard.dismiss();
+
+    const result = await requestOtp(trimmed);
+
+    setLoading(false);
+
+    if (result.ok) {
+      setStep("otp");
+      startResendTimer();
+    } else {
+      Alert.alert("Error", result.error);
+    }
+  }, [email, startResendTimer]);
+
+  const handleResendOtp = useCallback(async () => {
+    if (resendTimer > 0) return;
+
+    setLoading(true);
+    const result = await requestOtp(email.trim());
+    setLoading(false);
+
+    if (result.ok) {
+      startResendTimer();
+      Alert.alert("OTP Sent", "A new OTP has been sent to your email.");
+    } else {
+      Alert.alert("Error", result.error);
+    }
+  }, [email, resendTimer, startResendTimer]);
+
+  const handleVerifyOtp = useCallback(async () => {
+    const trimmedOtp = otp.trim();
+    if (trimmedOtp.length !== 6) {
+      Alert.alert("Invalid OTP", "Please enter the 6-digit code.");
+      return;
+    }
+
+    setLoading(true);
+    Keyboard.dismiss();
+
+    const result = await verifyOtp(email.trim(), trimmedOtp);
+
+    setLoading(false);
+
+    if (result.ok) {
+      await saveAuth(result.data.token, result.data.user);
+      onVerified();
+    } else {
+      Alert.alert("Verification Failed", result.error);
+    }
+  }, [email, otp, onVerified]);
+
   useEffect(() => {
     if (visible) {
+      slideAnim.setValue(SHEET_HEIGHT);
+      backdropAnim.setValue(0);
       Animated.parallel([
         Animated.spring(slideAnim, {
           toValue: 0,
@@ -334,101 +444,103 @@ function AuthSheet({
                   showsVerticalScrollIndicator={false}
                   contentContainerStyle={styles.sheetContent}
                 >
-                  <Text style={styles.sheetTitle}>Create your account</Text>
+                  <Text style={styles.sheetTitle}>
+                    {step === "email"
+                      ? "Create your account"
+                      : "Enter verification code"}
+                  </Text>
                   <Text style={styles.sheetSubtitle}>
-                    Join thousands of people coding remotely
+                    {step === "email"
+                      ? "Join thousands of people coding remotely"
+                      : `The requested OTP is sent to ${email}`}
                   </Text>
 
-                  {/* Email field */}
-                  <Text style={styles.fieldLabel}>EMAIL</Text>
-                  <View style={styles.inputRow}>
-                    <Image
-                      source={require("@/assets/images/home-screen/email-placeholder-icon.png")}
-                      style={styles.inputIconImage}
-                      contentFit="contain"
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="name@email.com"
-                      placeholderTextColor="#59B26E"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      returnKeyType="next"
-                    />
-                  </View>
+                  {step === "email" ? (
+                    <>
+                      {/* Email field */}
+                      <Text style={styles.fieldLabel}>EMAIL</Text>
+                      <View style={styles.inputRow}>
+                        <Image
+                          source={require("@/assets/images/home-screen/email-placeholder-icon.png")}
+                          style={styles.inputIconImage}
+                          contentFit="contain"
+                        />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="name@email.com"
+                          placeholderTextColor="#59B26E"
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          returnKeyType="done"
+                          value={email}
+                          onChangeText={setEmail}
+                          onSubmitEditing={handleRequestOtp}
+                        />
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      {/* OTP field */}
+                      <Text style={styles.fieldLabel}>OTP CODE</Text>
+                      <View style={styles.inputRow}>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Enter 6-digit code"
+                          placeholderTextColor="#59B26E"
+                          keyboardType="number-pad"
+                          maxLength={6}
+                          autoFocus
+                          value={otp}
+                          onChangeText={setOtp}
+                          returnKeyType="done"
+                          onSubmitEditing={handleVerifyOtp}
+                        />
+                      </View>
 
-                  {/* Password field */}
-                  <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
-                    PASSWORD
-                  </Text>
-                  <View style={styles.inputRow}>
-                    <Image
-                      source={require("@/assets/images/home-screen/password-placeholder-icon.svg")}
-                      style={styles.inputIconImage}
-                      contentFit="contain"
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="••••••••••••"
-                      placeholderTextColor="#9CA3AF"
-                      secureTextEntry
-                      returnKeyType="done"
-                      onSubmitEditing={Keyboard.dismiss}
-                    />
-                  </View>
+                      {/* Resend OTP */}
+                      <View style={styles.resendRow}>
+                        {resendTimer > 0 ? (
+                          <Text style={styles.resendTimerText}>
+                            Resend OTP in {resendTimer}s
+                          </Text>
+                        ) : (
+                          <TouchableOpacity onPress={handleResendOtp}>
+                            <Text style={styles.resendButtonText}>
+                              Resend OTP
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </>
+                  )}
 
                   {/* Primary CTA */}
                   <TouchableOpacity
-                    onPress={onGetStarted}
+                    onPress={step === "email" ? handleRequestOtp : handleVerifyOtp}
                     activeOpacity={0.88}
                     style={styles.ctaButtonShadow}
+                    disabled={loading}
                   >
                     <LinearGradient
-                      style={styles.ctaButton}
+                      style={[
+                        styles.ctaButton,
+                        loading && { opacity: 0.7 },
+                      ]}
                       colors={["#00FF40", "#E0FF47"]}
                       locations={[0.2806, 1]}
                       start={{ x: 0.85, y: 0.15 }}
                       end={{ x: 0.15, y: 0.85 }}
                     >
-                      <Text style={styles.ctaButtonText}>Get started →</Text>
+                      {loading ? (
+                        <ActivityIndicator color="#0a1a00" />
+                      ) : (
+                        <Text style={styles.ctaButtonText}>
+                          {step === "email" ? "Get started →" : "Verify OTP →"}
+                        </Text>
+                      )}
                     </LinearGradient>
                   </TouchableOpacity>
-
-                  {/* Divider */}
-                  <View style={styles.dividerRow}>
-                    <View style={styles.dividerLine} />
-                    <Text style={styles.dividerText}>or continue with</Text>
-                    <View style={styles.dividerLine} />
-                  </View>
-
-                  {/* Social buttons */}
-                  <View style={styles.socialRow}>
-                    <TouchableOpacity
-                      style={styles.socialButton}
-                      activeOpacity={0.82}
-                      onPress={onGetStarted}
-                    >
-                      <Image
-                        source={require("@/assets/images/home-screen/apple-icon.svg")}
-                        style={styles.socialIcon}
-                        contentFit="contain"
-                      />
-                      <Text style={styles.socialButtonText}>Apple</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.socialButton}
-                      activeOpacity={0.82}
-                      onPress={onGetStarted}
-                    >
-                      <Image
-                        source={require("@/assets/images/home-screen/google-icon.svg")}
-                        style={styles.socialIcon}
-                        contentFit="contain"
-                      />
-                      <Text style={styles.socialButtonText}>Google</Text>
-                    </TouchableOpacity>
-                  </View>
 
                   {/* Legal */}
                   <Text style={styles.legal}>
@@ -453,9 +565,8 @@ export default function WelcomeScreen() {
   const [sheetVisible, setSheetVisible] = useState(false);
   const [setupVisible, setSetupVisible] = useState(false);
 
-  const handleGetStarted = () => {
+  const handleVerified = () => {
     setSheetVisible(false);
-    // Small delay so the sheet dismiss animation doesn't clash
     setTimeout(() => setSetupVisible(true), 300);
   };
 
@@ -506,7 +617,7 @@ export default function WelcomeScreen() {
       <AuthSheet
         visible={sheetVisible}
         onClose={() => setSheetVisible(false)}
-        onGetStarted={handleGetStarted}
+        onVerified={handleVerified}
       />
 
       <SetupLoadingModal
@@ -754,6 +865,21 @@ const styles = StyleSheet.create({
     fontFamily: NationalPark.semiBold,
     textDecorationLine: "underline",
     color: "#55AA69",
+  },
+  resendRow: {
+    marginTop: 16,
+    alignItems: "center",
+  },
+  resendTimerText: {
+    fontSize: 14,
+    fontFamily: NationalPark.regular,
+    color: "#59B26E",
+  },
+  resendButtonText: {
+    fontSize: 14,
+    fontFamily: NationalPark.semiBold,
+    color: "#00330C",
+    textDecorationLine: "underline",
   },
 });
 
