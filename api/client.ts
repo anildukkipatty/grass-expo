@@ -1,5 +1,5 @@
-// const BASE_URL = "https://api.grass.com"; 
-const BASE_URL = "http://100.70.11.43:4008";
+const BASE_URL = "https://uat.revise.network/grass"; 
+// const BASE_URL = "http://100.70.11.43:4008";
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
