@@ -22,7 +22,7 @@ export function markdownStyles(theme: Theme) {
     heading3:             { fontFamily: NationalPark.semiBold, fontSize: 16, marginTop: 6, marginBottom: 2, color: c.assistantBubbleText },
     strong:               { fontFamily: NationalPark.bold, color: c.assistantBubbleText },
     em:                   { fontStyle: 'italic' as const, color: c.assistantBubbleText, fontFamily: NationalPark.regular },
-    code_inline:          { fontFamily: mono, fontSize: 13, backgroundColor: theme === 'light' ? '#ede9fe' : '#1e1a40', color: theme === 'light' ? '#5b4af7' : '#a89dff', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
+    code_inline:          { fontFamily: mono, fontSize: 13, backgroundColor: theme === 'light' ? '#E4E3E3' : '#1e1a40', color: theme === 'light' ? '#1f2328' : '#a89dff', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 5, borderWidth: 1, borderColor: theme === 'light' ? '#D5D5D5' : '#2a2a38' },
     code_block:           { fontFamily: mono, fontSize: 13, lineHeight: 20, backgroundColor: fence.bg, color: fence.text, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginVertical: 6, borderWidth: 1, borderColor: fence.border },
     blockquote:           { borderLeftWidth: 3, borderLeftColor: c.accent, paddingLeft: 12, marginLeft: 0, fontStyle: 'italic' as const, opacity: 0.75 },
     bullet_list:          { marginBottom: 4 },

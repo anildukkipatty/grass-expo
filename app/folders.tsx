@@ -30,7 +30,7 @@ const AGENTS = [
   },
   {
     id: 'opencode',
-    label: 'OpenCode',
+    label: 'Opencode',
     description: 'Open source AI coding agent',
     logo: require('@/assets/images/open-code.png'),
   },

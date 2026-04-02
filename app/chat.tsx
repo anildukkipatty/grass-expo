@@ -215,7 +215,7 @@ export default function Chat() {
 
             {/* Model pill stub */}
             <TouchableOpacity style={[styles.pill, { borderColor: c.border }]} hitSlop={8}>
-              <Text style={[styles.pillText, { color: c.text }]}>Sonnet 4.6 ▾</Text>
+              <Text style={[styles.pillText, { color: c.text }]}>Sonnet 4.6 <Text style={{ fontSize: 17 }}>▾</Text></Text>
             </TouchableOpacity>
 
             {/* Build pill stub */}
@@ -421,9 +421,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   toolbarPlusText: {
-    fontSize: 24,
+    fontSize: 31,
     fontWeight: '500',
-    lineHeight: 28,
+    lineHeight: 36,
   },
   pill: {
     borderWidth: 1.5,

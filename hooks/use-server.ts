@@ -14,7 +14,7 @@ import {
 } from '@/store/connection-store';
 
 // Re-export types so existing importers keep working
-export type { Message, PermissionItem, Session, Repo, DirEntry, FileContentResult } from '@/store/connection-store';
+export type { Message, PermissionItem, Session, Repo, DirEntry, FileContentResult, RepoDetails } from '@/store/connection-store';
 
 export interface UseServerResult {
   // connected: boolean;      // TODO: revisit connection health indicators
@@ -26,6 +26,7 @@ export interface UseServerResult {
   sessionId: string | null;
   sessionsList: import('@/store/connection-store').Session[];
   repos: import('@/store/connection-store').Repo[];
+  repoDetails: Map<string, import('@/store/connection-store').RepoDetails>;
   send: (text: string) => void;
   abort: () => void;
   respondPermission: (approved: boolean) => void;
@@ -68,6 +69,7 @@ export function useServer(serverUrl: string | null): UseServerResult {
     sessionId:       entry?.sessionId       ?? null,
     sessionsList:    entry?.sessionsList    ?? [],
     repos:           entry?.repos           ?? [],
+    repoDetails:     entry?.repoDetails     ?? new Map(),
     dirListing:      entry?.dirListing      ?? null,
     fileContent:     entry?.fileContent     ?? null,
     send,

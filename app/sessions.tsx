@@ -1,15 +1,25 @@
-import React, { useRef, useMemo, useState, useCallback } from 'react';
-import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView,
-  ActivityIndicator, Animated, Image, TextInput, RefreshControl,
-  Platform,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { BlurView } from 'expo-blur';
+import { NationalPark } from '@/constants/theme';
 import { Session, useServer } from '@/hooks/use-server';
-import { listSessionsStore } from '@/store/connection-store';
+import { getEntry, getRepoDetailsStore, listSessionsStore } from '@/store/connection-store';
+import { setSessionLabel } from '@/store/session-label-store';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator, Animated,
+  FlatList,
+  Image,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 const BG = '#f5f5f7';
 const CARD_BG = '#ffffff';
@@ -36,11 +46,16 @@ const cardShadow = {
   elevation: 3,
 };
 
-const AGENT_FILTERS = ['Open Code', 'Claude Code', 'Codex'] as const;
+const AGENT_FILTERS = ['Opencode', 'Claude Code'] as const;
 type AgentFilter = typeof AGENT_FILTERS[number];
 
+const AGENT_FILTER_IDS: Record<AgentFilter, string> = {
+  'Opencode': 'opencode',
+  'Claude Code': 'claude-code',
+};
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+  container: { flex: 1, backgroundColor: HEADER_BLUR_BG },
   headerWrap: {
     borderBottomWidth: 1,
     borderBottomColor: HEADER_BORDER,
@@ -116,18 +131,22 @@ const styles = StyleSheet.create({
   agentPillTextActive: {
     color: '#ffffff',
   },
+  searchSection: {
+    backgroundColor: HEADER_BLUR_BG,
+    borderBottomWidth: 1,
+    borderBottomColor: HEADER_BORDER,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
   searchWrap: {
-    marginHorizontal: 20,
-    marginTop: 8,
     height: 40,
-    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   searchBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
+    height: 40,
     backgroundColor: SEARCH_BG,
     borderWidth: 1,
     borderColor: SEARCH_BORDER,
@@ -136,6 +155,11 @@ const styles = StyleSheet.create({
     paddingRight: 36,
     fontSize: 16,
     color: TEXT,
+  },
+  searchInputWrap: {
+    flex: 1,
+    height: 40,
+    position: 'relative',
   },
   searchIcon: {
     position: 'absolute',
@@ -147,6 +171,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 14,
+    backgroundColor: BG,
   },
   statusText: {
     fontSize: 15,
@@ -205,7 +230,7 @@ const styles = StyleSheet.create({
   },
   newBtnWrap: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 80,
     right: 20,
   },
   newBtn: {
@@ -216,23 +241,28 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 63,
     borderWidth: 1,
-    borderColor: NEW_BTN_GREEN,
-    shadowColor: NEW_BTN_GLOW,
+    borderColor: '#00CC33',
+    // outer glow
+    shadowColor: '#00FF26',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
+    shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
-    overflow: Platform.OS === 'android' ? 'hidden' : 'visible',
+    overflow: 'hidden',
   },
-  newBtnGradientBg: {
+  newBtnGradient: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 63,
-    backgroundColor: '#00ff40',
+  },
+  newBtnInnerShadow: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 63,
   },
   newBtnText: {
     fontSize: 16,
+    fontFamily: NationalPark.medium,
+    lineHeight: 24,
     color: TEXT,
-    fontWeight: '500',
     zIndex: 1,
   },
 });
@@ -278,12 +308,6 @@ function SessionItem({ item, onPress }: { item: Session; onPress: () => void }) 
             </Text>
           ) : null}
         </View>
-        <View style={styles.diffIconBtn}>
-          <Image
-            source={require('@/assets/images/diff-logo.png')}
-            style={{ width: 20, height: 20, opacity: 0.6 }}
-          />
-        </View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -301,8 +325,9 @@ export default function Sessions() {
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [branch, setBranch] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<AgentFilter | null>(
-    agent ? (AGENT_FILTERS.find(f => f.toLowerCase().replace(' ', '') === agent.toLowerCase().replace(' ', '')) ?? null) : null
+    agent ? (AGENT_FILTERS.find(f => f.toLowerCase().replace(/[\s-]/g, '') === agent.toLowerCase().replace(/[\s-]/g, '')) ?? null) : null
   );
 
   const ws = useServer(serverUrl ?? null);
@@ -311,6 +336,11 @@ export default function Sessions() {
     if (!serverUrl) return;
     setFetching(true);
     listSessionsStore(serverUrl, repoPath, agent).then(() => setFetching(false));
+    if (repoPath) {
+      getRepoDetailsStore(serverUrl, repoPath).then(() => {
+        setBranch(getEntry(serverUrl)?.repoDetails.get(repoPath)?.branch ?? null);
+      });
+    }
   }, [serverUrl, repoPath, agent]));
 
   const sessions = useMemo(() => {
@@ -328,7 +358,8 @@ export default function Sessions() {
 
   const loading = fetching && ws.sessionsList.length === 0;
 
-  function openChat(sessionId?: string) {
+  function openChat(sessionId?: string, label?: string) {
+    setSessionLabel(label ?? null);
     const params: Record<string, string> = { serverUrl: serverUrl! };
     if (sessionId) params.sessionId = sessionId;
     if (repoName) params.repoName = repoName;
@@ -349,7 +380,7 @@ export default function Sessions() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.headerWrap}>
-        <BlurView intensity={60} tint="light" style={styles.headerBlur}>
+        <View style={[styles.headerBlur, { backgroundColor: HEADER_BLUR_BG }]}>
           {/* Repo row */}
           <View style={styles.headerRow}>
             <TouchableOpacity
@@ -359,14 +390,13 @@ export default function Sessions() {
             >
               <Ionicons name="chevron-back" size={22} color={TEXT} />
             </TouchableOpacity>
-            <Image source={require('@/assets/images/open-code.png')} style={styles.repoIcon} />
             <View style={styles.repoMeta}>
               <Text style={styles.repoName} numberOfLines={1}>
                 {repoName ?? 'Sessions'}
               </Text>
               <View style={styles.branchPill}>
                 <Ionicons name="git-merge-outline" size={14} color={BRANCH_TEXT} />
-                <Text style={styles.branchText}>main</Text>
+                <Text style={styles.branchText}>{branch ?? '…'}</Text>
               </View>
             </View>
           </View>
@@ -379,7 +409,14 @@ export default function Sessions() {
                 <TouchableOpacity
                   key={f}
                   style={[styles.agentPill, isActive && styles.agentPillActive]}
-                  onPress={() => setActiveFilter(isActive ? null : f)}
+                  onPress={() => {
+                    const newAgent = isActive ? undefined : AGENT_FILTER_IDS[f];
+                    const params: Record<string, string> = { serverUrl: serverUrl! };
+                    if (repoPath) params.repoPath = repoPath;
+                    if (repoName) params.repoName = repoName;
+                    if (newAgent) params.agent = newAgent;
+                    router.replace({ pathname: '/sessions', params });
+                  }}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.agentPillText, isActive && styles.agentPillTextActive]}>
@@ -389,26 +426,42 @@ export default function Sessions() {
               );
             })}
           </View>
-        </BlurView>
+        </View>
       </View>
 
       {/* Search */}
+      <View style={styles.searchSection}>
       <View style={styles.searchWrap}>
-        <TextInput
-          style={styles.searchBar}
-          placeholder="Search chats"
-          placeholderTextColor={SEARCH_TEXT}
-          value={query}
-          onChangeText={setQuery}
-          clearButtonMode="while-editing"
-          autoCorrect={false}
-          autoCapitalize="none"
-        />
-        {!query ? (
-          <View style={styles.searchIcon}>
-            <Ionicons name="search" size={16} color={SEARCH_TEXT} />
-          </View>
-        ) : null}
+        <View style={styles.searchInputWrap}>
+          <TextInput
+            style={styles.searchBar}
+            placeholder="Search chats"
+            placeholderTextColor={SEARCH_TEXT}
+            value={query}
+            onChangeText={setQuery}
+            clearButtonMode="while-editing"
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+          {!query ? (
+            <View style={styles.searchIcon}>
+              <Ionicons name="search" size={16} color={SEARCH_TEXT} />
+            </View>
+          ) : null}
+        </View>
+        <TouchableOpacity
+          style={styles.diffIconBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push({ pathname: '/diffs', params: { serverUrl: serverUrl!, repoPath: repoPath ?? '' } });
+          }}
+        >
+          <Image
+            source={require('@/assets/images/diff-logo.png')}
+            style={{ width: 20, height: 20, opacity: 0.6 }}
+          />
+        </TouchableOpacity>
+      </View>
       </View>
 
       {/* List */}
@@ -431,6 +484,7 @@ export default function Sessions() {
         <FlatList
           data={sessions}
           keyExtractor={item => item.id}
+          style={{ backgroundColor: BG }}
           contentContainerStyle={styles.list}
           refreshControl={
             <RefreshControl
@@ -441,7 +495,7 @@ export default function Sessions() {
             />
           }
           renderItem={({ item }) => (
-            <SessionItem item={item} onPress={() => openChat(item.id)} />
+            <SessionItem item={item} onPress={() => openChat(item.id, item.label || item.preview)} />
           )}
         />
       )}
@@ -463,7 +517,20 @@ export default function Sessions() {
             }
             activeOpacity={1}
           >
-            <View style={styles.newBtnGradientBg} />
+            <LinearGradient
+              colors={['#00FF40', '#00FF40', '#E0FF47']}
+              locations={[0, 0.7, 1]}
+              start={{ x: 1, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.newBtnGradient}
+            />
+            <LinearGradient
+              colors={['transparent', 'rgba(255,255,255,0.4)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.newBtnInnerShadow}
+              pointerEvents="none"
+            />
             <Ionicons name="add" size={20} color={TEXT} style={{ zIndex: 1 }} />
             <Text style={styles.newBtnText}>New chat</Text>
           </TouchableOpacity>

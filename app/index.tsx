@@ -8,7 +8,7 @@ export default function Index() {
 
   useEffect(() => {
     getToken().then((token) => {
-      setRoute(token ? "/home" : "/welcome");
+      setRoute(token ? "/home" : "/home");
     });
   }, []);
 

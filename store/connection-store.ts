@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { fetch } from 'expo/fetch';
 
 export interface Message {
-  role: 'user' | 'assistant' | 'error';
+  role: 'user' | 'assistant' | 'error' | 'tool';
   content: string;
   complete: boolean;
   msgId: string;
@@ -303,7 +303,9 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
   }
 
   if (event === 'tool_use') {
-    entry.activity = { label: (parsed.tool_name as string) + ': ' + (parsed.tool_input as string) };
+    const toolLabel = (parsed.tool_name as string) + ': ' + (parsed.tool_input as string);
+    entry.activity = { label: toolLabel };
+    entry.messages = [...entry.messages, { role: 'tool', content: toolLabel, complete: true, msgId: nextMsgId(entry) }];
     notifyListeners(serverUrl);
     return;
   }

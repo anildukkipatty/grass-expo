@@ -9,6 +9,7 @@ import {
   subscribeToPermissions,
 } from "@/store/connection-store";
 import { useTheme } from "@/store/theme-store";
+import * as Font from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -100,10 +101,21 @@ function GlobalPermissionsManager({ theme }: { theme: "light" | "dark" }) {
 export default function RootLayout() {
   const [theme] = useTheme();
   const c = GrassColors[theme];
+  const [fontsLoaded] = Font.useFonts({
+    'NationalPark-ExtraLight': require('../assets/fonts/National_Park/static/NationalPark-ExtraLight.ttf'),
+    'NationalPark-Light':      require('../assets/fonts/National_Park/static/NationalPark-Light.ttf'),
+    'NationalPark-Regular':    require('../assets/fonts/National_Park/static/NationalPark-Regular.ttf'),
+    'NationalPark-Medium':     require('../assets/fonts/National_Park/static/NationalPark-Medium.ttf'),
+    'NationalPark-SemiBold':   require('../assets/fonts/National_Park/static/NationalPark-SemiBold.ttf'),
+    'NationalPark-Bold':       require('../assets/fonts/National_Park/static/NationalPark-Bold.ttf'),
+    'NationalPark-ExtraBold':  require('../assets/fonts/National_Park/static/NationalPark-ExtraBold.ttf'),
+  });
 
   useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
+    if (fontsLoaded) SplashScreen.hideAsync();
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
