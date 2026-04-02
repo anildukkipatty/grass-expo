@@ -1,7 +1,7 @@
 import { requestOtp, verifyOtp } from "@/api/auth";
 import { heartbeat, requestContainer } from "@/api/containers";
-import { saveAuth, getToken } from "@/store/auth-store";
 import { NationalPark } from "@/constants/theme";
+import { getToken, saveAuth } from "@/store/auth-store";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -12,7 +12,6 @@ import {
   Animated,
   Dimensions,
   FlatList,
-  ImageBackground,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -581,11 +580,12 @@ function AuthSheet({
                         styles.ctaButton,
                         loading && { opacity: 0.7 },
                       ]}
-                      colors={["#00FF40", "#E0FF47"]}
+                      colors={["#00FF26", "#E0FF47"]}
                       locations={[0.2806, 1]}
-                      start={{ x: 0.85, y: 0.15 }}
-                      end={{ x: 0.15, y: 0.85 }}
+                      start={{ x: 0.828, y: 0.123 }}
+                      end={{ x: 0.172, y: 0.878 }}
                     >
+                      <View style={styles.ctaButtonInsetHighlight} pointerEvents="none" />
                       {loading ? (
                         <ActivityIndicator color="#0a1a00" />
                       ) : (
@@ -628,22 +628,19 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      <ImageBackground
-        source={require("@/assets/images/banner-image.png")}
-        style={styles.background}
-        resizeMode="cover"
-      >
-        {/* Multi-layer overlay simulating a top-to-bottom darkening gradient */}
-        {/* <View style={styles.gradientLayer1} />
-        <View style={styles.gradientLayer2} />
-        <View style={styles.gradientLayer3} /> */}
+      <View style={styles.background}>
+        <Image
+          source={require("@/assets/images/banner-image.png")}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+        />
 
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.content}>
             <Image
               source={require("@/assets/images/home-screen/welcome-text-background-image.png")}
               style={styles.logo}
-              contentFit="cover"
+              contentFit="contain"
             />
 
             <Text style={styles.title}>{"Welcome\nto Grass"}</Text>
@@ -655,20 +652,22 @@ export default function WelcomeScreen() {
             <TouchableOpacity
               onPress={() => setSheetVisible(true)}
               activeOpacity={0.88}
+              style={styles.buttonShadow}
             >
               <LinearGradient
                 style={styles.button}
                 colors={["#00FF26", "#E0FF47"]}
                 locations={[0.2806, 1]}
-                start={{ x: 0.85, y: 0.15 }}
-                end={{ x: 0.15, y: 0.85 }}
+                start={{ x: 0.828, y: 0.123 }}
+                end={{ x: 0.172, y: 0.878 }}
               >
+                <View style={styles.buttonInsetHighlight} pointerEvents="none" />
                 <Text style={styles.buttonText}>Get started →</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
-      </ImageBackground>
+      </View>
 
       <AuthSheet
         visible={sheetVisible}
@@ -689,7 +688,6 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    fontFamily: "NationalPark-Regular",
   },
   background: {
     flex: 1,
@@ -723,19 +721,19 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   content: {
-    paddingHorizontal: 28,
-    paddingBottom: 32,
+    paddingHorizontal: 30,
+    // paddingBottom: 30,
   },
   logo: {
     width: 69,
     height: 69,
-    borderRadius: 20,
-    marginBottom: 20,
+    // borderRadius: 20,
+    // marginBottom: 20,
   },
   title: {
-    fontFamily: NationalPark.bold,
+    fontFamily: NationalPark.semiBold,
     fontSize: 48,
-    fontWeight: "600",
+    fontWeight: 600,
     color: "#E5FFEC",
     lineHeight: 48,
     letterSpacing: -1,
@@ -745,14 +743,34 @@ const styles = StyleSheet.create({
     fontFamily: NationalPark.semiBold,
     fontSize: 20,
     fontWeight: 600,
-    marginBottom: 25,
+    marginBottom:25
+  },
+  buttonShadow: {
+    borderRadius: 63,
+    shadowColor: "#00FF26",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 12,
   },
   button: {
     borderRadius: 63,
+    borderWidth: 2,
     borderColor: "#00CC1E",
     paddingVertical: 18,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  buttonInsetHighlight: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.40)",
+    borderTopLeftRadius: 63,
+    borderTopRightRadius: 63,
   },
   buttonText: {
     color: "#000",
@@ -841,19 +859,30 @@ const styles = StyleSheet.create({
   ctaButtonShadow: {
     marginTop: 28,
     borderRadius: 63,
-    shadowColor: "rgba(0, 255, 38, 1)",
+    shadowColor: "#00FF26",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 24,
-    elevation: 8,
+    elevation: 12,
   },
   ctaButton: {
     borderRadius: 63,
-    borderWidth: 1,
-    borderColor: "#00CC33",
+    borderWidth: 2,
+    borderColor: "#00CC1E",
     paddingVertical: 17,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  ctaButtonInsetHighlight: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.40)",
+    borderTopLeftRadius: 63,
+    borderTopRightRadius: 63,
   },
   ctaButtonText: {
     fontSize: 17,

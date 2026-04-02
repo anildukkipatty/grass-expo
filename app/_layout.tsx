@@ -1,5 +1,6 @@
 import { PermissionModal } from "@/components/PermissionModal";
-import { GrassColors } from "@/constants/theme";
+import { GrassColors, NationalPark } from "@/constants/theme";
+import { useFonts } from "expo-font";
 import {
   getConnectedUrls,
   getPermissions,
@@ -21,7 +22,7 @@ SplashScreen.preventAutoHideAsync();
 // Apply National Park as the default font for all Text components
 const DefaultText = Text as any;
 if (DefaultText.defaultProps == null) DefaultText.defaultProps = {};
-DefaultText.defaultProps.style = {};
+DefaultText.defaultProps.style = { fontFamily: NationalPark.regular };
 
 // Tracks which server URLs currently have active connections so we can open
 // a permissions SSE for each one.
@@ -101,9 +102,19 @@ export default function RootLayout() {
   const [theme] = useTheme();
   const c = GrassColors[theme];
 
+  const [fontsLoaded] = useFonts({
+    [NationalPark.extraLight]: require("../assets/fonts/National_Park/static/NationalPark-ExtraLight.ttf"),
+    [NationalPark.light]:      require("../assets/fonts/National_Park/static/NationalPark-Light.ttf"),
+    [NationalPark.regular]:    require("../assets/fonts/National_Park/static/NationalPark-Regular.ttf"),
+    [NationalPark.medium]:     require("../assets/fonts/National_Park/static/NationalPark-Medium.ttf"),
+    [NationalPark.semiBold]:   require("../assets/fonts/National_Park/static/NationalPark-SemiBold.ttf"),
+    [NationalPark.bold]:       require("../assets/fonts/National_Park/static/NationalPark-Bold.ttf"),
+    [NationalPark.extraBold]:  require("../assets/fonts/National_Park/static/NationalPark-ExtraBold.ttf"),
+  });
+
   useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
+    if (fontsLoaded) SplashScreen.hideAsync();
+  }, [fontsLoaded]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
