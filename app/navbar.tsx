@@ -15,7 +15,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { clearAuth, getToken } from '@/store/auth-store';
-import { heartbeat } from '@/api/containers';
+import { heartbeat, signedPreviewUrl } from '@/api/containers';
+import { clearUrls, getUrls, removeUrl, saveUrl } from '@/store/url-store';
+import { closeConnection, getConnectedUrls, listReposStore, getRepoDetailsStore, getEntry, openConnection } from '@/store/connection-store';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GetMoreSheet } from '@/components/GetMoreSheet';
@@ -124,10 +126,6 @@ interface RepoItem {
   badgeType: 'green' | 'gray';
 }
 
-const INITIAL_REPOS: RepoItem[] = [
-  { id: '1', name: 'grass-welcome', branch: 'main', action: 'Open Code', badge: 'Demo', badgeType: 'green' },
-  { id: '2', name: 'api-server', branch: 'dev', action: 'Claude Code', badge: 'Python', badgeType: 'gray' },
-];
 
 const BADGE_CONFIG: Record<string, { bg: string; border: string; text: string }> = {
   Write: { bg: '#FFF5E6', border: '#FF9500', text: '#B05A00' },
@@ -242,48 +240,83 @@ function PermissionCard({ item, onApprove, onDeny }: {
 // ─── VM Tab Bar ────────────────────────────────────────────────────────────────
 // Placed inside the ImageBackground so banner image shows through +Add
 
-function VmTabBar({ activeVmTab, onTabPress }: {
+function extractHost(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.hostname;
+  } catch {
+    return url.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+  }
+}
+
+function orderVmUrls(urls: string[], primaryVmUrl?: string): string[] {
+  const unique = Array.from(new Set(urls));
+  if (!primaryVmUrl) return unique;
+  const rest = unique.filter((u) => u !== primaryVmUrl);
+  return [primaryVmUrl, ...rest];
+}
+
+function VmTabBar({ activeVmTab, onTabPress, vmRunning, vmUrls, onAddPress, onRemoveVm, primaryVmUrl }: {
   activeVmTab: number;
   onTabPress: (idx: number) => void;
+  vmRunning: boolean;
+  vmUrls: string[];
+  onAddPress: () => void;
+  onRemoveVm: (idx: number) => void;
+  primaryVmUrl?: string;
 }) {
   return (
     <View style={styles.tabsBar}>
-      {/* GrassVM + My Macbook — white pill group */}
-      <View style={styles.tabPillsGroup}>
-        {/* GrassVM */}
-        <TouchableOpacity
-          style={[styles.tabPill, activeVmTab === 0 && styles.tabPillActive]}
-          onPress={() => onTabPress(0)}
-          activeOpacity={0.75}
-        >
-          {/* Active dot indicator */}
-          <View style={[
-            styles.vmDot,
-            activeVmTab === 0 ? styles.vmDotActive : styles.vmDotInactive,
-          ]} />
-          <Text style={[styles.tabPillText, activeVmTab === 0 && styles.tabPillTextActive]}>
-            GrassVM
-          </Text>
-        </TouchableOpacity>
-
-        {/* My Macbook */}
-        <TouchableOpacity
-          style={[styles.tabPill, activeVmTab === 1 && styles.tabPillActive]}
-          onPress={() => onTabPress(1)}
-          activeOpacity={0.75}
-        >
-          <View style={[
-            styles.vmDot,
-            activeVmTab === 1 ? styles.vmDotActive : styles.vmDotInactive,
-          ]} />
-          <Text style={[styles.tabPillText, activeVmTab === 1 && styles.tabPillTextActive]}>
-            My Macbook
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabPillsGroup}
+        style={{ flexShrink: 1 }}
+      >
+        {vmUrls.map((url, idx) => {
+          const isActive = activeVmTab === idx;
+          const isPrimaryVm = primaryVmUrl ? url === primaryVmUrl : idx === 0;
+          const tabLabel = isPrimaryVm ? 'GrassVM' : extractHost(url);
+          const isUserVm = !isPrimaryVm;
+          return (
+            <View key={url} style={styles.tabPillWrap}>
+              <TouchableOpacity
+                style={[styles.tabPill, isActive && styles.tabPillActive]}
+                onPress={() => onTabPress(idx)}
+                activeOpacity={0.75}
+              >
+                <View style={[
+                  styles.vmDot,
+                  vmRunning ? styles.vmDotActive : styles.vmDotStopped,
+                ]} />
+                <Text
+                  style={[
+                    styles.tabPillText,
+                    isActive && styles.tabPillTextActive,
+                    isUserVm && styles.userVmTabText,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {tabLabel}
+                </Text>
+              </TouchableOpacity>
+              {isUserVm ? (
+                <TouchableOpacity
+                  style={styles.userVmCloseBtn}
+                  onPress={() => onRemoveVm(idx)}
+                  hitSlop={8}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close" size={11} color="#6C6C70" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          );
+        })}
+      </ScrollView>
 
       {/* +Add — no background, banner image shows through */}
-      <TouchableOpacity onPress={() => onTabPress(2)} activeOpacity={0.7}>
+      <TouchableOpacity onPress={onAddPress} activeOpacity={0.7}>
         <Text style={styles.tabAddText}>+ Add</Text>
       </TouchableOpacity>
     </View>
@@ -389,10 +422,44 @@ export default function NavbarScreen() {
   const [activeVmTab, setActiveVmTab] = useState(0);
   const [activeNav, setActiveNav] = useState<NavTab>('home');
   const [permissions, setPermissions] = useState<PermissionCardData[]>(PERMISSIONS);
-  const [repos, setRepos] = useState<RepoItem[]>(INITIAL_REPOS);
+  const [repos, setRepos] = useState<RepoItem[]>([]);
+  const [reposLoading, setReposLoading] = useState(false);
   const [getMoreVisible, setGetMoreVisible] = useState(false);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
+  const [vmRunning, setVmRunning] = useState(true);
+  const [vmUrls, setVmUrls] = useState<string[]>([]);
+  const [primaryVmUrl, setPrimaryVmUrl] = useState<string | undefined>(undefined);
   const router = useRouter();
+  const selectedVmUrl = vmUrls[activeVmTab] ?? undefined;
+
+  async function handleRemoveUserVm(idx: number) {
+    if (idx <= 0 || idx >= vmUrls.length) return;
+    const targetUrl = vmUrls[idx];
+    await removeUrl(targetUrl);
+    const updated = await getUrls();
+    setVmUrls(orderVmUrls(updated, primaryVmUrl));
+    if (activeVmTab === idx || activeVmTab >= updated.length) {
+      setActiveVmTab(0);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadVmUrls() {
+      const urls = await getUrls();
+      if (!cancelled) {
+        setVmUrls(orderVmUrls(urls, primaryVmUrl));
+      }
+    }
+    loadVmUrls();
+    return () => { cancelled = true; };
+  }, [primaryVmUrl]);
+
+  useEffect(() => {
+    if (activeVmTab >= vmUrls.length && vmUrls.length > 0) {
+      setActiveVmTab(0);
+    }
+  }, [activeVmTab, vmUrls.length]);
 
   // Check container health on mount
   useEffect(() => {
@@ -405,12 +472,81 @@ export default function NavbarScreen() {
       if (cancelled) return;
 
       if (!hb.ok || hb.data.container !== "running" || !hb.data.grass) {
+        setVmRunning(false);
         router.replace("/container-setup");
+      } else {
+        setVmRunning(true);
+        let backendPreviewUrl: string | undefined;
+        const preview = await signedPreviewUrl(token);
+        if (preview.ok) {
+          backendPreviewUrl = preview.data.url;
+        } else if (hb.data.url) {
+          backendPreviewUrl = hb.data.url;
+        }
+        if (backendPreviewUrl) {
+          setPrimaryVmUrl(backendPreviewUrl);
+          await saveUrl(backendPreviewUrl);
+        }
+        const urls = await getUrls();
+        if (!cancelled) {
+          setVmUrls(orderVmUrls(urls, backendPreviewUrl));
+        }
       }
     }
     checkContainer();
     return () => { cancelled = true; };
   }, [router]);
+
+  // Fetch repos from the grass server when VM is running
+  useEffect(() => {
+    if (!vmRunning) return;
+    let cancelled = false;
+
+    async function fetchRepos() {
+      if (!selectedVmUrl) {
+        setRepos([]);
+        setReposLoading(false);
+        return;
+      }
+      setReposLoading(true);
+      const serverUrl = selectedVmUrl;
+      if (cancelled) { setReposLoading(false); return; }
+
+      openConnection(serverUrl);
+      await listReposStore(serverUrl);
+      if (cancelled) return;
+
+      const entry = getEntry(serverUrl);
+      const repoList = entry?.repos ?? [];
+
+      // Fetch details for each repo
+      await Promise.all(repoList.map(r => getRepoDetailsStore(serverUrl, r.path)));
+      if (cancelled) return;
+
+      const updatedEntry = getEntry(serverUrl);
+      const details = updatedEntry?.repoDetails ?? new Map();
+
+      const mapped: RepoItem[] = repoList.map((r, i) => {
+        const d = details.get(r.path);
+        return {
+          id: String(i),
+          name: r.name,
+          branch: d?.branch ?? 'main',
+          action: 'Open Code',
+          badge: d?.dominantLanguage ?? (r.isGit ? 'Git' : 'Folder'),
+          badgeType: 'gray' as const,
+        };
+      });
+
+      if (!cancelled) {
+        setRepos(mapped);
+        setReposLoading(false);
+      }
+    }
+
+    fetchRepos();
+    return () => { cancelled = true; };
+  }, [vmRunning, selectedVmUrl]);
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -419,6 +555,12 @@ export default function NavbarScreen() {
         text: "Logout",
         style: "destructive",
         onPress: async () => {
+          const connectedUrls = getConnectedUrls();
+          connectedUrls.forEach((url) => closeConnection(url));
+          await clearUrls();
+          setVmUrls([]);
+          setPrimaryVmUrl(undefined);
+          setActiveVmTab(0);
           await clearAuth();
           router.replace("/welcome");
         },
@@ -540,7 +682,15 @@ export default function NavbarScreen() {
           <View style={{ flex: 1 }} />
 
           {/* VM Tabs sit inside banner so image shows behind +Add */}
-          <VmTabBar activeVmTab={activeVmTab} onTabPress={setActiveVmTab} />
+          <VmTabBar
+            activeVmTab={activeVmTab}
+            onTabPress={setActiveVmTab}
+            vmRunning={vmRunning}
+            vmUrls={vmUrls}
+            onAddPress={() => setGetMoreVisible(true)}
+            onRemoveVm={handleRemoveUserVm}
+            primaryVmUrl={primaryVmUrl}
+          />
         </ImageBackground>
       </View>
 
@@ -650,16 +800,26 @@ export default function NavbarScreen() {
             </View>
 
             {/* Repo cards */}
-            {repos.map(item => (
-              <SwipeableRepoCard
-                key={item.id}
-                item={item}
-                onDelete={() => setRepos(prev => prev.filter(r => r.id !== item.id))}
-              />
-            ))}
+            {reposLoading ? (
+              <Text style={{ textAlign: 'center', color: '#8E8E93', marginTop: 24, fontSize: 14 }}>
+                Loading repos...
+              </Text>
+            ) : repos.length === 0 ? (
+              <Text style={{ textAlign: 'center', color: '#8E8E93', marginTop: 24, fontSize: 14 }}>
+                No repos found
+              </Text>
+            ) : (
+              repos.map(item => (
+                <SwipeableRepoCard
+                  key={item.id}
+                  item={item}
+                  onDelete={() => setRepos(prev => prev.filter(r => r.id !== item.id))}
+                />
+              ))
+            )}
 
             {/* Swipe hint */}
-            {repos.length > 0 && (
+            {repos.length > 0 && !reposLoading && (
               <Text style={repoStyles.swipeHint}>Swipe left of a repo to delete</Text>
             )}
           </>
@@ -733,6 +893,11 @@ export default function NavbarScreen() {
       <GetMoreSheet
         visible={getMoreVisible}
         onClose={() => setGetMoreVisible(false)}
+        onUrlDetected={async () => {
+          const urls = await getUrls();
+          setVmUrls(orderVmUrls(urls, primaryVmUrl));
+          setActiveVmTab(0);
+        }}
       />
 
       {/* Profile menu */}
@@ -1079,7 +1244,7 @@ const styles = StyleSheet.create({
   tabsBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
@@ -1088,6 +1253,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.82)',
     borderRadius: 22,
     padding: 3,
+    flexGrow: 0,
   },
   tabPill: {
     flexDirection: 'row',
@@ -1096,6 +1262,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 19,
     gap: 5,
+  },
+  tabPillWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 2,
   },
   tabPillActive: {
     backgroundColor: '#FFFFFF',
@@ -1116,6 +1287,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#00FF33',   // fill: #0F3
     borderColor: '#004D13',        // stroke: #004D13
   },
+  vmDotStopped: {
+    backgroundColor: '#FF3B30',
+    borderColor: '#8B0000',
+  },
   vmDotInactive: {
     backgroundColor: '#C7C7CC',
     borderColor: '#AEAEB2',
@@ -1124,6 +1299,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: '#6C6C70',
+    maxWidth: 140,
+  },
+  userVmTabText: {
+    maxWidth: 105,
+  },
+  userVmCloseBtn: {
+    marginLeft: 3,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.08)',
   },
   tabPillTextActive: {
     color: '#1C1C1E',
@@ -1320,6 +1508,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+  },
+  navIconWrapActive: {
+    backgroundColor: '#F0FFF2',
+    borderRadius: 999,
   },
   navImg: {
     width: 24,

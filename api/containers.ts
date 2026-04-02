@@ -10,6 +10,13 @@ export type RequestContainerResponse = {
 export type HeartbeatResponse = {
   container: "running" | "stopped" | "not found" | "provisioning";
   grass: boolean;
+  url?: string;
+};
+
+export type SignedPreviewUrlResponse = {
+  success: boolean;
+  message: string;
+  url: string;
 };
 
 export function requestContainer(token: string) {
@@ -22,6 +29,13 @@ export function requestContainer(token: string) {
 export function heartbeat(token: string) {
   return apiRequest<HeartbeatResponse>("/api/containers/heartbeat", {
     method: "GET",
+    token,
+  });
+}
+
+export function signedPreviewUrl(token: string) {
+  return apiRequest<SignedPreviewUrlResponse>("/api/containers/signed-preview-url", {
+    method: "POST",
     token,
   });
 }

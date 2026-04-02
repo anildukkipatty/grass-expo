@@ -1,6 +1,7 @@
 import { requestOtp, verifyOtp } from "@/api/auth";
 import { heartbeat, requestContainer } from "@/api/containers";
 import { saveAuth, getToken } from "@/store/auth-store";
+import { saveUrl } from "@/store/url-store";
 import { NationalPark } from "@/constants/theme";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -104,6 +105,7 @@ function SetupLoadingModal({
         const result = await requestContainer(token);
         if (cancelled) return;
         if (result.ok) {
+          if (result.data.url) await saveUrl(result.data.url);
           finishAndRedirect("/push-commit");
         } else {
           progressTimer.stop();
@@ -143,6 +145,7 @@ function SetupLoadingModal({
         const result = await requestContainer(token);
         if (cancelled) return;
         if (result.ok) {
+          if (result.data.url) await saveUrl(result.data.url);
           finishAndRedirect("/navbar");
         } else {
           progressTimer.stop();
