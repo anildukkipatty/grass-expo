@@ -7,12 +7,13 @@ import { Platform } from 'react-native';
 
 export const GrassColors = {
   light: {
-    bg: '#fafafa',
+    bg: 'rgb(245, 245, 247)',
     text: '#111118',
-    barBg: '#f0f0f4',
+    barBg: '#f7f7f7',
     border: '#e2e2e8',
-    userBubble: '#5b4af7',
-    userBubbleText: '#fff',
+    userBubble: '#DCF8C6',
+    userBubbleText: '#1a3a1a',
+    userBubbleBorder: '#8CBB67',
     assistantBubble: '#ffffff',
     assistantBubbleText: '#111118',
     errorBubble: '#fff0f2',
@@ -21,7 +22,7 @@ export const GrassColors = {
     accentSoft: '#ede9fe',
     badgeText: '#9999aa',
     inputBg: '#ffffff',
-    shadow: 'rgba(91, 74, 247, 0.12)',
+    shadow: 'rgba(0, 0, 0, 0.06)',
   },
   dark: {
     bg: '#0e0e12',
@@ -30,6 +31,7 @@ export const GrassColors = {
     border: '#2a2a38',
     userBubble: '#5b4af7',
     userBubbleText: '#ffffff',
+    userBubbleBorder: 'transparent',
     assistantBubble: '#1c1c27',
     assistantBubbleText: '#e8e8f0',
     errorBubble: '#1f0a0a',

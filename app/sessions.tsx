@@ -1,97 +1,146 @@
 import React, { useRef, useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated, Image, TextInput, RefreshControl,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView,
+  ActivityIndicator, Animated, Image, TextInput, RefreshControl,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
-import { useTheme } from '@/store/theme-store';
-import { GrassColors } from '@/constants/theme';
 import { Session, useServer } from '@/hooks/use-server';
 import { listSessionsStore } from '@/store/connection-store';
 
+const BG = '#f5f5f7';
+const CARD_BG = '#ffffff';
+const CARD_BORDER = '#ebebeb';
+const TEXT = '#000000';
+const SUBTEXT = '#c1c1c1';
+const SEARCH_BG = '#ececec';
+const SEARCH_BORDER = '#c8c8c8';
+const SEARCH_TEXT = '#757575';
+const BRANCH_BG = '#efeeee';
+const BRANCH_TEXT = '#8e8e8e';
+const DIFF_BTN_BG = '#e5e5e5';
+const DIFF_BTN_BORDER = '#cecece';
+const HEADER_BLUR_BG = 'rgba(255,255,255,0.7)';
+const HEADER_BORDER = '#d3d3d3';
+const NEW_BTN_GREEN = '#00cc33';
+const NEW_BTN_GLOW = 'rgba(0,255,38,0.3)';
 
-// Green theme palette (used in place of c.* for this screen)
-const BG = '#0f1a0f';
-const CARD_BG = 'rgba(30, 42, 30, 0.6)';
-const CARD_BORDER = 'rgba(100, 140, 100, 0.1)';
-const TEXT = '#d4e8d4';
-const SUBTEXT = '#7a9a7a';
-const ACCENT = '#7CB9A8';
+const cardShadow = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 5,
+  elevation: 3,
+};
+
+const AGENT_FILTERS = ['Open Code', 'Claude Code', 'Codex'] as const;
+type AgentFilter = typeof AGENT_FILTERS[number];
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
   headerWrap: {
     borderBottomWidth: 1,
+    borderBottomColor: HEADER_BORDER,
   },
-  header: {
+  headerBlur: {
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 10,
     gap: 12,
   },
-  headerTitleGroup: {
-    flex: 1,
-    gap: 2,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  // headerCwd removed — no REST push equivalent
-  searchBar: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 15,
-  },
   backBtn: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: 36,
+    minHeight: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backBtnText: {
-    fontSize: 28,
-    lineHeight: 30,
+  repoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
   },
-  diffsBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  diffsBtnInner: {
+  repoMeta: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 8,
   },
-  diffsBtnIcon: {
-    width: 18,
-    height: 18,
-    opacity: 0.7,
-  },
-  diffsBtnText: {
-    fontSize: 14,
+  repoName: {
+    fontSize: 18,
     fontWeight: '600',
+    color: TEXT,
+    letterSpacing: -0.2,
   },
-  newBtn: {
+  branchPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
+    backgroundColor: BRANCH_BG,
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  newBtnText: {
-    color: '#fff',
+  branchText: {
     fontSize: 14,
-    fontWeight: '700',
+    color: BRANCH_TEXT,
+  },
+  agentPillRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 8,
+    paddingTop: 4,
+  },
+  agentPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 63,
+    borderWidth: 1,
+    borderColor: '#bababa',
+  },
+  agentPillActive: {
+    backgroundColor: TEXT,
+    borderColor: TEXT,
+  },
+  agentPillText: {
+    fontSize: 16,
+    color: TEXT,
+  },
+  agentPillTextActive: {
+    color: '#ffffff',
+  },
+  searchWrap: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    height: 40,
+    position: 'relative',
+  },
+  searchBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: SEARCH_BG,
+    borderWidth: 1,
+    borderColor: SEARCH_BORDER,
+    borderRadius: 30,
+    paddingLeft: 16,
+    paddingRight: 36,
+    fontSize: 16,
+    color: TEXT,
+  },
+  searchIcon: {
+    position: 'absolute',
+    right: 14,
+    top: 12,
   },
   center: {
     flex: 1,
@@ -101,37 +150,48 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 15,
+    color: SUBTEXT,
   },
   list: {
-    padding: 16,
+    padding: 20,
     gap: 8,
+    paddingBottom: 100,
   },
   sessionItem: {
-    padding: 16,
-    borderRadius: 14,
+    backgroundColor: CARD_BG,
+    borderRadius: 15,
     borderWidth: 1,
-  },
-  sessionPreview: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  sessionMeta: {
+    borderColor: CARD_BORDER,
+    padding: 16,
     flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-    marginTop: 6,
+    alignItems: 'center',
+    ...cardShadow,
+  },
+  sessionContent: {
+    flex: 1,
+  },
+  sessionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: TEXT,
+    letterSpacing: -0.1,
   },
   sessionTime: {
-    fontSize: 11,
-    flexShrink: 0,
+    fontSize: 14,
+    color: SUBTEXT,
+    marginTop: 4,
   },
-  sessionId: {
-    fontSize: 11,
-    fontFamily: 'ui-monospace',
-    letterSpacing: 0.2,
-    flexShrink: 1,
-    opacity: 0.6,
+  diffIconBtn: {
+    width: 37,
+    height: 37,
+    borderRadius: 30,
+    backgroundColor: DIFF_BTN_BG,
+    borderWidth: 1,
+    borderColor: DIFF_BTN_BORDER,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+    flexShrink: 0,
   },
   emptyIcon: {
     marginBottom: 8,
@@ -141,6 +201,39 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: -0.2,
+    color: TEXT,
+  },
+  newBtnWrap: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+  },
+  newBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 63,
+    borderWidth: 1,
+    borderColor: NEW_BTN_GREEN,
+    shadowColor: NEW_BTN_GLOW,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 8,
+    overflow: Platform.OS === 'android' ? 'hidden' : 'visible',
+  },
+  newBtnGradientBg: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 63,
+    backgroundColor: '#00ff40',
+  },
+  newBtnText: {
+    fontSize: 16,
+    color: TEXT,
+    fontWeight: '500',
+    zIndex: 1,
   },
 });
 
@@ -149,28 +242,20 @@ function timeAgo(isoString?: string): string {
   const diff = Date.now() - new Date(isoString).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
-  if (mins < 60) return mins + ' min' + (mins === 1 ? '' : 's') + ' ago';
+  if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return hrs + ' hr' + (hrs === 1 ? '' : 's') + ' ago';
+  if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
-  if (days < 30) return days + ' day' + (days === 1 ? '' : 's') + ' ago';
-  const months = Math.floor(days / 30);
-  if (months < 12) return months + ' month' + (months === 1 ? '' : 's') + ' ago';
-  const years = Math.floor(months / 12);
-  return years + ' year' + (years === 1 ? '' : 's') + ' ago';
+  return `${days}d ago`;
 }
 
-function SessionItem({ item, onPress, c }: {
-  item: Session;
-  onPress: () => void;
-  c: typeof GrassColors['light'];
-}) {
+function SessionItem({ item, onPress }: { item: Session; onPress: () => void }) {
   const scale = useRef(new Animated.Value(1)).current;
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
-        style={[styles.sessionItem, { backgroundColor: CARD_BG, borderColor: CARD_BORDER }]}
+        style={styles.sessionItem}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           onPress();
@@ -183,16 +268,21 @@ function SessionItem({ item, onPress, c }: {
         }
         activeOpacity={1}
       >
-        <Text style={[styles.sessionPreview, { color: TEXT }]} numberOfLines={2}>
-          {(item.label || item.preview || 'Session').replace(/\n/g, ' ')}
-        </Text>
-        <View style={styles.sessionMeta}>
+        <View style={styles.sessionContent}>
+          <Text style={styles.sessionTitle} numberOfLines={1}>
+            {(item.label || item.preview || 'Session').replace(/\n/g, ' ')}
+          </Text>
           {(item.updatedAt || item.createdAt) ? (
-            <Text style={[styles.sessionTime, { color: SUBTEXT }]}>
+            <Text style={styles.sessionTime}>
               {timeAgo(item.updatedAt || item.createdAt)}
             </Text>
           ) : null}
-          <Text style={[styles.sessionId, { color: SUBTEXT }]}>{item.id}</Text>
+        </View>
+        <View style={styles.diffIconBtn}>
+          <Image
+            source={require('@/assets/images/diff-logo.png')}
+            style={{ width: 20, height: 20, opacity: 0.6 }}
+          />
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -201,13 +291,19 @@ function SessionItem({ item, onPress, c }: {
 
 export default function Sessions() {
   const router = useRouter();
-  const { serverUrl, repoPath, repoName, agent } = useLocalSearchParams<{ serverUrl: string; repoPath?: string; repoName?: string; agent?: string }>();
-  const [theme] = useTheme();
-  const c = GrassColors[theme];
+  const { serverUrl, repoPath, repoName, agent } = useLocalSearchParams<{
+    serverUrl: string;
+    repoPath?: string;
+    repoName?: string;
+    agent?: string;
+  }>();
   const newBtnScale = useRef(new Animated.Value(1)).current;
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<AgentFilter | null>(
+    agent ? (AGENT_FILTERS.find(f => f.toLowerCase().replace(' ', '') === agent.toLowerCase().replace(' ', '')) ?? null) : null
+  );
 
   const ws = useServer(serverUrl ?? null);
 
@@ -241,12 +337,6 @@ export default function Sessions() {
     router.push({ pathname: '/chat', params });
   }
 
-  function goDiffs() {
-    if (!serverUrl) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push({ pathname: '/diffs', params: { serverUrl, repoPath: repoPath ?? '' } });
-  }
-
   async function handleRefresh() {
     if (!serverUrl) return;
     setRefreshing(true);
@@ -257,74 +347,84 @@ export default function Sessions() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={[styles.headerWrap, { borderBottomColor: 'rgba(100, 140, 100, 0.15)' }]}>
-        <BlurView intensity={40} tint="dark" style={styles.header}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
-            hitSlop={8}
-          >
-            <Text style={[styles.backBtnText, { color: TEXT }]}>‹</Text>
-          </TouchableOpacity>
-          <View style={styles.headerTitleGroup}>
-            {repoName ? (
-              <Text style={[styles.headerTitle, { color: TEXT }]} numberOfLines={1}>
-                {repoName}
-              </Text>
-            ) : null}
-          </View>
-          <TouchableOpacity style={styles.diffsBtn} onPress={goDiffs} hitSlop={8}>
-            <View style={styles.diffsBtnInner}>
-              <Image source={require('@/assets/images/diff-logo.png')} style={styles.diffsBtnIcon} />
-              <Text style={[styles.diffsBtnText, { color: SUBTEXT }]}>Diffs</Text>
-            </View>
-          </TouchableOpacity>
-          <Animated.View style={{ transform: [{ scale: newBtnScale }] }}>
+      {/* Header */}
+      <View style={styles.headerWrap}>
+        <BlurView intensity={60} tint="light" style={styles.headerBlur}>
+          {/* Repo row */}
+          <View style={styles.headerRow}>
             <TouchableOpacity
-              style={[styles.newBtn, { backgroundColor: ACCENT }]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                openChat();
-              }}
-              onPressIn={() =>
-                Animated.spring(newBtnScale, { toValue: 0.94, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
-              }
-              onPressOut={() =>
-                Animated.spring(newBtnScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()
-              }
-              activeOpacity={1}
+              style={styles.backBtn}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+              hitSlop={8}
             >
-              <Ionicons name="add" size={18} color="#0f1a0f" />
-              <Text style={[styles.newBtnText, { color: '#0f1a0f' }]}>New</Text>
+              <Ionicons name="chevron-back" size={22} color={TEXT} />
             </TouchableOpacity>
-          </Animated.View>
+            <Image source={require('@/assets/images/open-code.png')} style={styles.repoIcon} />
+            <View style={styles.repoMeta}>
+              <Text style={styles.repoName} numberOfLines={1}>
+                {repoName ?? 'Sessions'}
+              </Text>
+              <View style={styles.branchPill}>
+                <Ionicons name="git-merge-outline" size={14} color={BRANCH_TEXT} />
+                <Text style={styles.branchText}>main</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Agent filter pills */}
+          <View style={styles.agentPillRow}>
+            {AGENT_FILTERS.map(f => {
+              const isActive = activeFilter === f;
+              return (
+                <TouchableOpacity
+                  key={f}
+                  style={[styles.agentPill, isActive && styles.agentPillActive]}
+                  onPress={() => setActiveFilter(isActive ? null : f)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.agentPillText, isActive && styles.agentPillTextActive]}>
+                    {f}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </BlurView>
       </View>
 
-      <TextInput
-        style={[styles.searchBar, { backgroundColor: CARD_BG, borderColor: CARD_BORDER, color: TEXT }]}
-        placeholder="Search history…"
-        placeholderTextColor={SUBTEXT}
-        value={query}
-        onChangeText={setQuery}
-        clearButtonMode="while-editing"
-        autoCorrect={false}
-        autoCapitalize="none"
-      />
+      {/* Search */}
+      <View style={styles.searchWrap}>
+        <TextInput
+          style={styles.searchBar}
+          placeholder="Search chats"
+          placeholderTextColor={SEARCH_TEXT}
+          value={query}
+          onChangeText={setQuery}
+          clearButtonMode="while-editing"
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
+        {!query ? (
+          <View style={styles.searchIcon}>
+            <Ionicons name="search" size={16} color={SEARCH_TEXT} />
+          </View>
+        ) : null}
+      </View>
 
+      {/* List */}
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={ACCENT} size="large" />
-          <Text style={[styles.statusText, { color: SUBTEXT }]}>Loading sessions…</Text>
+          <ActivityIndicator color={NEW_BTN_GREEN} size="large" />
+          <Text style={styles.statusText}>Loading sessions…</Text>
         </View>
       ) : sessions.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="chatbubbles-outline" size={44} color={SUBTEXT} style={styles.emptyIcon} />
-          <Text style={[styles.emptyTitle, { color: TEXT }]}>
-            {query.trim() ? 'No matching sessions' : 'No threads yet'}
+          <Text style={styles.emptyTitle}>
+            {query.trim() ? 'No matching sessions' : 'No chats yet'}
           </Text>
-          <Text style={[styles.statusText, { color: SUBTEXT }]}>
-            {query.trim() ? 'Try a different search' : 'Start a new conversation'}
+          <Text style={styles.statusText}>
+            {query.trim() ? 'Try a different search' : 'Start a new chat'}
           </Text>
         </View>
       ) : (
@@ -336,15 +436,39 @@ export default function Sessions() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={ACCENT}
-              colors={[ACCENT]}
+              tintColor={NEW_BTN_GREEN}
+              colors={[NEW_BTN_GREEN]}
             />
           }
           renderItem={({ item }) => (
-            <SessionItem item={item} c={c} onPress={() => openChat(item.id)} />
+            <SessionItem item={item} onPress={() => openChat(item.id)} />
           )}
         />
       )}
+
+      {/* Floating New chat button */}
+      <View style={styles.newBtnWrap}>
+        <Animated.View style={{ transform: [{ scale: newBtnScale }] }}>
+          <TouchableOpacity
+            style={styles.newBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              openChat();
+            }}
+            onPressIn={() =>
+              Animated.spring(newBtnScale, { toValue: 0.94, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
+            }
+            onPressOut={() =>
+              Animated.spring(newBtnScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()
+            }
+            activeOpacity={1}
+          >
+            <View style={styles.newBtnGradientBg} />
+            <Ionicons name="add" size={20} color={TEXT} style={{ zIndex: 1 }} />
+            <Text style={styles.newBtnText}>New chat</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
     </SafeAreaView>
   );
 }
