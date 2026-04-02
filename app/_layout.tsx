@@ -1,6 +1,5 @@
 import { PermissionModal } from "@/components/PermissionModal";
 import { GrassColors, NationalPark } from "@/constants/theme";
-import { useFonts } from "expo-font";
 import {
   getConnectedUrls,
   getPermissions,
@@ -10,6 +9,7 @@ import {
   subscribeToPermissions,
 } from "@/store/connection-store";
 import { useTheme } from "@/store/theme-store";
+import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -103,12 +103,12 @@ export default function RootLayout() {
   const c = GrassColors[theme];
   const [fontsLoaded] = useFonts({
     [NationalPark.extraLight]: require("../assets/fonts/National_Park/static/NationalPark-ExtraLight.ttf"),
-    [NationalPark.light]:      require("../assets/fonts/National_Park/static/NationalPark-Light.ttf"),
-    [NationalPark.regular]:    require("../assets/fonts/National_Park/static/NationalPark-Regular.ttf"),
-    [NationalPark.medium]:     require("../assets/fonts/National_Park/static/NationalPark-Medium.ttf"),
-    [NationalPark.semiBold]:   require("../assets/fonts/National_Park/static/NationalPark-SemiBold.ttf"),
-    [NationalPark.bold]:       require("../assets/fonts/National_Park/static/NationalPark-Bold.ttf"),
-    [NationalPark.extraBold]:  require("../assets/fonts/National_Park/static/NationalPark-ExtraBold.ttf"),
+    [NationalPark.light]: require("../assets/fonts/National_Park/static/NationalPark-Light.ttf"),
+    [NationalPark.regular]: require("../assets/fonts/National_Park/static/NationalPark-Regular.ttf"),
+    [NationalPark.medium]: require("../assets/fonts/National_Park/static/NationalPark-Medium.ttf"),
+    [NationalPark.semiBold]: require("../assets/fonts/National_Park/static/NationalPark-SemiBold.ttf"),
+    [NationalPark.bold]: require("../assets/fonts/National_Park/static/NationalPark-Bold.ttf"),
+    [NationalPark.extraBold]: require("../assets/fonts/National_Park/static/NationalPark-ExtraBold.ttf"),
   });
 
   useEffect(() => {
@@ -128,12 +128,13 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="welcome" options={{ headerShown: false }} />
         <Stack.Screen
           name="navbar"
           options={{ headerShown: false, animation: "none" }}
         />
         <Stack.Screen name="home" options={{ headerShown: false }} />
+        <Stack.Screen name="machines" options={{ headerShown: false }} />
+        <Stack.Screen name="welcome" options={{ headerShown: false }} />
         <Stack.Screen name="folders" options={{ headerShown: false }} />
         <Stack.Screen name="agent-picker" options={{ headerShown: false }} />
         <Stack.Screen name="project" options={{ headerShown: false }} />
@@ -141,6 +142,7 @@ export default function RootLayout() {
         <Stack.Screen name="chat" options={{ headerShown: false }} />
         <Stack.Screen name="container-setup" options={{ headerShown: false }} />
         <Stack.Screen name="push-commit" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen
           name="diffs"
           options={{

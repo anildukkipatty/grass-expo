@@ -1,12 +1,18 @@
 import { requestOtp, verifyOtp } from "@/api/auth";
 import { heartbeat, requestContainer } from "@/api/containers";
-import { saveAuth, getToken } from "@/store/auth-store";
-import { saveUrl } from "@/store/url-store";
 import { NationalPark } from "@/constants/theme";
+import { getToken, saveAuth } from "@/store/auth-store";
+import { saveUrl } from "@/store/url-store";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,10 +20,10 @@ import {
   Dimensions,
   FlatList,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  PanResponder,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -30,7 +36,7 @@ import {
 } from "react-native";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.72;
+const SHEET_HEIGHT = SCREEN_HEIGHT * 0.5;
 
 // ─── Carousel data ───────────────────────────────────────────────────────────
 
@@ -218,6 +224,13 @@ function SetupLoadingModal({
           <Image
             source={require("@/assets/images/setup/banner.png")}
             style={setup.banner}
+            contentFit="cover"
+            priority="normal"
+          />
+          {/* Design layer on top of banner — image positioned per spec: 0px -263px / 100% 142.509% */}
+          <Image
+            source={require("@/assets/images/setup/banner.png")}
+            // style={setup.bannerOverlay}
             contentFit="fill"
           />
         </View>
@@ -229,8 +242,14 @@ function SetupLoadingModal({
           {/* Title */}
           <Text style={setup.title}>{title}</Text>
 
-          {/* Card carousel — centered vertically */}
-          <View style={{ flex: 1, justifyContent: "center" }}>
+          {/* Card carousel — offset below center to keep banner server visible */}
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              paddingTop: SCREEN_HEIGHT * 0.2,
+            }}
+          >
             <FlatList
               ref={flatListRef}
               data={CAROUSEL_CARDS}
@@ -248,11 +267,18 @@ function SetupLoadingModal({
               renderItem={({ item }) => (
                 <View style={setup.cardWrapper}>
                   <View style={setup.card}>
-                    <Image
-                      source={require("@/assets/images/setup/tabler-power.png")}
-                      style={setup.cardIcon}
-                      contentFit="contain"
-                    />
+                    <LinearGradient
+                      colors={["#00FF40", "#E0FF47"]}
+                      start={{ x: 0.28, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={setup.cardIconGradient}
+                    >
+                      <Image
+                        source={require("@/assets/images/setup/tabler-power.png")}
+                        style={setup.cardIconImage}
+                        contentFit="contain"
+                      />
+                    </LinearGradient>
                     <View style={setup.cardText}>
                       <Text style={setup.cardTitle} numberOfLines={1}>
                         {item.title}
@@ -278,20 +304,20 @@ function SetupLoadingModal({
           {/* Status */}
           <View style={setup.bottomArea}>
             {error ? (
-              <Text style={[setup.statusText, { color: "#ef4444", textAlign: "center" }]}>
+              <Text
+                style={[
+                  setup.statusText,
+                  { color: "#ef4444", textAlign: "center" },
+                ]}
+              >
                 {error}
               </Text>
             ) : (
               <>
                 <View style={setup.statusRow}>
-                  <Animated.Text
-                    style={[
-                      setup.spinnerIcon,
-                      { transform: [{ rotate: spinDeg }] },
-                    ]}
-                  >
-                    ✳
-                  </Animated.Text>
+                  <Animated.View style={{ transform: [{ rotate: spinDeg }] }}>
+                    <ActivityIndicator color="#000" />
+                  </Animated.View>
                   <Text style={setup.statusText}>
                     {userType === "new"
                       ? "Planting the seeds..."
@@ -299,7 +325,25 @@ function SetupLoadingModal({
                   </Text>
                 </View>
                 <View style={setup.progressTrack}>
-                  <Animated.View style={[setup.progressFill, { width: progressWidth }]} />
+                  <LinearGradient
+                    colors={["#000000", "#505050"]}
+                    start={{ x: 0.08, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <Animated.View
+                    style={[
+                      setup.progressFillWrapper,
+                      { width: progressWidth },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={["#00FF40", "#E0FF47"]}
+                      start={{ x: 0.28, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={setup.progressFill}
+                    />
+                  </Animated.View>
                 </View>
               </>
             )}
@@ -325,6 +369,10 @@ function AuthSheet({
 }) {
   const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
+  // Tracks how far the user has dragged the sheet down
+  const dragY = useRef(new Animated.Value(0)).current;
+  // Tracks upward offset applied when keyboard appears
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
 
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -428,8 +476,10 @@ function AuthSheet({
     }
   }, [email, otp, onVerified]);
 
+  // Open / close animation
   useEffect(() => {
     if (visible) {
+      dragY.setValue(0);
       slideAnim.setValue(SHEET_HEIGHT);
       backdropAnim.setValue(0);
       Animated.parallel([
@@ -447,6 +497,8 @@ function AuthSheet({
         }),
       ]).start();
     } else {
+      dragY.setValue(0);
+      keyboardOffset.setValue(0);
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: SHEET_HEIGHT,
@@ -462,6 +514,106 @@ function AuthSheet({
     }
   }, [visible]);
 
+  // Keyboard listeners — move sheet up when keyboard appears, back down when hidden
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      const keyboardHeight = e.endCoordinates.height;
+      // Cap upward movement so the sheet top never goes above 10 px from the screen top
+      const sheetTopY = SCREEN_HEIGHT - SHEET_HEIGHT;
+      const maxUpward = Math.max(0, sheetTopY - 10);
+      const upward = Math.min(keyboardHeight, maxUpward);
+
+      Animated.timing(keyboardOffset, {
+        toValue: -upward,
+        duration: Platform.OS === "ios" ? e.duration : 250,
+        useNativeDriver: true,
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: 0,
+        duration: Platform.OS === "ios" ? e.duration : 250,
+        useNativeDriver: true,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [keyboardOffset]);
+
+  // Drag-to-dismiss pan responder — attached only to the drag handle area
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => Platform.OS === "ios",
+      // Only capture downward vertical drags
+      onMoveShouldSetPanResponder: (_, gs) =>
+        gs.dy > 8 && Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderGrant: () => {
+        Keyboard.dismiss();
+      },
+      onPanResponderMove: (_, gs) => {
+        if (gs.dy > 0) {
+          dragY.setValue(gs.dy);
+        }
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > 80 || gs.vy > 0.5) {
+          // Fast enough or far enough — animate off-screen then close
+          Animated.timing(dragY, {
+            toValue: SHEET_HEIGHT,
+            duration: 220,
+            useNativeDriver: true,
+          }).start(() => {
+            // Pre-set both slideAnim and backdropAnim to their closed values
+            // before resetting dragY. Without this, resetting dragY to 0 makes
+            // the backdrop opacity formula (backdropAnim × dragFactor) briefly
+            // resolve to 1, causing a visible blink.
+            slideAnim.setValue(SHEET_HEIGHT);
+            backdropAnim.setValue(0);
+            dragY.setValue(0);
+            onClose();
+          });
+        } else {
+          // Not far enough — spring back
+          Animated.spring(dragY, {
+            toValue: 0,
+            damping: 20,
+            stiffness: 300,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(dragY, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      },
+    }),
+  ).current;
+
+  // Backdrop dims proportionally as the user drags the sheet down — native iOS feel
+  const backdropOpacity = useMemo(
+    () =>
+      Animated.multiply(
+        backdropAnim,
+        dragY.interpolate({
+          inputRange: [0, SHEET_HEIGHT],
+          outputRange: [1, 0],
+          extrapolate: "clamp",
+        }),
+      ),
+    [],
+  );
+
   return (
     <Modal
       visible={visible}
@@ -470,148 +622,160 @@ function AuthSheet({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
+      {/* Backdrop */}
+      <TouchableWithoutFeedback
+        onPress={() => {
+          Keyboard.dismiss();
+          onClose();
+        }}
       >
-        <TouchableWithoutFeedback
-          onPress={() => {
-            Keyboard.dismiss();
-            onClose();
-          }}
-        >
-          <Animated.View style={[styles.backdrop, { opacity: backdropAnim }]} />
-        </TouchableWithoutFeedback>
-
         <Animated.View
-          style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
+          style={[styles.backdrop, { opacity: backdropOpacity }]}
+        />
+      </TouchableWithoutFeedback>
+
+      {/* Sheet — combines open/close slide, drag offset, and keyboard offset */}
+      <Animated.View
+        style={[
+          styles.sheet,
+          {
+            transform: [
+              { translateY: slideAnim },
+              { translateY: dragY },
+              { translateY: keyboardOffset },
+            ],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={["#FFFFFF", "#CCFFD9"]}
+          style={styles.container}
         >
-          <LinearGradient
-            colors={["#FFFFFF", "#CCFFD9"]}
-            style={styles.container}
-          >
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View>
-                {/* Drag handle */}
-                <View style={styles.dragHandle} />
+          {/* Drag handle — pan responder lives here so scroll inside is unaffected */}
+          <View {...panResponder.panHandlers} style={styles.dragHandleArea}>
+            <View style={styles.dragHandle} />
+          </View>
 
-                <ScrollView
-                  keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={styles.sheetContent}
-                >
-                  <Text style={styles.sheetTitle}>
-                    {step === "email"
-                      ? "Create your account"
-                      : "Enter verification code"}
-                  </Text>
-                  <Text style={styles.sheetSubtitle}>
-                    {step === "email"
-                      ? "Join thousands of people coding remotely"
-                      : `The requested OTP is sent to ${email}`}
-                  </Text>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.sheetContent}
+              >
+                <Text style={styles.sheetTitle}>
+                  {step === "email"
+                    ? "Create your account"
+                    : "Enter verification code"}
+                </Text>
+                <Text style={styles.sheetSubtitle}>
+                  {step === "email"
+                    ? "Join thousands of people coding remotely"
+                    : `The requested OTP is sent to ${email}`}
+                </Text>
 
-                  {step === "email" ? (
-                    <>
-                      {/* Email field */}
-                      <Text style={styles.fieldLabel}>EMAIL</Text>
-                      <View style={styles.inputRow}>
-                        <Image
-                          source={require("@/assets/images/home-screen/email-placeholder-icon.png")}
-                          style={styles.inputIconImage}
-                          contentFit="contain"
-                        />
-                        <TextInput
-                          style={styles.input}
-                          placeholder="name@email.com"
-                          placeholderTextColor="#59B26E"
-                          keyboardType="email-address"
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          returnKeyType="done"
-                          value={email}
-                          onChangeText={setEmail}
-                          onSubmitEditing={handleRequestOtp}
-                        />
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      {/* OTP field */}
-                      <Text style={styles.fieldLabel}>OTP CODE</Text>
-                      <View style={styles.inputRow}>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="Enter 6-digit code"
-                          placeholderTextColor="#59B26E"
-                          keyboardType="number-pad"
-                          maxLength={6}
-                          autoFocus
-                          value={otp}
-                          onChangeText={setOtp}
-                          returnKeyType="done"
-                          onSubmitEditing={handleVerifyOtp}
-                        />
-                      </View>
+                {step === "email" ? (
+                  <>
+                    {/* Email field */}
+                    <Text style={styles.fieldLabel}>EMAIL</Text>
+                    <View style={styles.inputRow}>
+                      <Image
+                        source={require("@/assets/images/home-screen/email-placeholder-icon.png")}
+                        style={styles.inputIconImage}
+                        contentFit="contain"
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="name@email.com"
+                        placeholderTextColor="#59B26E"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        returnKeyType="done"
+                        value={email}
+                        onChangeText={setEmail}
+                        onSubmitEditing={handleRequestOtp}
+                      />
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    {/* OTP field */}
+                    <Text style={styles.fieldLabel}>OTP CODE</Text>
+                    <View style={styles.inputRow}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Enter 6-digit code"
+                        placeholderTextColor="#59B26E"
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        autoFocus
+                        value={otp}
+                        onChangeText={setOtp}
+                        returnKeyType="done"
+                        onSubmitEditing={handleVerifyOtp}
+                      />
+                    </View>
 
-                      {/* Resend OTP */}
-                      <View style={styles.resendRow}>
-                        {resendTimer > 0 ? (
-                          <Text style={styles.resendTimerText}>
-                            Resend OTP in {resendTimer}s
-                          </Text>
-                        ) : (
-                          <TouchableOpacity onPress={handleResendOtp}>
-                            <Text style={styles.resendButtonText}>
-                              Resend OTP
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    </>
-                  )}
-
-                  {/* Primary CTA */}
-                  <TouchableOpacity
-                    onPress={step === "email" ? handleRequestOtp : handleVerifyOtp}
-                    activeOpacity={0.88}
-                    style={styles.ctaButtonShadow}
-                    disabled={loading}
-                  >
-                    <LinearGradient
-                      style={[
-                        styles.ctaButton,
-                        loading && { opacity: 0.7 },
-                      ]}
-                      colors={["#00FF26", "#E0FF47"]}
-                      locations={[0.2806, 1]}
-                      start={{ x: 0.828, y: 0.123 }}
-                      end={{ x: 0.172, y: 0.878 }}
-                    >
-                      <View style={styles.ctaButtonInsetHighlight} pointerEvents="none" />
-                      {loading ? (
-                        <ActivityIndicator color="#0a1a00" />
-                      ) : (
-                        <Text style={styles.ctaButtonText}>
-                          {step === "email" ? "Get started →" : "Verify OTP →"}
+                    {/* Resend OTP */}
+                    <View style={styles.resendRow}>
+                      {resendTimer > 0 ? (
+                        <Text style={styles.resendTimerText}>
+                          Resend OTP in {resendTimer}s
                         </Text>
+                      ) : (
+                        <TouchableOpacity onPress={handleResendOtp}>
+                          <Text style={styles.resendButtonText}>
+                            Resend OTP
+                          </Text>
+                        </TouchableOpacity>
                       )}
-                    </LinearGradient>
-                  </TouchableOpacity>
+                    </View>
+                  </>
+                )}
 
-                  {/* Legal */}
-                  <Text style={styles.legal}>
-                    By continuing, you agree to our{"\n "}
-                    <Text style={styles.legalLink}>Terms of Service</Text>
-                    <Text style={styles.legal}> and </Text>
-                    <Text style={styles.legalLink}>Privacy Policy.</Text>
-                  </Text>
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </LinearGradient>
-        </Animated.View>
-      </KeyboardAvoidingView>
+                {/* Primary CTA */}
+                <TouchableOpacity
+                  onPress={
+                    step === "email" ? handleRequestOtp : handleVerifyOtp
+                  }
+                  activeOpacity={0.88}
+                  style={styles.ctaButtonShadow}
+                  disabled={loading}
+                >
+                  <LinearGradient
+                    style={[styles.ctaButton, loading && { opacity: 0.7 }]}
+                    colors={["#00FF26", "#E0FF47"]}
+                    locations={[0.2806, 1]}
+                    start={{ x: 0.828, y: 0.123 }}
+                    end={{ x: 0.172, y: 0.878 }}
+                  >
+                    <View
+                      style={styles.ctaButtonInsetHighlight}
+                      pointerEvents="none"
+                    />
+                    {loading ? (
+                      <ActivityIndicator color="#0a1a00" />
+                    ) : (
+                      <Text style={styles.ctaButtonText}>
+                        {step === "email" ? "Get started →" : "Verify OTP →"}
+                      </Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                {/* Legal */}
+                <Text style={styles.legal}>
+                  By continuing, you agree to our{"\n"}
+                  <Text style={styles.legalLink}>Terms of Service</Text>
+                  <Text style={styles.legal}> and </Text>
+                  <Text style={styles.legalLink}>Privacy Policy.</Text>
+                </Text>
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
+        </LinearGradient>
+      </Animated.View>
     </Modal>
   );
 }
@@ -636,6 +800,15 @@ export default function WelcomeScreen() {
           source={require("@/assets/images/banner-image.png")}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
+          priority="high"
+        />
+
+        <LinearGradient
+          style={styles.bottomGradient}
+          colors={["rgba(0,0,0,0)", "#000000"]}
+          locations={[0.309, 1.0]}
+          start={{ x: 0.56, y: 0 }}
+          end={{ x: 0.44, y: 1 }}
         />
 
         <SafeAreaView style={styles.safeArea}>
@@ -644,6 +817,7 @@ export default function WelcomeScreen() {
               source={require("@/assets/images/home-screen/welcome-text-background-image.png")}
               style={styles.logo}
               contentFit="contain"
+              priority="high"
             />
 
             <Text style={styles.title}>{"Welcome\nto Grass"}</Text>
@@ -664,7 +838,10 @@ export default function WelcomeScreen() {
                 start={{ x: 0.828, y: 0.123 }}
                 end={{ x: 0.172, y: 0.878 }}
               >
-                <View style={styles.buttonInsetHighlight} pointerEvents="none" />
+                <View
+                  style={styles.buttonInsetHighlight}
+                  pointerEvents="none"
+                />
                 <Text style={styles.buttonText}>Get started →</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -678,10 +855,7 @@ export default function WelcomeScreen() {
         onVerified={handleVerified}
       />
 
-      <SetupLoadingModal
-        visible={setupVisible}
-        userType={userType}
-      />
+      <SetupLoadingModal visible={setupVisible} userType={userType} />
     </View>
   );
 }
@@ -719,6 +893,9 @@ const styles = StyleSheet.create({
     height: SCREEN_HEIGHT * 0.22,
     backgroundColor: "rgba(0,0,0,0.30)",
   },
+  bottomGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
   safeArea: {
     flex: 1,
     justifyContent: "flex-end",
@@ -746,7 +923,7 @@ const styles = StyleSheet.create({
     fontFamily: NationalPark.semiBold,
     fontSize: 20,
     fontWeight: 600,
-    marginBottom:25
+    marginBottom: 25,
   },
   buttonShadow: {
     borderRadius: 63,
@@ -797,19 +974,20 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     overflow: "hidden",
   },
+  dragHandleArea: {
+    paddingVertical: 12,
+    alignItems: "center",
+  },
   dragHandle: {
     width: 36,
     height: 5,
     borderRadius: 3,
     backgroundColor: "rgba(0,0,0,0.18)",
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 4,
   },
   sheetContent: {
     paddingHorizontal: 24,
     paddingBottom: 40,
-    paddingTop: 16,
+    paddingTop: 4,
   },
   sheetTitle: {
     color: "#00330C",
@@ -979,31 +1157,39 @@ const setup = StyleSheet.create({
   },
   bannerContainer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#D3D3D3",
     overflow: "hidden",
   },
   banner: {
-    position: "absolute",
-    left: 0,
-    top: -263.316,
-    width: "100%",
-    height: "142.509%",
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
   },
+  // bannerOverlay: {
+  //   position: "absolute",
+  //   left: 0,
+  //   width: SCREEN_WIDTH,
+  //   top: -263.316,
+  //   height: SCREEN_HEIGHT * 1.42509,
+  //   backgroundColor: "lightgray",
+  //   opacity: 0.08,
+  // },
   gradientOverlay: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    height: SCREEN_HEIGHT * 0.5,
+    top: 0,
+    backgroundColor: "lightgray",
+    height: SCREEN_HEIGHT * 1,
+    opacity: 0.05,
   },
   safeArea: {
     flex: 1,
   },
   title: {
     fontSize: 36,
-    fontWeight: "800",
+    fontWeight: 700,
     color: "#2E2E2E",
-    letterSpacing: -0.5,
+    letterSpacing: -1,
     lineHeight: 40,
     textAlign: "center",
     marginTop: 24,
@@ -1032,24 +1218,38 @@ const setup = StyleSheet.create({
     flex: 1,
     overflow: "hidden",
   },
-  cardIcon: {
-    width: 44,
-    height: 44,
+  cardIconGradient: {
+    padding: 10,
+    borderRadius: 63,
+    borderWidth: 1,
+    borderColor: "#00CC33",
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
+    shadowColor: "rgba(0, 255, 38, 1)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  cardIconImage: {
+    width: 12,
+    height: 12,
   },
   cardText: {
     flex: 1,
     overflow: "hidden",
   },
   cardTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: 600,
     color: "#000",
     marginBottom: 4,
     fontFamily: NationalPark.bold,
   },
   cardBody: {
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: 400,
     color: "#000",
     lineHeight: 19,
   },
@@ -1067,11 +1267,11 @@ const setup = StyleSheet.create({
     borderRadius: 4,
     borderColor: "#000",
     borderWidth: 1,
-    backgroundColor: "transparent",
+    backgroundColor: "#000",
   },
   dotActive: {
-    backgroundColor: "#000",
     width: 7,
+    backgroundColor: "transparent",
   },
   // Bottom
   bottomArea: {
@@ -1086,24 +1286,38 @@ const setup = StyleSheet.create({
     justifyContent: "center",
   },
   spinnerIcon: {
-    fontSize: 18,
-    color: "#7FE63A",
+    width: 20,
+    height: 20,
   },
   statusText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "500",
     color: "#000",
   },
   progressTrack: {
-    height: 8,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    borderRadius: 4,
+    height: 12,
+    borderRadius: 63,
     overflow: "hidden",
+    shadowColor: "rgba(255, 255, 255, 1)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 1,
+  },
+  progressFillWrapper: {
+    height: "100%",
+    overflow: "hidden",
+    borderRadius: 63,
+    borderWidth: 1,
+    borderColor: "#00CC33",
+    shadowColor: "rgba(0, 255, 38, 1)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 6,
   },
   progressFill: {
-    height: "100%",
-    backgroundColor: "#7FE63A",
-    borderRadius: 4,
+    flex: 1,
+    borderRadius: 63,
   },
   commitButtonOuter: {
     borderRadius: 63,

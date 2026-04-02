@@ -1,28 +1,25 @@
+import { saveUrl } from "@/store/url-store";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Image } from "expo-image";
-import * as Linking from "expo-linking";
 import { LinearGradient } from "expo-linear-gradient";
-import { saveUrl } from "@/store/url-store";
+import * as Linking from "expo-linking";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
   Clipboard,
-  Dimensions,
+  KeyboardAvoidingView,
   Modal,
   PanResponder,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.87;
 
 type SheetView = "home" | "connect-agent" | "connect-laptop" | "add-repository";
 type AgentTab = "claude" | "opencode";
@@ -34,13 +31,16 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onUrlDetected?: (url: string) => void | Promise<void>;
+  initialView?: SheetView;
 }
 
-export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
-  const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
-  const backdropAnim = useRef(new Animated.Value(0)).current;
-  const panY = useRef(new Animated.Value(0)).current;
-  const [currentView, setCurrentView] = useState<SheetView>("home");
+export function GetMoreSheet({
+  visible,
+  onClose,
+  onUrlDetected,
+  initialView = "home",
+}: Props) {
+  const [currentView, setCurrentView] = useState<SheetView>(initialView);
   const [activeTab, setActiveTab] = useState<AgentTab>("claude");
   const [claudeCode, setClaudeCode] = useState("");
   const [opencodeCode, setOpencodeCode] = useState("");
@@ -50,14 +50,46 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
   const [scanBusy, setScanBusy] = useState(false);
   const [scannerPaused, setScannerPaused] = useState(false);
   const scanLockRef = useRef(false);
+  const translateY = useRef(new Animated.Value(0)).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 2,
+      onPanResponderMove: (_, gs) => {
+        if (gs.dy > 0) translateY.setValue(gs.dy);
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > 80 || gs.vy > 0.5) {
+          Animated.timing(translateY, {
+            toValue: 800,
+            duration: 250,
+            useNativeDriver: true,
+          }).start(() => {
+            translateY.setValue(0);
+            onClose();
+          });
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   const authCode = activeTab === "claude" ? claudeCode : opencodeCode;
   const setAuthCode = activeTab === "claude" ? setClaudeCode : setOpencodeCode;
   const authUrl = activeTab === "claude" ? CLAUDE_AUTH_URL : OPENCODE_AUTH_URL;
 
-  // Keep a stable ref to onClose for use inside PanResponder
-  const onCloseRef = useRef(onClose);
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    if (visible) {
+      setCurrentView(initialView ?? "home");
+      translateY.setValue(0);
+    } else {
+      setRepoUrl("");
+    }
+  }, [visible, initialView]);
 
   useEffect(() => {
     if (!visible || currentView !== "connect-laptop") return;
@@ -80,72 +112,6 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
     scanLockRef.current = false;
   }, [visible, currentView]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gs) =>
-        gs.dy > 8 && Math.abs(gs.dy) > Math.abs(gs.dx),
-      onPanResponderMove: (_, gs) => {
-        if (gs.dy > 0) panY.setValue(gs.dy);
-      },
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dy > 120 || gs.vy > 1.2) {
-          Animated.timing(panY, {
-            toValue: SHEET_HEIGHT,
-            duration: 250,
-            useNativeDriver: true,
-          }).start(() => {
-            panY.setValue(0);
-            onCloseRef.current();
-          });
-        } else {
-          Animated.spring(panY, {
-            toValue: 0,
-            damping: 20,
-            stiffness: 200,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-    })
-  ).current;
-
-  useEffect(() => {
-    if (visible) {
-      panY.setValue(0);
-      Animated.parallel([
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          damping: 28,
-          stiffness: 260,
-          mass: 0.9,
-          useNativeDriver: true,
-        }),
-        Animated.timing(backdropAnim, {
-          toValue: 1,
-          duration: 260,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: SHEET_HEIGHT,
-          duration: 280,
-          useNativeDriver: true,
-        }),
-        Animated.timing(backdropAnim, {
-          toValue: 0,
-          duration: 240,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setCurrentView("home");
-        setRepoUrl("");
-      });
-    }
-  }, [visible]);
-
   function handleCopyAuthUrl() {
     Clipboard.setString("https://" + authUrl);
     Alert.alert("Copied!", "URL copied to clipboard.");
@@ -159,7 +125,7 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
     if (!authCode.trim()) return;
     Alert.alert(
       "Verifying…",
-      `Checking your ${activeTab === "claude" ? "Claude" : "Opencode"} authorization code.`
+      `Checking your ${activeTab === "claude" ? "Claude" : "Opencode"} authorization code.`,
     );
   }
 
@@ -272,34 +238,51 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
         {/* Card 1: Connect your own agent */}
         <TouchableOpacity
           style={styles.card}
-          activeOpacity={0.88}
+          // activeOpacity={0.88}
           onPress={() => setCurrentView("connect-agent")}
         >
-          <View style={styles.cardLeft}>
-            <Text style={styles.cardTitle}>{"Connect your\nown agent"}</Text>
-            <View style={styles.hintRow}>
-              <Ionicons name="bulb-outline" size={14} color="#4B9A2A" />
-              <Text style={styles.hintText}>Used by 95% Grass users</Text>
+          <View style={styles.cardTopRow}>
+            <View style={styles.cardLeftCol}>
+              <Text style={styles.cardTitle}>{"Connect your\nown agent"}</Text>
+              <View style={styles.hintRow}>
+                <Image
+                  source={require("@/assets/images/get-more/bulb.svg")}
+                  style={styles.hintIcon}
+                  contentFit="contain"
+                />
+                <Text style={styles.hintText}>
+                  Used by 95% {"\n"}Grass users
+                </Text>
+              </View>
             </View>
-            <View style={styles.badgeRow}>
+            <View style={styles.cardRightCol}>
+              <Image
+                source={require("@/assets/images/get-more/own-agent.png")}
+                style={styles.cardImage}
+                contentFit="cover"
+                contentPosition={{ left: 0 }}
+                priority="normal"
+              />
+            </View>
+          </View>
+          <View style={styles.cardDivider} />
+          <View style={styles.cardBottomRow}>
+            <View style={styles.cardBottomIcons}>
               <View style={styles.iconBadge}>
                 <Image
-                  source={require("@/assets/images/icon.png")}
-                  style={styles.badgeImg}
-                  contentFit="cover"
+                  source={require("@/assets/images/get-more/claude.svg")}
+                  style={styles.badgeIcon}
+                  contentFit="contain"
                 />
               </View>
               <View style={styles.iconBadge}>
-                <Ionicons name="terminal-outline" size={13} color="#2D7A1F" />
+                <Image
+                  source={require("@/assets/images/get-more/opencode.svg")}
+                  style={styles.badgeIcon}
+                  contentFit="contain"
+                />
               </View>
             </View>
-          </View>
-          <View style={styles.cardRight}>
-            <Image
-              source={require("@/assets/images/get-more/own-agent.png")}
-              style={styles.cardImage}
-              contentFit="cover"
-            />
             <Text style={styles.cardNote}>
               {"We are working on\nsupporting more agents"}
             </Text>
@@ -312,30 +295,79 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
           activeOpacity={0.88}
           onPress={() => setCurrentView("connect-laptop")}
         >
-          <View style={styles.cardLeft}>
-            <Text style={styles.cardTitle}>{"Connect your\nLaptop"}</Text>
-            <View style={styles.hintRow}>
-              <Ionicons name="bulb-outline" size={14} color="#4B9A2A" />
-              <Text style={styles.hintText}>Your machine, your rules</Text>
+          <View style={styles.cardTopRow}>
+            <View style={styles.cardLeftCol}>
+              <Text style={styles.cardTitle}>{"Connect your\nLaptop"}</Text>
+              <View style={styles.hintRow}>
+                <Image
+                  source={require("@/assets/images/get-more/bulb.svg")}
+                  style={styles.hintIcon}
+                  contentFit="contain"
+                />
+                <Text style={styles.hintText}>
+                  Your machine, {"\n"}your rules
+                </Text>
+              </View>
             </View>
-            <View style={styles.badgeRow}>
-              <View style={styles.iconBadge}>
-                <Ionicons name="logo-apple" size={13} color="#2D7A1F" />
-              </View>
-              <View style={styles.iconBadge}>
-                <Ionicons name="grid-outline" size={13} color="#2D7A1F" />
-              </View>
-              <View style={styles.iconBadge}>
-                <Ionicons name="lock-closed-outline" size={13} color="#2D7A1F" />
-              </View>
+            <View style={[styles.cardRightCol, { backgroundColor: "#ffffff" }]}>
+              <Image
+                source={require("@/assets/images/get-more/own-machine.png")}
+                style={styles.cardImage}
+                contentFit="cover"
+                contentPosition={{ left: 0 }}
+                priority="normal"
+              />
+              {/* <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+                <Defs>
+                  <RadialGradient
+                    id="radialLaptopBg"
+                    cx="100%"
+                    cy="0%"
+                    rx="75%"
+                    ry="75%"
+                    fx="100%"
+                    fy="0%"
+                  >
+                    <Stop offset="0%" stopColor="#59B26E" stopOpacity="0.7" />
+                    <Stop offset="55%" stopColor="#A8D8AF" stopOpacity="0.35" />
+                    <Stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+                  </RadialGradient>
+                </Defs>
+                <Rect
+                  x="0"
+                  y="0"
+                  width="100%"
+                  height="100%"
+                  fill="url(#radialLaptopBg)"
+                />
+              </Svg> */}
             </View>
           </View>
-          <View style={styles.cardRight}>
-            <Image
-              source={require("@/assets/images/get-more/own-machine.png")}
-              style={styles.cardImage}
-              contentFit="cover"
-            />
+          <View style={styles.cardDivider} />
+          <View style={styles.cardBottomRow}>
+            <View style={styles.cardBottomIcons}>
+              <View style={styles.iconBadge}>
+                <Image
+                  source={require("@/assets/images/get-more/apple.svg")}
+                  style={styles.badgeIcon}
+                  contentFit="contain"
+                />
+              </View>
+              <View style={styles.iconBadge}>
+                <Image
+                  source={require("@/assets/images/get-more/microsoft.svg")}
+                  style={styles.badgeIcon}
+                  contentFit="contain"
+                />
+              </View>
+              <View style={styles.iconBadge}>
+                <Image
+                  source={require("@/assets/images/get-more/linux.svg")}
+                  style={styles.badgeIcon}
+                  contentFit="contain"
+                />
+              </View>
+            </View>
             <Text style={styles.cardNote}>
               {"Your code never\nleaves your machine."}
             </Text>
@@ -350,21 +382,30 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
             onPress={() => setCurrentView("add-repository")}
           >
             <View style={styles.iconCircle}>
-              <Ionicons name="git-branch-outline" size={22} color="#2D7A1F" />
+              <Image
+                source={require("@/assets/images/get-more/add-repo.svg")}
+                style={styles.halfCardIcon}
+                contentFit="contain"
+              />
             </View>
             <Text style={styles.halfCardTitle}>{"Add a\nrepository"}</Text>
-            <Text style={styles.halfCardSubtitle}>Paste a Git Clone URL</Text>
+            <Text style={styles.halfCardSubtitle}>
+              {"Paste a Git\nClone URL"}
+            </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.halfCard, { opacity: 0.9 }]}
-            activeOpacity={0.88}
-          >
-            <View style={styles.comingBadge}>
-              <Text style={styles.comingBadgeText}>Coming in v2</Text>
-            </View>
-            <View style={styles.iconCircle}>
-              <Ionicons name="key-outline" size={22} color="#2D7A1F" />
+          <TouchableOpacity style={styles.halfCard} activeOpacity={0.88}>
+            <View style={styles.halfCardHeader}>
+              <View style={styles.iconCircle}>
+                <Image
+                  source={require("@/assets/images/get-more/github.svg")}
+                  style={styles.halfCardIcon}
+                  contentFit="contain"
+                />
+              </View>
+              <View style={styles.comingBadge}>
+                <Text style={styles.comingBadgeText}>Coming in v2</Text>
+              </View>
             </View>
             <Text style={styles.halfCardTitle}>{"Configure\nGit Access"}</Text>
             <Text style={styles.halfCardSubtitle}>
@@ -391,7 +432,11 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
           onPress={() => setCurrentView("home")}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={18} color="#1A5200" />
+          <Image
+            source={require("@/assets/images/get-more/back-arrow.png")}
+            style={styles.backIcon}
+            contentFit="contain"
+          />
         </TouchableOpacity>
 
         <Text style={styles.title}>{"Connect your\nown agent"}</Text>
@@ -402,10 +447,10 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
             onPress={() => setActiveTab("claude")}
             activeOpacity={0.8}
           >
-            <Ionicons
-              name="sparkles"
-              size={14}
-              color={activeTab === "claude" ? "#ffffff" : "#4B6B30"}
+            <Image
+              source={require("@/assets/images/get-more/claude.svg")}
+              style={styles.tabIcon}
+              contentFit="contain"
             />
             <Text
               style={[
@@ -418,14 +463,17 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.tab, activeTab === "opencode" && styles.tabActive]}
+            style={[
+              styles.tab,
+              activeTab === "opencode" && styles.tabActiveOpencode,
+            ]}
             onPress={() => setActiveTab("opencode")}
             activeOpacity={0.8}
           >
-            <Ionicons
-              name="terminal-outline"
-              size={14}
-              color={activeTab === "opencode" ? "#ffffff" : "#4B6B30"}
+            <Image
+              source={require("@/assets/images/get-more/opencode-logo-light.svg")}
+              style={styles.tabIcon}
+              contentFit="contain"
             />
             <Text
               style={[
@@ -452,12 +500,23 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
             {authUrl}
           </Text>
           <TouchableOpacity
-            style={styles.copyBtn}
+            style={styles.copyBtnWrap}
             onPress={handleCopyAuthUrl}
             activeOpacity={0.75}
           >
-            <Ionicons name="copy-outline" size={14} color="#92400e" />
-            <Text style={styles.copyText}>COPY</Text>
+            <LinearGradient
+              colors={["#FFEE00", "#FFFA9B"]}
+              start={{ x: 0.07, y: 0 }}
+              end={{ x: 0.87, y: 1 }}
+              style={styles.copyBtn}
+            >
+              <Image
+                source={require("@/assets/images/get-more/copy-icon.png")}
+                style={styles.copyIcon}
+                contentFit="contain"
+              />
+              <Text style={styles.copyText}>COPY</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
@@ -530,7 +589,11 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
           onPress={() => setCurrentView("home")}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={18} color="#1A5200" />
+          <Image
+            source={require("@/assets/images/get-more/back-arrow.png")}
+            style={styles.backIcon}
+            contentFit="contain"
+          />
         </TouchableOpacity>
 
         <Text style={styles.title}>{"Connect\nyour laptop"}</Text>
@@ -540,18 +603,31 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
           <View style={styles.stepBadge}>
             <Text style={styles.stepBadgeText}>1</Text>
           </View>
-          <Text style={styles.stepLabel}>Run this in your terminal</Text>
+          <Text style={styles.laptopStepLabel}>Run this in your terminal</Text>
         </View>
 
-        <View style={styles.commandRow}>
-          <Text style={styles.commandText}>npx grass start</Text>
+        <View style={styles.urlRow}>
+          <Text style={styles.urlText} numberOfLines={1} ellipsizeMode="tail">
+            npx grass start
+          </Text>
           <TouchableOpacity
-            style={styles.copyBtn}
+            style={styles.copyBtnWrap}
             onPress={handleCopyTerminalCommand}
             activeOpacity={0.75}
           >
-            <Ionicons name="copy-outline" size={14} color="#92400e" />
-            <Text style={styles.copyText}>COPY</Text>
+            <LinearGradient
+              colors={["#FFEE00", "#FFFA9B"]}
+              start={{ x: 0.07, y: 0 }}
+              end={{ x: 0.87, y: 1 }}
+              style={styles.copyBtn}
+            >
+              <Image
+                source={require("@/assets/images/get-more/copy-icon.png")}
+                style={styles.copyIcon}
+                contentFit="contain"
+              />
+              <Text style={styles.copyText}>COPY</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
@@ -563,25 +639,31 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
           <Text style={styles.stepLabel}>Scan the QR code</Text>
         </View>
 
-        <View style={styles.qrImageContainer}>
+        <View>
           {cameraPermission?.granted && !scannerPaused ? (
-            <CameraView
-              style={styles.qrCamera}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-              onBarcodeScanned={({ data }) => {
-                void handleQrScanned(data);
-              }}
-            />
+            <View style={styles.qrImageContainer}>
+              <CameraView
+                style={styles.qrCamera}
+                facing="back"
+                barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                onBarcodeScanned={({ data }) => {
+                  void handleQrScanned(data);
+                }}
+              />
+            </View>
           ) : cameraPermission?.granted ? (
             <View style={styles.qrPausedState}>
               <Ionicons name="pause-circle-outline" size={32} color="#7AAA58" />
-              <Text style={styles.qrPermissionText}>Scanner paused after detection</Text>
+              <Text style={styles.qrPermissionText}>
+                Scanner paused after detection
+              </Text>
             </View>
           ) : (
             <View style={styles.qrPermissionState}>
               <Ionicons name="camera-outline" size={32} color="#7AAA58" />
-              <Text style={styles.qrPermissionText}>Allow camera access to scan the QR code</Text>
+              <Text style={styles.qrPermissionText}>
+                Allow camera access to scan the QR code
+              </Text>
               <TouchableOpacity
                 style={styles.qrPermissionBtn}
                 onPress={() => requestCameraPermission()}
@@ -629,16 +711,20 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
           onPress={() => setCurrentView("home")}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={18} color="#1A5200" />
+          <Image
+            source={require("@/assets/images/get-more/back-arrow.png")}
+            style={styles.backIcon}
+            contentFit="contain"
+          />
         </TouchableOpacity>
 
         <Text style={styles.title}>{"Add a\nrepository"}</Text>
 
-        <Text style={styles.repoDescription}>
+        <Text style={styles.agentSubtitle}>
           Paste a Git clone URL. No login needed for public repos.
         </Text>
 
-        <Text style={styles.repoLabel}>Repository URL</Text>
+        <Text style={styles.codeLabel}>Repository URL</Text>
 
         <TextInput
           style={styles.repoInput}
@@ -653,8 +739,8 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
 
         <TouchableOpacity
           style={[
-            styles.cloneBtn,
-            repoUrl.trim().length > 0 && styles.cloneBtnActive,
+            styles.verifyBtn,
+            repoUrl.trim().length > 0 && styles.verifyBtnActive,
           ]}
           activeOpacity={repoUrl.trim().length > 0 ? 0.8 : 1}
           onPress={() => {
@@ -664,8 +750,8 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
         >
           <Text
             style={[
-              styles.cloneBtnText,
-              repoUrl.trim().length > 0 && styles.cloneBtnTextActive,
+              styles.verifyText,
+              repoUrl.trim().length > 0 && styles.verifyTextActive,
             ]}
           >
             Clone →
@@ -680,49 +766,45 @@ export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
   return (
     <Modal
       visible={visible}
-      transparent
-      animationType="none"
-      statusBarTranslucent
+      animationType="slide"
+      transparent={true}
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <Animated.View style={[styles.backdrop, { opacity: backdropAnim }]} />
-      </TouchableWithoutFeedback>
-
-      <Animated.View
-        style={[styles.sheet, { transform: [{ translateY: Animated.add(slideAnim, panY) }] }]}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalOverlay}
       >
-        <View
-          style={styles.dragHandleArea}
-          {...panResponder.panHandlers}
-        >
-          <View style={styles.dragHandle} />
-        </View>
+        <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+          <LinearGradient
+            colors={["#FFFFFF", "#CCFFD9"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.dragHandleArea} {...panResponder.panHandlers}>
+            <View style={styles.dragHandle} />
+          </View>
 
-        {currentView === "home" && renderHomeView()}
-        {currentView === "connect-agent" && renderConnectAgentView()}
-        {currentView === "connect-laptop" && renderConnectLaptopView()}
-        {currentView === "add-repository" && renderAddRepositoryView()}
-      </Animated.View>
+          {currentView === "home" && renderHomeView()}
+          {currentView === "connect-agent" && renderConnectAgentView()}
+          {currentView === "connect-laptop" && renderConnectLaptopView()}
+          {currentView === "add-repository" && renderAddRepositoryView()}
+        </Animated.View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.45)",
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
   sheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: SHEET_HEIGHT,
-    backgroundColor: "#F0FAE8",
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     overflow: "hidden",
+    maxHeight: "90%",
   },
   dragHandleArea: {
     paddingTop: 12,
@@ -731,53 +813,59 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   dragHandle: {
-    width: 38,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "rgba(0,0,0,0.15)",
+    width: 63,
+    height: 6,
+    borderRadius: 70,
+    backgroundColor: "#E0E0E0",
   },
   content: {
     paddingHorizontal: 18,
     paddingBottom: 40,
-    paddingTop: 10,
+    paddingTop: 20,
     gap: 12,
+  },
+
+  backIcon: {
+    width: 14,
+    height: 12,
   },
 
   // ── Header ────────────────────────────────────────────────────
   title: {
-    fontSize: 30,
-    fontWeight: "800",
-    color: "#0D2600",
-    letterSpacing: -0.4,
-    marginBottom: 2,
+    fontSize: 32,
+    fontWeight: 600,
+    color: "#004410",
   },
   subtitle: {
-    fontSize: 14,
-    color: "#4B6B30",
+    fontSize: 16,
+    color: "#76AA83",
     marginBottom: 4,
+    fontWeight: 500,
   },
 
   // ── Full-width cards ─────────────────────────────────────────
   card: {
     backgroundColor: "#ffffff",
-    borderRadius: 18,
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#DFF0C8",
-    flexDirection: "row",
+    borderColor: "#EBEBEB",
     overflow: "hidden",
-    minHeight: 140,
   },
-  cardLeft: {
+  cardTopRow: {
+    flexDirection: "row",
+    height: 140,
+    paddingTop: 10,
+  },
+  cardLeftCol: {
     flex: 1,
     padding: 16,
-    justifyContent: "space-between",
-    gap: 8,
+    justifyContent: "center",
+    gap: 10,
   },
   cardTitle: {
-    fontSize: 19,
-    fontWeight: "800",
-    color: "#0D2600",
-    letterSpacing: -0.2,
+    fontSize: 20,
+    fontWeight: 600,
+    color: "#000",
     lineHeight: 24,
   },
   hintRow: {
@@ -785,47 +873,59 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 5,
   },
+  hintIcon: {
+    width: 14,
+    height: 14,
+  },
   hintText: {
-    fontSize: 12,
-    color: "#4B9A2A",
+    fontSize: 14,
+    color: "#76AA83",
     fontWeight: "500",
   },
-  badgeRow: {
-    flexDirection: "row",
-    gap: 6,
-    marginTop: 2,
-  },
-  iconBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: "#E4F5D0",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#C8E6A8",
+  cardRightCol: {
+    flex: 1,
     overflow: "hidden",
   },
-  badgeImg: {
-    width: 28,
-    height: 28,
-  },
-  cardRight: {
-    width: 150,
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-  },
   cardImage: {
-    width: 150,
-    height: 110,
+    width: "100%",
+    height: "100%",
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: "#EBEBEB",
+  },
+  cardBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  cardBottomIcons: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  iconBadge: {
+    width: 21,
+    height: 21,
+    borderRadius: 16,
+    backgroundColor: "#59B26E",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  badgeIcon: {
+    width: 12,
+    height: 12,
   },
   cardNote: {
     fontSize: 10,
-    color: "#9BAE88",
+    fontWeight: 500,
+    color: "#B2B2B2",
     textAlign: "right",
-    lineHeight: 14,
-    paddingHorizontal: 10,
-    paddingBottom: 8,
+    lineHeight: 12,
+    flex: 1,
+    paddingLeft: 8,
   },
 
   // ── Half-width cards row ─────────────────────────────────────
@@ -843,53 +943,62 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 150,
   },
+  halfCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   iconCircle: {
-    width: 44,
-    height: 44,
+    width: 31,
+    height: 31,
     borderRadius: 22,
-    backgroundColor: "#E4F5D0",
+    backgroundColor: "#59B26E",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#C8E6A8",
+    overflow: "hidden",
+  },
+  halfCardIcon: {
+    width: 19,
+    height: 19,
   },
   halfCardTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#0D2600",
-    letterSpacing: -0.2,
-    lineHeight: 21,
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#000",
     marginTop: 4,
   },
   halfCardSubtitle: {
-    fontSize: 12,
-    color: "#4B6B30",
-    lineHeight: 17,
+    fontSize: 14,
+    color: "#59B26E",
+    fontWeight: 500,
   },
 
   // ── Coming badge ─────────────────────────────────────────────
   comingBadge: {
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: "#B25900",
+    backgroundColor: "#FFE5CC",
+    paddingHorizontal: 7,
+    paddingVertical: 5,
     alignSelf: "flex-start",
-    backgroundColor: "#F59E0B",
-    borderRadius: 20,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
   },
   comingBadgeText: {
     fontSize: 11,
-    fontWeight: "700",
-    color: "#ffffff",
+    fontWeight: "600",
+    color: "#874400",
     letterSpacing: 0.1,
   },
 
   // ── Shared: back button ───────────────────────────────────────
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 1.5,
-    borderColor: "#A8D48A",
-    backgroundColor: "rgba(255,255,255,0.6)",
+    width: 40,
+    height: 40,
+    borderRadius: 30,
+    // padding: 10,
+    borderWidth: 2,
+    borderColor: "#004D13",
+    backgroundColor: "#FFF",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -901,87 +1010,117 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#DFF0C8",
-    paddingLeft: 14,
-    paddingRight: 6,
-    paddingVertical: 6,
+    borderColor: "#5CAC6F",
+    height: 52,
+    paddingLeft: 20,
+    paddingRight: 8,
+    paddingVertical: 8,
   },
   urlText: {
     flex: 1,
-    fontSize: 13,
-    color: "#4B6B30",
-    fontFamily: "monospace",
+    fontSize: 16,
+    color: "#004D13",
+    fontFamily: "DM Mono",
+    fontWeight: 400,
+  },
+  copyBtnWrap: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#D0A128",
+    overflow: "hidden",
+    marginLeft: 8,
   },
   copyBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#FDE68A",
-    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    marginLeft: 8,
+  },
+  copyIcon: {
+    width: 14,
+    height: 14,
   },
   copyText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#92400e",
-    letterSpacing: 0.5,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#504D22",
   },
-
   // ── Connect agent view ────────────────────────────────────────
   tabBar: {
     flexDirection: "row",
-    backgroundColor: "#E4F5D0",
-    borderRadius: 22,
-    padding: 4,
     alignSelf: "flex-start",
-    gap: 4,
+    gap: 10,
   },
   tab: {
+    padding: 13,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 18,
+    borderWidth: 1,
+    borderRadius: 15,
+    borderColor: "#EBEBEB",
+    backgroundColor: "#FFF",
   },
   tabActive: {
-    backgroundColor: "#1A5200",
+    backgroundColor: "#004D13",
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#0C3",
+    shadowColor: "#004410",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  tabActiveOpencode: {
+    backgroundColor: "#004D13",
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#0C3",
+    shadowColor: "#004410",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  tabIcon: {
+    width: 16,
+    height: 16,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "600",
-    color: "#4B6B30",
+    color: "#2c2c2c",
   },
   tabTextActive: {
     color: "#ffffff",
   },
   agentName: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0D2600",
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#004410",
     marginBottom: 2,
   },
   agentSubtitle: {
-    fontSize: 13,
-    color: "#4B6B30",
-    lineHeight: 19,
+    fontSize: 16,
+    color: "#76AA83",
+    fontWeight: 500,
   },
   browserBtnWrap: {
-    borderRadius: 16,
+    borderRadius: 63,
     overflow: "hidden",
   },
   browserBtn: {
+    height: 52,
     paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
   },
   browserBtnText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#ffffff",
-    letterSpacing: 0.1,
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#004D13",
   },
   dividerRow: {
     flexDirection: "row",
@@ -991,45 +1130,52 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#C8E6A8",
+    backgroundColor: "#588B64",
   },
   dividerText: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: "600",
-    color: "#7AAA58",
-    letterSpacing: 1.2,
+    color: "#588B64",
+    letterSpacing: 1,
   },
   codeLabel: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#0D2600",
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#004410",
+    lineHeight: 32,
   },
   codeInput: {
+    height: 52,
     backgroundColor: "#ffffff",
-    borderRadius: 14,
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#DFF0C8",
+    borderColor: "#5CAC6F",
     paddingVertical: 18,
-    paddingHorizontal: 16,
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#0D2600",
+
+    fontSize: 24,
+    fontWeight: "400",
+    color: "#B6B8B6",
     letterSpacing: 4,
   },
   verifyBtn: {
-    backgroundColor: "#D4D4D4",
-    borderRadius: 16,
+    height: 52,
+    backgroundColor: "#B8B8B8",
+    borderRadius: 63,
     paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#8C8C8C",
   },
   verifyBtnActive: {
-    backgroundColor: "#1A5200",
+    backgroundColor: "#00FF40",
+    borderWidth: 1,
+    borderColor: "#0C3",
   },
   verifyText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#9B9B9B",
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#7D7D7D",
     letterSpacing: 0.1,
   },
   verifyTextActive: {
@@ -1051,37 +1197,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   stepBadgeText: {
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "600",
     color: "#ffffff",
   },
   stepLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#0D2600",
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#004410",
   },
-  commandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#DFF0C8",
-    paddingLeft: 14,
-    paddingRight: 6,
-    paddingVertical: 6,
-  },
-  commandText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#0D2600",
-    fontFamily: "monospace",
-    fontWeight: "500",
+  laptopStepLabel: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#004410",
   },
   qrImageContainer: {
     borderRadius: 18,
     overflow: "hidden",
-    backgroundColor: "#000000",
   },
   qrCamera: {
     width: "100%",
@@ -1124,13 +1256,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   qrCaption: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: "600",
-    color: "#7AAA58",
-    letterSpacing: 1.4,
+    color: "#588B64",
+    letterSpacing: 1,
     textAlign: "center",
     paddingVertical: 12,
-    backgroundColor: "#ffffff",
   },
   scanAgainBtn: {
     alignSelf: "center",
@@ -1159,32 +1290,15 @@ const styles = StyleSheet.create({
     color: "#0D2600",
   },
   repoInput: {
+    height: 52,
     backgroundColor: "#ffffff",
-    borderRadius: 14,
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#DFF0C8",
-    paddingVertical: 16,
+    borderColor: "#5CAC6F",
+    paddingVertical: 18,
     paddingHorizontal: 16,
-    fontSize: 14,
-    color: "#0D2600",
-  },
-  cloneBtn: {
-    backgroundColor: "#D4D4D4",
-    borderRadius: 50,
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cloneBtnActive: {
-    backgroundColor: "#1A5200",
-  },
-  cloneBtnText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#9B9B9B",
-    letterSpacing: 0.1,
-  },
-  cloneBtnTextActive: {
-    color: "#ffffff",
+    fontWeight: "400",
+    color: "#004D13",
   },
 });

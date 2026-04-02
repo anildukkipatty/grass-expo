@@ -34,57 +34,67 @@ export default function PushCommitScreen() {
           </Text>
 
           {/* Repo card */}
-          <View style={styles.card}>
-            {/* SVG card background */}
-            <Image
-              source={require("@/assets/images/push-commit/card-background.svg")}
-              style={StyleSheet.absoluteFill}
-              contentFit="fill"
-            />
-
-            {/* Repo header row */}
-            <View style={styles.repoRow}>
-              <View style={styles.repoInfo}>
-                <Text style={styles.repoName}>{REPO.name}</Text>
-              </View>
+          <View style={styles.cardShadow}>
+            <View style={styles.card}>
+              {/* SVG card background */}
               <Image
-                source={require("@/assets/images/push-commit/repo-image.png")}
-                style={styles.repoThumb}
-                contentFit="cover"
+                source={require("@/assets/images/push-commit/card-background.svg")}
+                style={StyleSheet.absoluteFill}
+                contentFit="fill"
               />
-            </View>
 
-            {/* Stats row */}
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <View style={styles.statValueRow}>
+              {/* Top half — repo name + thumbnail */}
+              <View style={styles.cardTopSection}>
+                <View style={styles.repoRow}>
+                  <View style={styles.repoInfo}>
+                    <Text style={styles.repoName}>{REPO.name}</Text>
+                  </View>
                   <Image
-                    source={require("@/assets/images/push-commit/git-stars.svg")}
-                    style={styles.statIcon}
+                    source={require("@/assets/images/push-commit/repo-image.png")}
+                    style={styles.repoThumb}
+                    contentFit="cover"
+                    priority="high"
+                  />
+                </View>
+              </View>
+
+              {/* Horizontal divider */}
+              <View style={styles.cardHDivider} />
+
+              {/* Bottom half — stats */}
+              <View style={styles.cardBottomSection}>
+                <View style={styles.statsRow}>
+                  <View style={styles.statItem}>
+                    <Image
+                      source={require("@/assets/images/push-commit/git-stars.svg")}
+                      style={styles.statIcon}
+                      contentFit="contain"
+                    />
+                    <View style={styles.statTextCol}>
+                      <Text style={styles.statNumber}>{REPO.stars}</Text>
+                      <Text style={styles.statLabel}>Stars</Text>
+                    </View>
+                  </View>
+                  {/* <View style={styles.statDivider} /> */}
+                  <View style={styles.statItem}>
+                    <Image
+                      source={require("@/assets/images/push-commit/git-contributers.svg")}
+                      style={styles.statIcon}
+                      contentFit="contain"
+                    />
+                    <View style={styles.statTextCol}>
+                      <Text style={styles.statNumber}>{REPO.contributors}</Text>
+                      <Text style={styles.statLabel}>Contributors</Text>
+                    </View>
+                  </View>
+                  <View style={{ flex: 1 }} />
+                  <Image
+                    source={require("@/assets/images/push-commit/git.png")}
+                    style={styles.gitIcon}
                     contentFit="contain"
                   />
-                  <Text style={styles.statNumber}>{REPO.stars}</Text>
                 </View>
-                <Text style={styles.statLabel}>Stars</Text>
               </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <View style={styles.statValueRow}>
-                  <Image
-                    source={require("@/assets/images/push-commit/git-contributers.svg")}
-                    style={styles.statIcon}
-                    contentFit="contain"
-                  />
-                  <Text style={styles.statNumber}>{REPO.contributors}</Text>
-                </View>
-                <Text style={styles.statLabel}>Contributors</Text>
-              </View>
-              <View style={{ flex: 1 }} />
-              <Image
-                source={require("@/assets/images/push-commit/git.png")}
-                style={styles.gitIcon}
-                contentFit="contain"
-              />
             </View>
           </View>
 
@@ -97,13 +107,11 @@ export default function PushCommitScreen() {
               contentFit="cover"
               style={styles.OpenCodeThumb}
             />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.note}>
-                Heads up, we&#39;re running this on Open {"\n"}Code free tier.
-                Connect your own Claude {"\n"}or OpenCode for the optimal
-                experience.
-              </Text>
-            </View>
+            <Text style={styles.note}>
+              Heads up, we&#39;re running this on Open {"\n"}Code free tier.
+              Connect your own Claude {"\n"}or OpenCode for the optimal
+              experience.
+            </Text>
           </View>
 
           {/* Action buttons */}
@@ -155,7 +163,7 @@ const styles = StyleSheet.create({
   heading: {
     fontFamily: NationalPark.extraBold,
     fontSize: 36,
-    fontWeight: "700",
+    fontWeight: 700,
     color: "#004410",
     letterSpacing: -1,
     lineHeight: 42,
@@ -171,19 +179,40 @@ const styles = StyleSheet.create({
   },
 
   // Card
+  cardShadow: {
+    width: "100%",
+    aspectRatio: 1.55,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 6,
+    borderRadius: 16,
+  },
   card: {
     width: "100%",
+    height: "100%",
     overflow: "hidden",
-    aspectRatio: 1.55,
-    justifyContent: "center",
+    borderRadius: 16,
     paddingHorizontal: 20,
-    paddingVertical: 20,
+  },
+  cardTopSection: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  cardHDivider: {
+    height: 1,
+    backgroundColor: "#EFE5E5",
+    marginHorizontal: -20,
+  },
+  cardBottomSection: {
+    flex: 1,
+    justifyContent: "center",
   },
   repoRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 20,
   },
   repoInfo: {
     flex: 1,
@@ -208,21 +237,20 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   statItem: {
-    alignItems: "flex-start",
-  },
-  statValueRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
+    // alignItems: "center",
+    gap: 6,
+  },
+  statTextCol: {
+    flexDirection: "column",
   },
   statIcon: {
     width: 16,
     height: 16,
   },
   gitIcon: {
-    width: 22,
-    height: 22,
-    // opacity: 0.45,
+    width: 32,
+    height: 32,
   },
   statNumber: {
     fontSize: 20,
@@ -244,7 +272,7 @@ const styles = StyleSheet.create({
 
   openCodeRow: {
     flexDirection: "row",
-    // justifyContent: "center",
+    justifyContent: "center",
     alignItems: "center",
     gap: 20,
     marginBottom: 20,

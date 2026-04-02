@@ -1,0 +1,403 @@
+import { clearAuth } from "@/store/auth-store";
+import { BlurView } from "expo-blur";
+import { useRouter } from "expo-router";
+import React from "react";
+import {
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const USER = {
+  name: "Donald Trump",
+  email: "maga@america.com",
+  plan: "Free plan",
+  vmRemaining: "10 VM remaining",
+};
+
+const MACHINES = [
+  { id: "1", name: "Grass VM", status: "Online. Ubuntu 24.04" },
+];
+
+function ChevronIcon() {
+  return <View style={styles.chevronIcon} />;
+}
+
+export default function SettingsScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          await clearAuth();
+          router.replace("/welcome");
+        },
+      },
+    ]);
+  };
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Spacer to push content below the absolute header */}
+        <View style={{ height: insets.top + 60 }} />
+
+        {/* Profile Section */}
+        <View style={styles.profileSection}>
+          {/* <View style={styles.avatarWrapper}> */}
+          <Image
+            source={require("@/assets/images/settings/profile-icon.png")}
+            style={styles.avatar}
+          />
+          {/* </View> */}
+          <Text style={styles.userName}>{USER.name}</Text>
+          <Text style={styles.userEmail}>{USER.email}</Text>
+          <View style={styles.planBadge}>
+            <Text style={styles.planBadgeText}>
+              {USER.plan} • {USER.vmRemaining}
+            </Text>
+          </View>
+        </View>
+
+        {/* Account Section */}
+        <Text style={styles.sectionLabel}>ACCOUNT</Text>
+        <View style={styles.card}>
+          <View style={styles.cardRowColumn}>
+            <Text style={styles.rowLabel}>Email</Text>
+            <Text style={styles.rowValue}>{USER.email}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.cardRow}>
+            <View>
+              <Text style={styles.rowLabel}>Plan</Text>
+              <Text style={styles.rowValue}>Free</Text>
+            </View>
+            <TouchableOpacity style={styles.upgradeButton}>
+              <Text>
+                <Text style={styles.upgradeText}>Upgrade</Text>
+                <Text>→</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Machines Section */}
+        <Text style={styles.sectionLabel}>MACHINES</Text>
+        <View style={styles.card}>
+          {MACHINES.map((machine, index) => (
+            <View key={machine.id}>
+              <TouchableOpacity
+                style={styles.machineRow}
+                onPress={() => router.push("/machines")}
+              >
+                <Image
+                  source={require("@/assets/images/settings/machine-icon.png")}
+                  style={styles.machineIcon}
+                />
+                <View style={styles.machineInfo}>
+                  <Text style={styles.machineName}>{machine.name}</Text>
+                  <Text style={styles.machineStatus}>{machine.status}</Text>
+                </View>
+                <ChevronIcon />
+              </TouchableOpacity>
+              {index < MACHINES.length - 1 && <View style={styles.divider} />}
+            </View>
+          ))}
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.addMachineRow}>
+            <Text style={styles.addMachineText}>+ Add machine</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Referral Section */}
+        <Text style={styles.sectionLabel}>REFERRAL</Text>
+        <View style={styles.card}>
+          <TouchableOpacity style={styles.machineRow}>
+            <Image
+              source={require("@/assets/images/settings/invite-friends.png")}
+              style={styles.machineIcon}
+            />
+            <View style={styles.machineInfo}>
+              <Text style={styles.machineName}>Invite friends</Text>
+              <Text style={styles.machineStatus}>
+                You both get +1h of VM time free
+              </Text>
+            </View>
+            <ChevronIcon />
+          </TouchableOpacity>
+        </View>
+
+        {/* Danger Zone */}
+        <Text style={styles.sectionLabel}>DANGER ZONE</Text>
+        <View style={styles.card}>
+          <TouchableOpacity style={styles.dangerRow} onPress={handleLogout}>
+            <Text style={styles.signOutText}>Sign out</Text>
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.dangerRow}>
+            <Text style={styles.deleteText}>Delete account</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.bottomPad} />
+      </ScrollView>
+
+      {/* Floating blurred header — covers full top including status bar */}
+      <BlurView
+        intensity={50}
+        tint="light"
+        style={[styles.header, { paddingTop: insets.top }]}
+        pointerEvents="box-none"
+      >
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Image
+              source={require("@/assets/images/settings/back-arrow.png")}
+              style={styles.backIcon}
+              tintColor="#000"
+            />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Settings &amp; Profile</Text>
+        </View>
+      </BlurView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#F5F5F7",
+  },
+  header: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.70)",
+    borderBottomWidth: 1,
+    borderBottomColor: "#D3D3D3",
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: "#CECECE",
+    backgroundColor: "#E5E5E5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  backIcon: {
+    // width: 10,
+    // height: 12,
+    resizeMode: "contain",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1C1C1E",
+  },
+  scroll: {
+    paddingHorizontal: 16,
+  },
+
+  // Profile
+  profileSection: {
+    alignItems: "center",
+    paddingVertical: 24,
+  },
+  avatarWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    marginBottom: 20,
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1C1C1E",
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 16,
+    color: "#737373",
+    marginBottom: 12,
+    fontWeight: 500,
+  },
+  planBadge: {
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: "#00B20F",
+    backgroundColor: "#CCFFD0",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  planBadgeText: {
+    fontSize: 14,
+    color: "#00B20F",
+    fontWeight: "600",
+  },
+
+  // Section label
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#8F8F8F",
+    letterSpacing: 0.8,
+    marginTop: 24,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+
+  // Card
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  cardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  cardRowColumn: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  rowLabel: {
+    fontSize: 16,
+    color: "rgba(0, 0, 0, 0.50)",
+    marginBottom: 2,
+  },
+  rowValue: {
+    fontSize: 16,
+    fontWeight: 600,
+    color: "rgba(0, 0, 0)",
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#EBEBEB",
+    marginHorizontal: 16,
+  },
+  upgradeButton: {
+    paddingVertical: 4,
+  },
+  upgradeText: {
+    fontSize: 16,
+    color: "#59B26E",
+    fontWeight: 600,
+    marginRight: 5,
+  },
+
+  // Machines
+  machineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  machineIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    resizeMode: "contain",
+    marginRight: 12,
+  },
+  machineInfo: {
+    flex: 1,
+  },
+  machineName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1C1C1E",
+    marginBottom: 2,
+  },
+  machineStatus: {
+    fontSize: 13,
+    color: "#8F8F8F",
+  },
+  chevronIcon: {
+    width: 7,
+    height: 7,
+    borderRightWidth: 2,
+    borderTopWidth: 2,
+    borderColor: "#8F8F8F",
+    borderTopRightRadius: 1,
+    transform: [{ rotate: "45deg" }],
+  },
+  addMachineRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  addMachineText: {
+    fontSize: 15,
+    color: "#59B26E",
+    fontWeight: "500",
+  },
+
+  // Danger zone
+  dangerRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  signOutText: {
+    fontSize: 15,
+    color: "#E50000",
+    fontWeight: "500",
+  },
+  deleteText: {
+    fontSize: 15,
+    color: "#E50000",
+    fontWeight: "500",
+  },
+
+  bottomPad: {
+    height: 32,
+  },
+});

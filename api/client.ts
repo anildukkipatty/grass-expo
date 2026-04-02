@@ -1,5 +1,5 @@
-// const BASE_URL = "https://uat.revise.network/grass"; 
-const BASE_URL = "http://100.70.11.43:4008";
+const BASE_URL = "https://uat.revise.network/grass";
+// const BASE_URL = "http://100.70.11.43:4008";
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -8,14 +8,16 @@ type RequestOptions = {
   token?: string;
 };
 
-type ApiResponse<T> = {
-  ok: true;
-  data: T;
-} | {
-  ok: false;
-  error: string;
-  status: number;
-};
+type ApiResponse<T> =
+  | {
+      ok: true;
+      data: T;
+    }
+  | {
+      ok: false;
+      error: string;
+      status: number;
+    };
 
 export async function apiRequest<T = unknown>(
   endpoint: string,

@@ -1,888 +1,1016 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, Alert, Animated, ScrollView, Modal,
-  PanResponder, StatusBar,
+  Alert,
+  View,
+  Text,
+  Image,
+  FlatList,
+  Modal,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  StyleSheet,
+  ImageBackground,
+  Dimensions,
+  ViewToken,
+  ScrollView,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Animated,
 } from 'react-native';
-import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
+import { clearAuth, getToken } from '@/store/auth-store';
+import { heartbeat } from '@/api/containers';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { CameraView } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { getUrls, removeUrl, saveUrl } from '@/store/url-store';
-import {
-  openConnection, closeConnection, subscribeToAll, getEntry,
-  listReposStore, getRepoDetailsStore, Repo, RepoDetails,
-} from '@/store/connection-store';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GetMoreSheet } from '@/components/GetMoreSheet';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import { Image as ExpoImage } from 'expo-image';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import ReanimatedAnimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  runOnJS,
+  interpolate,
+  Extrapolation,
+} from 'react-native-reanimated';
 
-// ── Palette ──────────────────────────────────────────────────────────────────
-const BG = '#0f1a0f';
-const CARD_BG = 'rgba(30, 42, 30, 0.6)';
-const CARD_BORDER = 'rgba(100, 140, 100, 0.1)';
-const TEXT = '#d4e8d4';
-const SUBTEXT = '#7a9a7a';
-const DIM = '#5a7a5a';
-const ACCENT = '#7CB9A8';
-const DARK_BG = 'rgba(20, 32, 20, 0.5)';
+const { width: SCREEN_W } = Dimensions.get('window');
+const CARD_W = SCREEN_W - 28;
 
-const AGENTS = [
-  {
-    id: 'claude-code',
-    label: 'Claude Code',
-    description: "Anthropic's AI coding agent",
-    logo: require('@/assets/images/cluade-logo.jpg'),
-  },
-  {
-    id: 'opencode',
-    label: 'OpenCode',
-    description: 'Open source AI coding agent',
-    logo: require('@/assets/images/open-code.png'),
-  },
-] as const;
+type NavTab = 'home' | 'perms' | 'repos';
+const TABS: NavTab[] = ['home', 'perms', 'repos'];
 
-const DELETE_WIDTH = 72;
-const HEALTH_POLL_MS = 10_000;
-
-function hostFromUrl(url: string): string {
-  try { return new URL(url).host; } catch { return url; }
-}
-
-// ── Animated star ─────────────────────────────────────────────────────────────
-function Star({ x, y, delay, size }: { x: number; y: number; delay: number; size: number }) {
-  const opacity = useRef(new Animated.Value(0.2)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(opacity, { toValue: 0.9, duration: 1500 + delay % 800, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.2, duration: 1500 + delay % 600, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, []);
-  return (
-    <Animated.View style={{
-      position: 'absolute', left: x, top: y,
-      width: size, height: size, borderRadius: size / 2,
-      backgroundColor: '#c8e6c9', opacity,
-    }} />
-  );
-}
-
-// ── Animated firefly ──────────────────────────────────────────────────────────
-function Firefly({ x, y, delay }: { x: number; y: number; delay: number }) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.parallel([
-          Animated.timing(opacity, { toValue: 0.85, duration: 700, useNativeDriver: true }),
-          Animated.timing(translateY, { toValue: -8, duration: 1400, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(opacity, { toValue: 0, duration: 700, useNativeDriver: true }),
-          Animated.timing(translateY, { toValue: 0, duration: 700, useNativeDriver: true }),
-        ]),
-        Animated.delay(1200 + delay % 1000),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, []);
-  return (
-    <Animated.View style={{
-      position: 'absolute', left: x, top: y,
-      width: 5, height: 5, borderRadius: 2.5,
-      backgroundColor: '#a5f3c0', opacity,
-      transform: [{ translateY }],
-      shadowColor: '#a5f3c0', shadowRadius: 4, shadowOpacity: 0.9, shadowOffset: { width: 0, height: 0 },
-    }} />
-  );
-}
-
-// ── Park Scene ────────────────────────────────────────────────────────────────
-const STARS = [
-  { x: 30, y: 18, d: 0, s: 2 }, { x: 60, y: 10, d: 200, s: 1.5 },
-  { x: 100, y: 22, d: 400, s: 2 }, { x: 140, y: 8, d: 100, s: 1.5 },
-  { x: 180, y: 20, d: 600, s: 2.5 }, { x: 220, y: 12, d: 300, s: 1.5 },
-  { x: 260, y: 24, d: 500, s: 2 }, { x: 295, y: 14, d: 150, s: 1.5 },
-  { x: 320, y: 6, d: 700, s: 2 }, { x: 350, y: 18, d: 250, s: 1.5 },
-];
-const FIREFLIES = [
-  { x: 55, y: 105, d: 0 }, { x: 90, y: 118, d: 800 },
-  { x: 160, y: 100, d: 1600 }, { x: 240, y: 112, d: 400 },
-  { x: 290, y: 98, d: 1200 }, { x: 320, y: 120, d: 2000 },
+const CHALLENGES = [
+  { id: '1', title: 'Challenges', count: '0/3', sub: 'Try the 3 core features · Earn +3h VM' },
+  { id: '2', title: 'Connect Agent', count: '0/1', sub: 'Connect your first AI agent · Earn +1h VM' },
+  { id: '3', title: 'Add Repository', count: '0/1', sub: 'Add your first repository · Earn +1h VM' },
 ];
 
-function ParkScene({ activeUrl, onSandboxPress }: { activeUrl: string | null; onSandboxPress: () => void }) {
-  const label = activeUrl
-    ? (getEntry(activeUrl)?.serverCwd?.split('/').pop() || hostFromUrl(activeUrl))
-    : 'No sandbox';
+const THREADS = [
+  { id: '1', badge: 'CCBA', title: 'Add yourself as a contributor', repo: 'grass-welcome', tool: 'Open Code', time: '12m ago' },
+  { id: '2', badge: 'CCBA', title: 'Improve login security', repo: 'main-project', tool: 'Claude', time: '12m ago' },
+  { id: '3', badge: 'CCBA', title: 'Implement user roles', repo: 'alpha-build', tool: 'Opencode', time: '12m ago' },
+  { id: '4', badge: 'CCBA', title: 'Enhance API endpoints', repo: 'backend-api', tool: 'Claude', time: '12m ago' },
+  { id: '5', badge: 'CCBA', title: 'Fix authentication bug', repo: 'auth-service', tool: 'Open Code', time: '15m ago' },
+];
 
-  return (
-    <View style={s.park}>
-      {/* Sky */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0a1a0e' }]} />
+type CodeLine = { num: number; prefix: '+' | '-' | ' '; text: string };
 
-      {/* Stars */}
-      {STARS.map((st, i) => <Star key={i} x={st.x} y={st.y} delay={st.d} size={st.s} />)}
-
-      {/* Moon */}
-      <View style={s.moon} />
-
-      {/* Distant treeline */}
-      <View style={s.distantTrees}>
-        {[20, 60, 95, 130, 165, 200, 235, 265, 295, 325].map((x, i) => (
-          <View key={i} style={[s.distantTree, { left: x, height: 30 + (i % 3) * 10 }]} />
-        ))}
-      </View>
-
-      {/* Ground */}
-      <View style={s.ground} />
-
-      {/* Big trees */}
-      <View style={[s.treeTrunk, { left: 10, height: 70 }]} />
-      <View style={[s.treeFoliage, { left: -10, top: 50 }]} />
-      <View style={[s.treeTrunk, { left: 330, height: 80 }]} />
-      <View style={[s.treeFoliage, { left: 315, top: 40 }]} />
-
-      {/* Bench */}
-      <View style={s.bench}>
-        <View style={s.benchSeat} />
-        <View style={[s.benchLeg, { left: 4 }]} />
-        <View style={[s.benchLeg, { right: 4 }]} />
-      </View>
-
-      {/* Person silhouette */}
-      <View style={s.person}>
-        <View style={s.personHead} />
-        <View style={s.personBody} />
-      </View>
-
-      {/* Laptop glow */}
-      <View style={s.laptopGlow} />
-      <View style={s.laptop} />
-
-      {/* Fireflies */}
-      {FIREFLIES.map((ff, i) => <Firefly key={i} x={ff.x} y={ff.y} delay={ff.d} />)}
-
-      {/* Overlay text */}
-      <View style={s.parkTextRow}>
-        <Text style={s.parkTagline}>coding from the park</Text>
-      </View>
-
-      {/* Sandbox pill */}
-      <TouchableOpacity style={s.sandboxPill} onPress={onSandboxPress} activeOpacity={0.75}>
-        <View style={[s.sandboxDot, { backgroundColor: activeUrl ? ACCENT : DIM }]} />
-        <Text style={s.sandboxPillText} numberOfLines={1}>{label}</Text>
-        <Text style={s.sandboxChevron}>▾</Text>
-      </TouchableOpacity>
-    </View>
-  );
+interface PermissionCardData {
+  id: string;
+  toolName: string;
+  toolType: 'Write' | 'Edit' | 'Bash' | 'Read' | string;
+  time: string;
+  path: string;
+  origin: string;
+  initials: string;
+  codeLines: CodeLine[];
 }
 
-// ── Swipe-to-delete server row (for sandbox picker) ───────────────────────────
-function SandboxRow({ url, health, isActive, onSelect, onDelete }: {
-  url: string;
-  health: 'healthy' | 'unreachable' | undefined;
-  isActive: boolean;
-  onSelect: () => void;
-  onDelete: () => void;
-}) {
-  const translateX = useRef(new Animated.Value(0)).current;
-  const itemOpacity = useRef(new Animated.Value(1)).current;
-  const isOpen = useRef(false);
-  const didHaptic = useRef(false);
-  const cwd = getEntry(url)?.serverCwd;
-  const label = cwd ? (cwd.split('/').pop() || hostFromUrl(url)) : hostFromUrl(url);
+const PERMISSIONS: PermissionCardData[] = [
+  {
+    id: '1',
+    toolName: 'WRITE FILE',
+    toolType: 'Write',
+    time: '2m ago',
+    path: 'src/utils/auth.ts',
+    origin: 'You via Opencode',
+    initials: 'Y',
+    codeLines: [
+      { num: 1, prefix: '+', text: "import jwt from 'jsonwebtoken';" },
+      { num: 2, prefix: '+', text: 'interface TokenPayload {' },
+      { num: 3, prefix: '+', text: '  userId: string;' },
+    ],
+  },
+  {
+    id: '2',
+    toolName: 'BASH',
+    toolType: 'Bash',
+    time: '2m ago',
+    path: 'npm run test -- --coverage',
+    origin: 'Sahil via Claude Mythos',
+    initials: 'S',
+    codeLines: [],
+  },
+  {
+    id: '3',
+    toolName: 'EDIT FILE',
+    toolType: 'Edit',
+    time: '2m ago',
+    path: 'src/routes/api.ts',
+    origin: 'Sahil via Claude Mythos',
+    initials: 'S',
+    codeLines: [
+      { num: 1, prefix: '-', text: 'const router = express.Router();' },
+      { num: 2, prefix: '+', text: 'const router = Router();' },
+    ],
+  },
+  {
+    id: '4',
+    toolName: 'READ FILE',
+    toolType: 'Read',
+    time: '8m ago',
+    path: 'src/middleware/auth.ts',
+    origin: 'You via Opencode',
+    initials: 'Y',
+    codeLines: [],
+  },
+];
 
-  const deleteOpacity = translateX.interpolate({
-    inputRange: [-DELETE_WIDTH, 0], outputRange: [1, 0], extrapolate: 'clamp',
-  });
-
-  const panResponder = useRef(PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy),
-    onPanResponderGrant: () => { didHaptic.current = false; },
-    onPanResponderMove: (_, g) => {
-      const x = isOpen.current ? g.dx - DELETE_WIDTH : g.dx;
-      translateX.setValue(Math.min(0, Math.max(-DELETE_WIDTH, x)));
-      if (x < -DELETE_WIDTH / 2 && !didHaptic.current) {
-        didHaptic.current = true;
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-    },
-    onPanResponderRelease: (_, g) => {
-      const x = isOpen.current ? g.dx - DELETE_WIDTH : g.dx;
-      if (x < -DELETE_WIDTH / 2) {
-        Animated.spring(translateX, { toValue: -DELETE_WIDTH, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
-        isOpen.current = true;
-      } else {
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
-        isOpen.current = false;
-      }
-    },
-  })).current;
-
-  function handleDelete() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Animated.timing(itemOpacity, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => onDelete());
-  }
-
-  return (
-    <Animated.View style={{ overflow: 'hidden', borderRadius: 12, opacity: itemOpacity, marginBottom: 8 }}>
-      <Animated.View style={[s.deleteBtn, { opacity: deleteOpacity }]}>
-        <TouchableOpacity style={s.deleteBtnInner} onPress={handleDelete} activeOpacity={0.8}>
-          <Ionicons name="trash-outline" size={18} color="#fff" />
-          <Text style={s.deleteBtnText}>Delete</Text>
-        </TouchableOpacity>
-      </Animated.View>
-      <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
-        <TouchableOpacity
-          style={[s.sandboxRow, isActive && { borderColor: ACCENT }]}
-          onPress={() => { if (isOpen.current) { Animated.spring(translateX, { toValue: 0, useNativeDriver: true, speed: 30, bounciness: 4 }).start(); isOpen.current = false; } else { onSelect(); } }}
-          activeOpacity={0.85}
-        >
-          <View style={[s.dot, {
-            backgroundColor: health === 'healthy' ? '#22c55e' : health === 'unreachable' ? '#ef4444' : '#5a7a5a',
-          }]} />
-          <View style={{ flex: 1 }}>
-            <Text style={[s.sandboxRowLabel, isActive && { color: ACCENT }]} numberOfLines={1}>{label}</Text>
-            {cwd ? <Text style={s.sandboxRowSub} numberOfLines={1}>{hostFromUrl(url)}</Text> : null}
-          </View>
-          {isActive && <Ionicons name="checkmark" size={16} color={ACCENT} />}
-        </TouchableOpacity>
-      </Animated.View>
-    </Animated.View>
-  );
+interface RepoItem {
+  id: string;
+  name: string;
+  branch: string;
+  action: string;
+  badge: string;
+  badgeType: 'green' | 'gray';
 }
 
-// ── Sandbox picker modal ──────────────────────────────────────────────────────
-function SandboxPickerModal({ visible, urls, healthMap, activeUrl, onSelect, onDelete, onScan, onClose }: {
-  visible: boolean;
-  urls: string[];
-  healthMap: Map<string, 'healthy' | 'unreachable'>;
-  activeUrl: string | null;
-  onSelect: (url: string) => void;
-  onDelete: (url: string) => void;
-  onScan: () => void;
-  onClose: () => void;
-}) {
-  const scanAfterDismiss = useRef(false);
+const INITIAL_REPOS: RepoItem[] = [
+  { id: '1', name: 'grass-welcome', branch: 'main', action: 'Open Code', badge: 'Demo', badgeType: 'green' },
+  { id: '2', name: 'api-server', branch: 'dev', action: 'Claude Code', badge: 'Python', badgeType: 'gray' },
+];
 
-  function handleScanPress() {
-    scanAfterDismiss.current = true;
-    onClose();
-  }
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-      onDismiss={() => {
-        if (scanAfterDismiss.current) {
-          scanAfterDismiss.current = false;
-          onScan();
-        }
-      }}
-    >
-      <TouchableOpacity style={s.modalBackdrop} activeOpacity={1} onPress={onClose} />
-      <View style={s.modalSheet}>
-        <View style={s.modalHandle} />
-        <View style={s.modalHeaderRow}>
-          <Text style={s.modalTitle}>Sandboxes</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={8}>
-            <Ionicons name="close" size={20} color={SUBTEXT} />
-          </TouchableOpacity>
-        </View>
-
-        {urls.map(url => (
-          <SandboxRow
-            key={url}
-            url={url}
-            health={healthMap.get(url)}
-            isActive={url === activeUrl}
-            onSelect={() => { onSelect(url); onClose(); }}
-            onDelete={() => onDelete(url)}
-          />
-        ))}
-
-        {urls.length === 0 && (
-          <Text style={{ color: SUBTEXT, textAlign: 'center', marginVertical: 16 }}>No sandboxes saved</Text>
-        )}
-
-        <TouchableOpacity style={s.scanBtn} onPress={handleScanPress} activeOpacity={0.8}>
-          <Ionicons name="qr-code-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-          <Text style={s.scanBtnText}>Scan QR Code</Text>
-        </TouchableOpacity>
-      </View>
-    </Modal>
-  );
-}
-
-// ── Repo card helpers ──────────────────────────────────────────────────────────
-const LANG_COLORS: Record<string, string> = {
-  ts: '#3178c6', tsx: '#3178c6', js: '#f7df1e', jsx: '#f7df1e',
-  py: '#3572A5', go: '#00ADD8', rs: '#dea584', java: '#b07219',
-  rb: '#701516', cpp: '#f34b7d', c: '#555555', cs: '#178600',
-  swift: '#F05138', kt: '#A97BFF', dart: '#00B4AB',
+const BADGE_CONFIG: Record<string, { bg: string; border: string; text: string }> = {
+  Write: { bg: '#FFF5E6', border: '#FF9500', text: '#B05A00' },
+  Bash:  { bg: '#EEF2FF', border: '#4F6BFF', text: '#1E3799' },
+  Edit:  { bg: '#F3EEFF', border: '#8B5CF6', text: '#5B21B6' },
+  Read:  { bg: '#E6F7FF', border: '#0EA5E9', text: '#0C4A6E' },
+  default: { bg: '#F0F0F0', border: '#999999', text: '#555555' },
 };
 
-function timeAgo(unixSeconds: number): string {
-  const diff = Math.floor(Date.now() / 1000) - unixSeconds;
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
+// ─── Permission Card ───────────────────────────────────────────────────────────
 
-function langLabel(lang: string): string {
-  const map: Record<string, string> = {
-    ts: 'TypeScript', tsx: 'TypeScript', js: 'JavaScript', jsx: 'JavaScript',
-    py: 'Python', go: 'Go', rs: 'Rust', swift: 'Swift',
-  };
-  return map[lang] ?? lang.toUpperCase();
-}
-
-// ── Repo card ─────────────────────────────────────────────────────────────────
-function RepoCard({ repo, details, onPress }: { repo: Repo; details?: RepoDetails; onPress: () => void }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const langColor = details?.dominantLanguage ? (LANG_COLORS[details.dominantLanguage] ?? SUBTEXT) : null;
-
-  return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <TouchableOpacity
-        style={s.repoCard}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
-        onPressIn={() => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 2 }).start()}
-        onPressOut={() => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()}
-        activeOpacity={1}
-      >
-        {/* Top row: name + timestamp */}
-        <View style={s.repoTopRow}>
-          <View style={s.repoNameRow}>
-            <Text style={s.repoName} numberOfLines={1}>{repo.name}</Text>
-            {repo.isGit && <View style={s.onlineDot} />}
-          </View>
-          {details?.lastCommit && (
-            <Text style={s.repoTimeAgo}>{timeAgo(details.lastCommit.timestamp)}</Text>
-          )}
-        </View>
-
-        {/* Meta row: language + branch */}
-        <View style={s.repoMetaRow}>
-          {details?.dominantLanguage && langColor && (
-            <View style={s.metaChip}>
-              <View style={[s.langDot, { backgroundColor: langColor }]} />
-              <Text style={s.metaText}>{langLabel(details.dominantLanguage)}</Text>
-            </View>
-          )}
-          {details?.branch && (
-            <View style={s.metaChip}>
-              <Ionicons name="git-branch-outline" size={13} color={SUBTEXT} />
-              <Text style={s.metaText}>{details.branch}</Text>
-            </View>
-          )}
-          {!details && (
-            <Text style={[s.metaText, { opacity: 0.4 }]} numberOfLines={1}>{repo.path}</Text>
-          )}
-        </View>
-
-        {/* Commit row */}
-        {details?.lastCommit && (
-          <View style={s.commitRow}>
-            <View style={s.commitAvatar}>
-              <Text style={s.commitAvatarText}>
-                {details.lastCommit.message.trim().charAt(0).toUpperCase() || 'C'}
-              </Text>
-            </View>
-            <Text style={s.commitMsg} numberOfLines={1}>{details.lastCommit.message}</Text>
-            <Ionicons name="chevron-forward" size={13} color={SUBTEXT} style={{ opacity: 0.5 }} />
-          </View>
-        )}
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
-
-// ── Agent card (for inline picker) ───────────────────────────────────────────
-function AgentCard({ agent, onSelect }: { agent: typeof AGENTS[number]; onSelect: (id: string) => void }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <TouchableOpacity
-        style={s.agentCard}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onSelect(agent.id); }}
-        onPressIn={() => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 2 }).start()}
-        onPressOut={() => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()}
-        activeOpacity={1}
-      >
-        <Image source={agent.logo} style={s.agentLogo} contentFit="contain" />
-        <View style={{ flex: 1 }}>
-          <Text style={s.agentLabel}>{agent.label}</Text>
-          <Text style={s.agentDesc}>{agent.description}</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={DIM} />
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
-
-// ── Inline agent picker ───────────────────────────────────────────────────────
-function AgentPicker({ repo, onSelect, onBack }: {
-  repo: Repo;
-  onSelect: (agentId: string) => void;
-  onBack: () => void;
+function PermissionCard({ item, onApprove, onDeny }: {
+  item: PermissionCardData;
+  onApprove: () => void;
+  onDeny: () => void;
 }) {
+  const badge = BADGE_CONFIG[item.toolType] ?? BADGE_CONFIG.default;
+  const isBash = item.toolType === 'Bash';
+
   return (
-    <View>
-      <View style={s.agentPickerHeader}>
-        <TouchableOpacity onPress={onBack} style={s.agentBackBtn} hitSlop={8}>
-          <Ionicons name="chevron-back" size={20} color={ACCENT} />
-          <Text style={s.agentBackText}>Back</Text>
-        </TouchableOpacity>
+    <View style={perm.card}>
+      <View style={perm.cardHeader}>
+        <View style={[perm.toolBadge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
+          <Text style={[perm.toolBadgeText, { color: badge.text }]}>{item.toolName}</Text>
+        </View>
+        <Text style={perm.cardTime}>{item.time}</Text>
       </View>
-      <Text style={s.agentPickerTitle}>Select agent for</Text>
-      <Text style={s.agentPickerRepo} numberOfLines={1}>{repo.name}</Text>
-      <View style={{ gap: 10, marginTop: 8 }}>
-        {AGENTS.map(agent => (
-          <AgentCard key={agent.id} agent={agent} onSelect={onSelect} />
-        ))}
+
+      <View style={perm.pathRow}>
+        <View style={perm.pathIconWrap}>
+          <Text style={perm.pathIconText}>{isBash ? '</>' : '⬡'}</Text>
+        </View>
+        <Text style={perm.pathText} numberOfLines={1}>{item.path}</Text>
+      </View>
+
+      <View style={perm.originRow}>
+        <Text style={perm.originLabel}>Origin</Text>
+        <View style={perm.originAvatar}>
+          <Text style={perm.originInitials}>{item.initials}</Text>
+        </View>
+        <Text style={perm.originText}>{item.origin}</Text>
+      </View>
+
+      {item.codeLines.length > 0 && (
+        <View style={perm.codeBlock}>
+          <View style={perm.codeGutterCol}>
+            {item.codeLines.map((line, idx) => (
+              <View key={idx} style={perm.gutterRow}>
+                <Text style={perm.codeLineNum}>{line.num}</Text>
+                <Text style={[
+                  perm.codePrefix,
+                  line.prefix === '+' ? perm.codeAdd : line.prefix === '-' ? perm.codeDel : perm.codeNeutral,
+                ]}>
+                  {line.prefix}
+                </Text>
+              </View>
+            ))}
+          </View>
+          <View style={perm.codeTextCol}>
+            {item.codeLines.map((line, idx) => (
+              <Text
+                key={idx}
+                style={[
+                  perm.codeText,
+                  line.prefix === '+' ? perm.codeAdd : line.prefix === '-' ? perm.codeDel : null,
+                ]}
+                numberOfLines={1}
+              >
+                {line.text}
+              </Text>
+            ))}
+          </View>
+        </View>
+      )}
+
+      <View style={perm.buttonRow}>
+        <TouchableOpacity style={perm.denyOuter} onPress={onDeny} activeOpacity={0.85}>
+          <LinearGradient
+            colors={['#FF3D3D', '#FFA047']}
+            start={{ x: 0.72, y: 1 }}
+            end={{ x: 0.28, y: 0 }}
+            style={perm.btnGradient}
+          >
+            <Text style={perm.denyText}>✕  Deny</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={perm.approveOuter} onPress={onApprove} activeOpacity={0.85}>
+          <LinearGradient
+            colors={['#00FF40', '#E0FF47']}
+            start={{ x: 0.72, y: 1 }}
+            end={{ x: 0.28, y: 0 }}
+            style={perm.btnGradient}
+          >
+            <Text style={perm.approveText}>✓  Approve</Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-// ── Main screen ───────────────────────────────────────────────────────────────
-export default function Home() {
-  const router = useRouter();
-  const [urls, setUrls] = useState<string[]>([]);
-  const [, forceUpdate] = useState(0);
-  const [healthMap, setHealthMap] = useState<Map<string, 'healthy' | 'unreachable'>>(new Map());
-  const [activeUrl, setActiveUrl] = useState<string | null>(null);
-  const [repoDetails, setRepoDetails] = useState<Map<string, RepoDetails>>(new Map());
-  const [sandboxPickerOpen, setSandboxPickerOpen] = useState(false);
-  const [agentPickerRepo, setAgentPickerRepo] = useState<Repo | null>(null);
+// ─── VM Tab Bar ────────────────────────────────────────────────────────────────
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const generationRef = useRef(0);
+function VmTabBar({ activeVmTab, onTabPress }: {
+  activeVmTab: number;
+  onTabPress: (idx: number) => void;
+}) {
+  return (
+    <View style={styles.tabsBar}>
+      <View style={styles.tabPillsGroup}>
+        <TouchableOpacity
+          style={[styles.tabPill, activeVmTab === 0 && styles.tabPillActive]}
+          onPress={() => onTabPress(0)}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.vmDot, activeVmTab === 0 ? styles.vmDotActive : styles.vmDotInactive]} />
+          <Text style={[styles.tabPillText, activeVmTab === 0 && styles.tabPillTextActive]}>GrassVM</Text>
+        </TouchableOpacity>
 
-  useEffect(() => {
-    const unsub = subscribeToAll(() => forceUpdate(n => n + 1));
-    return unsub;
-  }, []);
+        <TouchableOpacity
+          style={[styles.tabPill, activeVmTab === 1 && styles.tabPillActive]}
+          onPress={() => onTabPress(1)}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.vmDot, activeVmTab === 1 ? styles.vmDotActive : styles.vmDotInactive]} />
+          <Text style={[styles.tabPillText, activeVmTab === 1 && styles.tabPillTextActive]}>My Macbook</Text>
+        </TouchableOpacity>
+      </View>
 
-  useFocusEffect(
-    useCallback(() => {
-      // Reset agent picker when returning to this screen
-      setAgentPickerRepo(null);
-
-      if (intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      const gen = ++generationRef.current;
-      let currentUrls: string[] = [];
-
-      async function pollHealth(urlsToCheck: string[]) {
-        if (gen !== generationRef.current) return;
-        const results = await Promise.allSettled(
-          urlsToCheck.map(async (url) => {
-            try {
-              const res = await fetch(`${url}/health`);
-              return { url, ok: res.ok };
-            } catch {
-              return { url, ok: false };
-            }
-          })
-        );
-        if (gen !== generationRef.current) return;
-        const next = new Map<string, 'healthy' | 'unreachable'>();
-        let firstHealthy: string | null = null;
-        for (const r of results) {
-          if (r.status === 'fulfilled') {
-            next.set(r.value.url, r.value.ok ? 'healthy' : 'unreachable');
-            if (r.value.ok && !firstHealthy) firstHealthy = r.value.url;
-          }
-        }
-        setHealthMap(prev => {
-          const merged = new Map(prev);
-          for (const [k, v] of next) merged.set(k, v);
-          return merged;
-        });
-        if (firstHealthy) {
-          setActiveUrl(prev => prev ?? firstHealthy);
-        }
-      }
-
-      getUrls().then(loadedUrls => {
-        if (gen !== generationRef.current) return;
-        currentUrls = loadedUrls;
-        setUrls(loadedUrls);
-        loadedUrls.forEach(openConnection);
-        pollHealth(loadedUrls);
-        intervalRef.current = setInterval(() => pollHealth(currentUrls), HEALTH_POLL_MS);
-      });
-
-      return () => {
-        if (intervalRef.current !== null) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-        generationRef.current++;
-      };
-    }, [])
+      <TouchableOpacity onPress={() => onTabPress(2)} activeOpacity={0.7}>
+        <Text style={styles.tabAddText}>+ Add</Text>
+      </TouchableOpacity>
+    </View>
   );
+}
 
-  // Load repos + details whenever activeUrl changes
-  useEffect(() => {
-    if (!activeUrl) return;
-    setRepoDetails(new Map());
-    listReposStore(activeUrl).then(() => {
-      const entry = getEntry(activeUrl);
-      if (!entry) return;
-      entry.repos.forEach(r => {
-        getRepoDetailsStore(activeUrl, r.path).then(() => {
-          const e = getEntry(activeUrl);
-          if (e) setRepoDetails(new Map(e.repoDetails));
-        });
-      });
+// ─── Swipeable Repo Card ───────────────────────────────────────────────────────
+
+const SWIPE_THRESHOLD = -110;
+
+function SwipeableRepoCard({ item, onDelete }: { item: RepoItem; onDelete: () => void }) {
+  const translateX = useSharedValue(0);
+  const containerHeight = useSharedValue(76);
+  const [deletePhase, setDeletePhase] = useState<'idle' | 'deleted'>('idle');
+
+  const wrapStyle = useAnimatedStyle(() => ({
+    height: containerHeight.value,
+    overflow: 'hidden' as const,
+  }));
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const bgStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      translateX.value,
+      [-SCREEN_W, -8, 0],
+      [1, 0.75, 0],
+      Extrapolation.CLAMP,
+    ),
+  }));
+
+  const doSpringBack = () => {
+    translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
+  };
+
+  const doDelete = () => {
+    translateX.value = withTiming(-SCREEN_W, { duration: 220 });
+    setTimeout(() => {
+      setDeletePhase('deleted');
+      setTimeout(() => {
+        containerHeight.value = withTiming(0, { duration: 250 });
+        setTimeout(onDelete, 250);
+      }, 1000);
+    }, 220);
+  };
+
+  const pan = Gesture.Pan()
+    .activeOffsetX([-8, 8])
+    .failOffsetY([-15, 15])
+    .onUpdate((e) => {
+      if (e.translationX < 0) {
+        translateX.value = e.translationX;
+      }
+    })
+    .onEnd((e) => {
+      if (e.translationX < SWIPE_THRESHOLD) {
+        runOnJS(doDelete)();
+      } else {
+        runOnJS(doSpringBack)();
+      }
     });
-  }, [activeUrl]);
 
+  const badge =
+    item.badgeType === 'green'
+      ? { bg: '#E8FFF0', border: '#34C759', text: '#1A7A35' }
+      : { bg: '#F0F0F0', border: '#C7C7CC', text: '#6C6C70' };
+
+  return (
+    <ReanimatedAnimated.View style={wrapStyle}>
+      <ReanimatedAnimated.View style={[repoStyles.deleteBg, bgStyle]}>
+        <Text style={repoStyles.deletedText}>
+          {deletePhase === 'deleted' ? 'Deleted' : 'Deleting...'}
+        </Text>
+      </ReanimatedAnimated.View>
+
+      <GestureDetector gesture={pan}>
+        <ReanimatedAnimated.View style={[repoStyles.card, cardStyle]}>
+          <View style={repoStyles.cardLeft}>
+            <Text style={repoStyles.repoName}>{item.name}</Text>
+            <Text style={repoStyles.repoBranch}>
+              {'↑ '}{item.branch}{'  ·  '}{item.action}
+            </Text>
+          </View>
+          <View style={[repoStyles.repoBadge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
+            <Text style={[repoStyles.repoBadgeText, { color: badge.text }]}>{item.badge}</Text>
+          </View>
+        </ReanimatedAnimated.View>
+      </GestureDetector>
+    </ReanimatedAnimated.View>
+  );
+}
+
+// ─── Main Screen ───────────────────────────────────────────────────────────────
+
+export default function Home() {
+  const [activeVmTab, setActiveVmTab] = useState(0);
+  const [activeNav, setActiveNav] = useState<NavTab>('home');
+  const [permissions, setPermissions] = useState<PermissionCardData[]>(PERMISSIONS);
+  const [repos, setRepos] = useState<RepoItem[]>(INITIAL_REPOS);
+  const [getMoreVisible, setGetMoreVisible] = useState(false);
+  const [sheetInitialView, setSheetInitialView] = useState<"home" | "connect-agent" | "connect-laptop" | "add-repository">("home");
+  const [profileMenuVisible, setProfileMenuVisible] = useState(false);
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  // Horizontal tab scroll ref
+  const tabScrollRef = useRef<ScrollView>(null);
+
+  // Tab press scale animations
+  const homeScale = useRef(new Animated.Value(1)).current;
+  const permsScale = useRef(new Animated.Value(1)).current;
+  const reposScale = useRef(new Animated.Value(1)).current;
+  const scaleAnims: Record<NavTab, Animated.Value> = {
+    home: homeScale,
+    perms: permsScale,
+    repos: reposScale,
+  };
+
+  const challengeIdxRef = useRef(0);
+  const onViewableChanged = useRef(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      if (viewableItems.length > 0 && viewableItems[0].index != null) {
+        challengeIdxRef.current = viewableItems[0].index;
+      }
+    }
+  ).current;
+  const viewConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
+
+  // Container health check
   useEffect(() => {
-    const subscription = CameraView.onModernBarcodeScanned(async (result) => {
-      const serverUrl = result.data;
-      await CameraView.dismissScanner();
-      await saveUrl(serverUrl);
-      openConnection(serverUrl);
-      const updated = await getUrls();
-      setUrls(updated);
-      setActiveUrl(serverUrl);
-    });
-    return () => subscription.remove();
-  }, []);
+    let cancelled = false;
+    async function checkContainer() {
+      const token = await getToken();
+      if (!token || cancelled) return;
+      const hb = await heartbeat(token);
+      if (cancelled) return;
+      if (!hb.ok || hb.data.container !== 'running' || !hb.data.grass) {
+        router.replace('/container-setup');
+      }
+    }
+    checkContainer();
+    return () => { cancelled = true; };
+  }, [router]);
 
-  async function handleScan() {
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          await clearAuth();
+          router.replace('/welcome');
+        },
+      },
+    ]);
+  };
+
+  function onTabPressIn(tab: NavTab) {
+    Animated.spring(scaleAnims[tab], {
+      toValue: 0.85,
+      useNativeDriver: true,
+      speed: 100,
+      bounciness: 0,
+    }).start();
+  }
+
+  function onTabPressOut(tab: NavTab) {
+    Animated.spring(scaleAnims[tab], {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 30,
+      bounciness: 10,
+    }).start();
+  }
+
+  function switchToTab(tab: NavTab) {
+    const idx = TABS.indexOf(tab);
+    setActiveNav(tab);
+    tabScrollRef.current?.scrollTo({ x: idx * SCREEN_W, animated: true });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    console.log('[QR] handleScan called');
-    try {
-      console.log('[QR] calling launchScanner');
-      await CameraView.launchScanner({ barcodeTypes: ['qr'] });
-      console.log('[QR] launchScanner resolved');
-    } catch (err) {
-      console.log('[QR] launchScanner error:', err);
-      Alert.alert('Scanner Error', String(err));
+  }
+
+  function onTabScrollEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
+    if (idx >= 0 && idx < TABS.length) {
+      setActiveNav(TABS[idx]);
     }
   }
 
-  async function handleDeleteUrl(url: string) {
-    closeConnection(url);
-    await removeUrl(url);
-    setUrls(prev => {
-      const next = prev.filter(u => u !== url);
-      if (activeUrl === url) setActiveUrl(next[0] ?? null);
-      return next;
-    });
+  function handleApprove(id: string) {
+    setPermissions(prev => prev.filter(p => p.id !== id));
   }
 
-  const repos: Repo[] = activeUrl ? (getEntry(activeUrl)?.repos ?? []) : [];
+  function handleDeny(id: string) {
+    setPermissions(prev => prev.filter(p => p.id !== id));
+  }
+
+  const isPerms = activeNav === 'perms';
+  const isRepos = activeNav === 'repos';
+  const bannerHeight = (isPerms || isRepos) ? 160 : 270;
 
   return (
-    <SafeAreaView style={s.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={styles.root}>
+      {/* ─── BANNER + VM TABS ──────────────────────────────────────────── */}
+      <View style={{ paddingTop: insets.top }}>
+        <ImageBackground
+          source={require('@/assets/images/navbar-screens/banner-image.png')}
+          style={[styles.bannerImg, { height: bannerHeight }]}
+          resizeMode="cover"
+        >
+          <LinearGradient
+            colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0)']}
+            locations={[0, 0.55]}
+            start={{ x: 0, y: 1 }}
+            end={{ x: 0, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        <ParkScene activeUrl={activeUrl} onSandboxPress={() => setSandboxPickerOpen(true)} />
-
-        <View style={s.body}>
-          {agentPickerRepo ? (
-            <AgentPicker
-              repo={agentPickerRepo}
-              onBack={() => setAgentPickerRepo(null)}
-              onSelect={(agentId) => {
-                if (!activeUrl) return;
-                setAgentPickerRepo(null);
-                router.push({
-                  pathname: '/sessions',
-                  params: {
-                    serverUrl: activeUrl,
-                    repoPath: agentPickerRepo.path,
-                    repoName: agentPickerRepo.name,
-                    agent: agentId,
-                  },
-                });
-              }}
-            />
+          {isPerms ? (
+            <View style={styles.topBar}>
+              <Text style={styles.permissionsTitle}>Permissions</Text>
+            </View>
+          ) : isRepos ? (
+            <View style={styles.topBar}>
+              <Text style={styles.reposTitle}>Repos</Text>
+            </View>
           ) : (
-            <>
-              <View style={s.sectionHeader}>
-                <Text style={s.sectionLabel}>
-                  Repositories{repos.length > 0 ? ` · ${repos.length}` : ''}
-                </Text>
-                {activeUrl && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      if (!activeUrl) return;
-                      listReposStore(activeUrl).then(() => {
-                        const entry = getEntry(activeUrl);
-                        if (!entry) return;
-                        entry.repos.forEach(r => {
-                          getRepoDetailsStore(activeUrl, r.path).then(() => {
-                            const e = getEntry(activeUrl);
-                            if (e) setRepoDetails(new Map(e.repoDetails));
-                          });
-                        });
-                      });
-                    }}
-                    hitSlop={8}
-                  >
-                    <Ionicons name="refresh-outline" size={16} color={DIM} />
-                  </TouchableOpacity>
-                )}
+            <View style={styles.topBar}>
+              <View style={styles.brandRow}>
+                <Text style={styles.grassTitle}>Grass</Text>
+                <View style={styles.betaBadge}>
+                  <Text style={styles.betaText}>BETA</Text>
+                </View>
               </View>
+              <TouchableOpacity
+                style={styles.avatarWrap}
+                onPress={() => setProfileMenuVisible(true)}
+              >
+                <ExpoImage
+                  source={require('@/assets/images/navbar-screens/user-icon.svg')}
+                  style={styles.avatarImg}
+                  contentFit="cover"
+                />
+              </TouchableOpacity>
+            </View>
+          )}
 
-              {!activeUrl ? (
-                <View style={s.emptyState}>
-                  <Ionicons name="qr-code-outline" size={40} color={DIM} style={{ marginBottom: 12 }} />
-                  <Text style={s.emptyTitle}>No sandbox connected</Text>
-                  <Text style={s.emptyText}>Tap the sandbox pill above to add one</Text>
+          <View style={{ flex: 1, justifyContent: 'center' }}>
+            {!isPerms && !isRepos && (
+              <TouchableOpacity
+                style={styles.getMoreCard}
+                onPress={() => setGetMoreVisible(true)}
+                activeOpacity={0.85}
+              >
+                <BlurView
+                  intensity={10}
+                  tint="light"
+                  style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
+                />
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.80)', 'rgba(223,255,229,0.80)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
+                />
+                <View style={styles.getMoreInner}>
+                  <View style={styles.getMoreIconWrap}>
+                    <Image
+                      source={require('@/assets/images/navbar-screens/get-more-card.png')}
+                      style={styles.getMoreIcon}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <View style={styles.getMoreTextWrap}>
+                    <Text style={styles.getMoreTitle}>Get more from Grass</Text>
+                    <Text style={styles.getMoreSub}>
+                      Connect your own agent, add repos, link your laptop
+                    </Text>
+                  </View>
                 </View>
-              ) : repos.length === 0 ? (
-                <View style={s.emptyState}>
-                  <Ionicons name="folder-open-outline" size={40} color={DIM} style={{ marginBottom: 12 }} />
-                  <Text style={s.emptyTitle}>No repositories found</Text>
-                  <Text style={s.emptyText}>Pull to refresh or check your sandbox</Text>
-                </View>
-              ) : (
-                <View style={{ gap: 10 }}>
-                  {repos.map(repo => (
-                    <RepoCard key={repo.path} repo={repo} details={repoDetails.get(repo.path)} onPress={() => setAgentPickerRepo(repo)} />
-                  ))}
+              </TouchableOpacity>
+            )}
+          </View>
+          <VmTabBar activeVmTab={activeVmTab} onTabPress={setActiveVmTab} />
+        </ImageBackground>
+      </View>
+
+      {/* ─── HORIZONTAL SWIPEABLE TAB CONTENT ─────────────────────────── */}
+      <ScrollView
+        ref={tabScrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={onTabScrollEnd}
+        bounces={false}
+        style={{ flex: 1 }}
+        scrollEnabled
+      >
+        {/* HOME TAB */}
+        <ScrollView
+          style={{ width: SCREEN_W }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 20, paddingTop: 4 }}
+          nestedScrollEnabled
+        >
+          {/* Challenge carousel */}
+          <View style={styles.challengeSection}>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={CHALLENGES}
+              keyExtractor={item => item.id}
+              style={styles.carouselList}
+              snapToInterval={CARD_W + 10}
+              decelerationRate="fast"
+              onViewableItemsChanged={onViewableChanged}
+              viewabilityConfig={viewConfig}
+              renderItem={({ item }) => (
+                <View style={styles.challengeCard}>
+                  {item.id !== '2' && (
+                    <LinearGradient
+                      colors={['#97FFAC', '#FFFFFF']}
+                      start={{ x: 0.35, y: 0 }}
+                      end={{ x: 0.65, y: 1 }}
+                      style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
+                    />
+                  )}
+                  {item.id === '2' && (
+                    <>
+                      <View style={{ position: 'absolute', top: -70, right: -70, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(151,255,172,0.45)' }} pointerEvents="none" />
+                      <View style={{ position: 'absolute', top: -45, right: -45, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(100,220,130,0.40)' }} pointerEvents="none" />
+                      <View style={{ position: 'absolute', top: -25, right: -25, width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(60,190,100,0.35)' }} pointerEvents="none" />
+                      <View style={{ position: 'absolute', top: -10, right: -10, width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(30,160,80,0.30)' }} pointerEvents="none" />
+                    </>
+                  )}
+                  <View style={styles.challengeInsetShadow} />
+                  <View style={styles.challengeIconCircle}>
+                    <Image
+                      source={require('@/assets/images/navbar-screens/challenge.png')}
+                      style={styles.challengeIcon}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <View style={styles.challengeBody}>
+                    <View style={styles.challengeHeaderRow}>
+                      <Text style={styles.challengeTitle}>{item.title}</Text>
+                      <Text style={styles.challengeCount}>{item.count}</Text>
+                    </View>
+                    <Text style={styles.challengeSub}>{item.sub}</Text>
+                    <View style={styles.progressTrack}>
+                      <View style={styles.progressFill} />
+                    </View>
+                  </View>
                 </View>
               )}
-            </>
+            />
+          </View>
+
+          {/* Recent threads */}
+          <Text style={styles.sectionHeader}>RECENT THREADS</Text>
+          {THREADS.map(thread => (
+            <TouchableOpacity key={thread.id} style={styles.threadCard} activeOpacity={0.72}>
+              <View style={styles.threadTopRow}>
+                <View style={styles.ccbaBadge}>
+                  <Text style={styles.ccbaText}>{thread.badge}</Text>
+                </View>
+                <Text style={styles.threadTime}>{thread.time}</Text>
+              </View>
+              <Text style={styles.threadTitle}>{thread.title}</Text>
+              <Text style={styles.threadMeta}>{thread.repo} · {thread.tool}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* PERMS TAB */}
+        <ScrollView
+          style={{ width: SCREEN_W }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingTop: 4, paddingBottom: 20 }}
+          nestedScrollEnabled
+        >
+          {permissions.length === 0 ? (
+            <View style={perm.emptyState}>
+              <Text style={perm.emptyText}>No pending permissions</Text>
+            </View>
+          ) : (
+            permissions.map(item => (
+              <PermissionCard
+                key={item.id}
+                item={item}
+                onApprove={() => handleApprove(item.id)}
+                onDeny={() => handleDeny(item.id)}
+              />
+            ))
           )}
-        </View>
+        </ScrollView>
+
+        {/* REPOS TAB */}
+        <ScrollView
+          style={{ width: SCREEN_W }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingTop: 4, paddingBottom: 20 }}
+          nestedScrollEnabled
+        >
+          <View style={repoStyles.actionRow}>
+            <TouchableOpacity style={repoStyles.actionBtn} activeOpacity={0.72}>
+              <Text style={repoStyles.actionBtnText}>+ Add new repo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={repoStyles.actionBtn} activeOpacity={0.72}>
+              <Ionicons name="logo-github" size={14} color="#1C1C1E" />
+              <Text style={repoStyles.actionBtnText}>Clone from Github</Text>
+            </TouchableOpacity>
+          </View>
+
+          {repos.map(item => (
+            <SwipeableRepoCard
+              key={item.id}
+              item={item}
+              onDelete={() => setRepos(prev => prev.filter(r => r.id !== item.id))}
+            />
+          ))}
+
+          {repos.length > 0 && (
+            <Text style={repoStyles.swipeHint}>Swipe left on a repo to delete</Text>
+          )}
+        </ScrollView>
       </ScrollView>
 
-      <SandboxPickerModal
-        visible={sandboxPickerOpen}
-        urls={urls}
-        healthMap={healthMap}
-        activeUrl={activeUrl}
-        onSelect={url => { setActiveUrl(url); listReposStore(url); }}
-        onDelete={handleDeleteUrl}
-        onScan={handleScan}
-        onClose={() => setSandboxPickerOpen(false)}
+      {/* ─── GLASS BOTTOM NAV ─────────────────────────────────────────── */}
+      <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+        <BlurView intensity={80} tint="systemMaterial" style={styles.bottomNavBlur}>
+          <View style={styles.bottomNavPill}>
+
+            {/* HOME */}
+            <Animated.View style={{ transform: [{ scale: homeScale }] }}>
+              <TouchableOpacity
+                style={[styles.navItem, activeNav === 'home' && styles.navItemActive]}
+                onPress={() => switchToTab('home')}
+                onPressIn={() => onTabPressIn('home')}
+                onPressOut={() => onTabPressOut('home')}
+                activeOpacity={1}
+              >
+                <View style={styles.navIconWrap}>
+                  <ExpoImage
+                    source={require('@/assets/images/navbar-screens/home-icon.svg')}
+                    style={styles.navImg}
+                    tintColor={activeNav === 'home' ? '#088120' : '#8E8E93'}
+                  />
+                </View>
+                <Text style={[styles.navLabel, activeNav === 'home' && styles.navLabelActive]}>
+                  HOME
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* PERMS */}
+            <Animated.View style={{ transform: [{ scale: permsScale }] }}>
+              <TouchableOpacity
+                style={[styles.navItem, activeNav === 'perms' && styles.navItemActive]}
+                onPress={() => switchToTab('perms')}
+                onPressIn={() => onTabPressIn('perms')}
+                onPressOut={() => onTabPressOut('perms')}
+                activeOpacity={1}
+              >
+                <View style={styles.navIconWrap}>
+                  <Image
+                    source={require('@/assets/images/navbar-screens/permission-icon.png')}
+                    style={[styles.navImg, { tintColor: activeNav === 'perms' ? '#088120' : '#8E8E93' }]}
+                    resizeMode="contain"
+                  />
+                  {permissions.length > 0 && (
+                    <View style={styles.notifBadge}>
+                      <Text style={styles.notifCount}>{permissions.length}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.navLabel, activeNav === 'perms' && styles.navLabelActive]}>
+                  PERMS
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* REPOS */}
+            <Animated.View style={{ transform: [{ scale: reposScale }] }}>
+              <TouchableOpacity
+                style={[styles.navItem, activeNav === 'repos' && styles.navItemActive]}
+                onPress={() => switchToTab('repos')}
+                onPressIn={() => onTabPressIn('repos')}
+                onPressOut={() => onTabPressOut('repos')}
+                activeOpacity={1}
+              >
+                <View style={styles.navIconWrap}>
+                  <Image
+                    source={require('@/assets/images/navbar-screens/repos-icon.png')}
+                    style={[styles.navImg, { tintColor: activeNav === 'repos' ? '#088120' : '#8E8E93' }]}
+                    resizeMode="contain"
+                  />
+                </View>
+                <Text style={[styles.navLabel, activeNav === 'repos' && styles.navLabelActive]}>
+                  REPOS
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+          </View>
+        </BlurView>
+      </View>
+
+      {/* ─── GET MORE SHEET ───────────────────────────────────────────── */}
+      <GetMoreSheet
+        visible={getMoreVisible}
+        onClose={() => setGetMoreVisible(false)}
+        initialView={sheetInitialView}
       />
-    </SafeAreaView>
+
+      {/* ─── PROFILE MENU ─────────────────────────────────────────────── */}
+      <Modal
+        visible={profileMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setProfileMenuVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setProfileMenuVisible(false)}>
+          <View style={profileStyles.overlay}>
+            <TouchableWithoutFeedback>
+              <View style={[profileStyles.menu, { top: insets.top + 50, right: 20 }]}>
+                <TouchableOpacity
+                  style={profileStyles.menuItem}
+                  onPress={() => {
+                    setProfileMenuVisible(false);
+                    handleLogout();
+                  }}
+                >
+                  <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+                  <Text style={profileStyles.logoutText}>Logout</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </View>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  scroll: { paddingBottom: 48 },
+// ─── Permission Card Styles ───────────────────────────────────────────────────
 
-  // Park scene
-  park: {
-    height: 200,
-    overflow: 'hidden',
-    backgroundColor: '#0a1a0e',
-  },
-  moon: {
-    position: 'absolute', right: 60, top: 16,
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: '#d4e8c8',
-    shadowColor: '#c8f0c8', shadowRadius: 10, shadowOpacity: 0.4, shadowOffset: { width: 0, height: 0 },
-  },
-  distantTrees: { position: 'absolute', bottom: 60, left: 0, right: 0, height: 50 },
-  distantTree: {
-    position: 'absolute', bottom: 0,
-    width: 22,
-    backgroundColor: '#1a3020',
-    borderTopLeftRadius: 11, borderTopRightRadius: 11,
-  },
-  ground: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    height: 60, backgroundColor: '#142010',
-  },
-  treeTrunk: {
-    position: 'absolute', bottom: 60,
-    width: 14, backgroundColor: '#1e3018',
-  },
-  treeFoliage: {
-    position: 'absolute',
-    width: 50, height: 70,
-    borderRadius: 25,
-    backgroundColor: '#183020',
-  },
-  bench: {
-    position: 'absolute', bottom: 60, left: 140,
-    width: 80, height: 20,
-  },
-  benchSeat: {
-    position: 'absolute', top: 0, left: 0, right: 0,
-    height: 6, backgroundColor: '#2a4030', borderRadius: 3,
-  },
-  benchLeg: {
-    position: 'absolute', bottom: 0,
-    width: 4, height: 14,
-    backgroundColor: '#2a4030',
-  },
-  person: {
-    position: 'absolute', bottom: 76, left: 165,
-  },
-  personHead: {
-    width: 12, height: 12, borderRadius: 6,
-    backgroundColor: '#3a5540', marginBottom: 1, marginLeft: 2,
-  },
-  personBody: {
-    width: 16, height: 18,
-    backgroundColor: '#2a4030',
-    borderTopLeftRadius: 5, borderTopRightRadius: 5,
-  },
-  laptop: {
-    position: 'absolute', bottom: 74, left: 176,
-    width: 22, height: 14,
-    backgroundColor: '#1a2e20',
-    borderRadius: 3,
-    borderWidth: 1, borderColor: ACCENT,
-  },
-  laptopGlow: {
-    position: 'absolute', bottom: 74, left: 174,
-    width: 26, height: 18,
-    borderRadius: 6,
-    backgroundColor: 'transparent',
-    shadowColor: ACCENT, shadowRadius: 8, shadowOpacity: 0.6, shadowOffset: { width: 0, height: 0 },
-  },
-  parkTextRow: {
-    position: 'absolute', bottom: 10, left: 16,
-  },
-  parkTagline: {
-    color: DIM, fontSize: 11, fontStyle: 'italic', letterSpacing: 0.5,
-  },
-  sandboxPill: {
-    position: 'absolute', top: 10, right: 12,
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: DARK_BG,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 20, gap: 5,
-    borderWidth: 1, borderColor: CARD_BORDER,
-  },
-  sandboxDot: { width: 6, height: 6, borderRadius: 3 },
-  sandboxPillText: { color: TEXT, fontSize: 12, fontWeight: '600', maxWidth: 120 },
-  sandboxChevron: { color: SUBTEXT, fontSize: 10 },
-
-  // Body
-  body: { paddingHorizontal: 16, paddingTop: 20 },
-  sectionHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+const perm = StyleSheet.create({
+  card: {
+    backgroundColor: '#FFF',
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#EBEBEB',
+    marginHorizontal: 14,
     marginBottom: 12,
+    padding: 14,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 5,
+    elevation: 3,
   },
-  sectionLabel: {
-    color: SUBTEXT, fontSize: 12, fontWeight: '700',
-    textTransform: 'uppercase', letterSpacing: 0.8,
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  toolBadge: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 3 },
+  toolBadgeText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
+  cardTime: { fontSize: 11, color: '#8E8E93' },
+  pathRow: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF',
+    borderRadius: 8, borderWidth: 1, borderColor: '#E8E8E8', overflow: 'hidden', gap: 10, paddingRight: 10,
   },
+  pathIconWrap: {
+    alignSelf: 'stretch', backgroundColor: '#E4E3E3', borderRightWidth: 1, borderRightColor: '#E1E1E1',
+    paddingHorizontal: 10, paddingVertical: 8, alignItems: 'center', justifyContent: 'center',
+  },
+  pathIconText: { fontSize: 13, color: '#8E8E93', fontWeight: '600' },
+  pathText: { flex: 1, fontSize: 13, color: '#1C1C1E', fontFamily: 'monospace' },
+  originRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  originLabel: { fontSize: 12, color: '#8E8E93', marginRight: 2 },
+  originAvatar: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#4F6BFF', alignItems: 'center', justifyContent: 'center' },
+  originInitials: { fontSize: 10, fontWeight: '700', color: '#FFFFFF' },
+  originText: { fontSize: 12, color: '#3C3C43', fontWeight: '500' },
+  codeBlock: { flexDirection: 'row', borderRadius: 10, borderWidth: 1, borderColor: '#E1E1E1', overflow: 'hidden' },
+  codeGutterCol: { backgroundColor: '#E4E3E3', borderRightWidth: 1, borderRightColor: '#E1E1E1', paddingVertical: 8, paddingHorizontal: 6, gap: 5 },
+  gutterRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  codeTextCol: { flex: 1, paddingVertical: 8, paddingHorizontal: 8, gap: 5 },
+  codeLineNum: { fontSize: 11, color: '#8E8E93', width: 14, textAlign: 'right', fontFamily: 'monospace' },
+  codePrefix: { fontSize: 12, fontWeight: '700', width: 10, fontFamily: 'monospace' },
+  codeAdd: { color: '#16A34A' },
+  codeDel: { color: '#DC2626' },
+  codeNeutral: { color: '#8E8E93' },
+  codeText: { flex: 1, fontSize: 11, color: '#1C1C1E', fontFamily: 'monospace' },
+  buttonRow: { flexDirection: 'row', gap: 10, marginTop: 2 },
+  denyOuter: { flex: 1, borderRadius: 63, borderWidth: 1, borderColor: '#CC0000', overflow: 'hidden' },
+  approveOuter: { flex: 1, borderRadius: 63, borderWidth: 1, borderColor: '#00CC33', overflow: 'hidden' },
+  btnGradient: { paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
+  denyText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  approveText: { fontSize: 14, fontWeight: '700', color: '#1C4A00' },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
+  emptyText: { fontSize: 15, color: '#8E8E93' },
+});
 
-  // Repo card
-  repoCard: {
-    backgroundColor: CARD_BG,
-    borderRadius: 14, borderWidth: 1, borderColor: CARD_BORDER,
-    padding: 14, gap: 8,
-  },
-  repoTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  repoNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flex: 1 },
-  repoName: { color: TEXT, fontSize: 16, fontWeight: '700', letterSpacing: -0.3, flexShrink: 1 },
-  onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4ade80', flexShrink: 0 },
-  repoTimeAgo: { color: SUBTEXT, fontSize: 12, flexShrink: 0, marginLeft: 8 },
-  repoMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
-  metaChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  langDot: { width: 9, height: 9, borderRadius: 5 },
-  metaText: { color: SUBTEXT, fontSize: 13, fontWeight: '500' },
-  commitRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
-  commitAvatar: {
-    width: 28, height: 28, borderRadius: 8,
-    backgroundColor: '#c4a47c', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  commitAvatarText: { fontSize: 13, fontWeight: '700', color: '#1a0f00' },
-  commitMsg: { color: TEXT, fontSize: 14, flex: 1, opacity: 0.85 },
+// ─── Main Layout Styles ───────────────────────────────────────────────────────
 
-  // Agent picker
-  agentPickerHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  agentBackBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  agentBackText: { color: ACCENT, fontSize: 16, fontWeight: '600' },
-  agentPickerTitle: { color: SUBTEXT, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  agentPickerRepo: { color: TEXT, fontSize: 20, fontWeight: '700', letterSpacing: -0.3, marginBottom: 4 },
-  agentCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: CARD_BG, borderRadius: 14,
-    borderWidth: 1, borderColor: CARD_BORDER,
-    padding: 14, gap: 14,
-  },
-  agentLogo: { width: 44, height: 44, borderRadius: 10 },
-  agentLabel: { color: TEXT, fontSize: 17, fontWeight: '600', letterSpacing: -0.3 },
-  agentDesc: { color: SUBTEXT, fontSize: 13, marginTop: 2 },
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F2F2F7' },
 
-  // Empty state
-  emptyState: {
-    alignItems: 'center', paddingVertical: 40,
-  },
-  emptyTitle: { color: TEXT, fontSize: 17, fontWeight: '600', letterSpacing: -0.2 },
-  emptyText: { color: SUBTEXT, fontSize: 14, marginTop: 6, textAlign: 'center' },
-
-  // Modal / sandbox picker
-  modalBackdrop: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalSheet: {
-    backgroundColor: '#0f1a0f',
-    borderTopWidth: 1, borderTopColor: CARD_BORDER,
-    borderTopLeftRadius: 16, borderTopRightRadius: 16,
-    paddingTop: 12, paddingHorizontal: 16, paddingBottom: 40,
-  },
-  modalHandle: {
-    width: 36, height: 4, borderRadius: 2,
-    backgroundColor: DIM, alignSelf: 'center', marginBottom: 16, opacity: 0.4,
-  },
-  modalHeaderRow: {
+  bannerImg: { width: '100%', flexDirection: 'column' },
+  topBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 4, marginBottom: 16,
+    paddingHorizontal: 16, paddingTop: 10,
   },
-  modalTitle: {
-    color: SUBTEXT, fontSize: 13, fontWeight: '700',
-    textTransform: 'uppercase', letterSpacing: 0.5,
-  },
-  sandboxRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: CARD_BG, borderRadius: 12,
-    borderWidth: 1, borderColor: CARD_BORDER,
-    padding: 12, gap: 10,
-  },
-  sandboxRowLabel: { color: TEXT, fontSize: 15, fontWeight: '600' },
-  sandboxRowSub: { color: SUBTEXT, fontSize: 12, marginTop: 2 },
-  dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  scanBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: ACCENT, borderRadius: 12,
-    paddingVertical: 14, marginTop: 16,
-  },
-  scanBtnText: { color: '#0f1a0f', fontSize: 16, fontWeight: '700' },
+  permissionsTitle: { fontSize: 28, fontWeight: '800', color: '#004410', letterSpacing: -0.5 },
+  reposTitle: { fontSize: 28, fontWeight: '800', color: '#004410', letterSpacing: -0.5 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  grassTitle: { fontSize: 22, fontWeight: '700', color: '#004410', letterSpacing: -0.3 },
+  betaBadge: { backgroundColor: 'rgba(52, 199, 89, 0.22)', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  betaText: { fontSize: 10, fontWeight: '700', color: '#006420', letterSpacing: 0.5 },
+  avatarWrap: { width: 36, height: 36, borderRadius: 18, overflow: 'hidden', backgroundColor: '#E8C9A0' },
+  avatarImg: { width: 36, height: 36 },
 
-  // Swipe-to-delete
-  deleteBtn: {
-    position: 'absolute', right: 0, top: 0, bottom: 0, width: DELETE_WIDTH,
-    backgroundColor: '#e53935', justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12,
+  getMoreCard: { marginHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#ACDFB6', overflow: 'hidden' },
+  getMoreInner: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: 12, position: 'relative', zIndex: 1 },
+  getMoreIconWrap: { width: 52, height: 52, borderRadius: 12, overflow: 'hidden', backgroundColor: 'rgba(230, 255, 235, 0.6)' },
+  getMoreIcon: { width: 52, height: 52 },
+  getMoreTextWrap: { flex: 1 },
+  getMoreTitle: { fontSize: 14, fontWeight: '700', color: '#1C1C1E', marginBottom: 3 },
+  getMoreSub: { fontSize: 12, color: '#3C3C43', lineHeight: 17 },
+
+  tabsBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 14 },
+  tabPillsGroup: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.82)', borderRadius: 22, padding: 3 },
+  tabPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 19, gap: 5 },
+  tabPillActive: { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 3, elevation: 2 },
+  vmDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1 },
+  vmDotActive: { backgroundColor: '#00FF33', borderColor: '#004D13' },
+  vmDotInactive: { backgroundColor: '#C7C7CC', borderColor: '#AEAEB2' },
+  tabPillText: { fontSize: 13, fontWeight: '500', color: '#6C6C70' },
+  tabPillTextActive: { color: '#1C1C1E', fontWeight: '600' },
+  tabAddText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF', paddingHorizontal: 4, textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+
+  challengeSection: { paddingVertical: 10 },
+  carouselList: { height: 118, marginHorizontal: 14 },
+  challengeCard: { width: CARD_W, height: 110, flexDirection: 'row', alignItems: 'center', borderRadius: 20, borderWidth: 1, borderColor: '#A7D7B3', padding: 14, gap: 12, overflow: 'hidden', position: 'relative', marginRight: 10 },
+  challengeInsetShadow: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 8, backgroundColor: 'rgba(255,255,255,0.40)', borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
+  challengeIconCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.55)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  challengeIcon: { width: 34, height: 34 },
+  challengeBody: { flex: 1 },
+  challengeHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
+  challengeTitle: { fontSize: 15, fontWeight: '700', color: '#1C1C1E' },
+  challengeCount: { fontSize: 14, fontWeight: '600', color: '#1C1C1E' },
+  challengeSub: { fontSize: 12, color: '#3C5A40', marginBottom: 8, lineHeight: 16 },
+  progressTrack: { height: 5, backgroundColor: 'rgba(0,0,0,0.10)', borderRadius: 3, overflow: 'hidden' },
+  progressFill: { width: '4%', height: '100%', backgroundColor: '#34C759', borderRadius: 3 },
+
+  sectionHeader: { fontSize: 11, fontWeight: '600', color: '#8E8E93', letterSpacing: 0.8, paddingHorizontal: 14, marginBottom: 8, marginTop: 2 },
+  threadCard: { backgroundColor: '#FFFFFF', marginHorizontal: 14, borderRadius: 14, padding: 14, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1 },
+  threadTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
+  ccbaBadge: { borderRadius: 30, borderWidth: 1, borderColor: '#39CE5E', backgroundColor: '#DFFFE7', paddingHorizontal: 8, paddingVertical: 2 },
+  ccbaText: { fontSize: 10, fontWeight: '700', color: '#1A7A35', letterSpacing: 0.3 },
+  threadTime: { fontSize: 11, color: '#8E8E93' },
+  threadTitle: { fontSize: 14, fontWeight: '600', color: '#1C1C1E', marginBottom: 3 },
+  threadMeta: { fontSize: 12, color: '#8E8E93' },
+
+  // ── iOS 18 Glass Bottom Nav ──
+  bottomNav: {
+    alignItems: 'center',
+    paddingTop: 8,
+    backgroundColor: 'transparent',
   },
-  deleteBtnInner: {
-    flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center', gap: 2,
+  bottomNavBlur: {
+    borderRadius: 50,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.55)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 12,
   },
-  deleteBtnText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  bottomNavPill: {
+    flexDirection: 'row',
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    gap: 2,
+  },
+  navItem: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    gap: 3,
+    borderRadius: 70,
+  },
+  navItemActive: {
+    borderRadius: 70,
+    backgroundColor: 'rgba(255, 255, 255, 0.70)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  navIconWrap: {
+    width: 34,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  navImg: { width: 24, height: 24 },
+  notifBadge: {
+    position: 'absolute', top: -3, right: -4, minWidth: 16, height: 16,
+    borderRadius: 8, backgroundColor: '#FF3B30', borderWidth: 1.5, borderColor: '#FFFFFF',
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+  },
+  notifCount: { fontSize: 9, fontWeight: '800', color: '#FFFFFF', lineHeight: 12 },
+  navLabel: { fontSize: 10, fontWeight: '500', color: '#8E8E93', letterSpacing: 0.3 },
+  navLabelActive: { color: '#088120', fontWeight: '700' },
+});
+
+// ─── Repo Screen Styles ───────────────────────────────────────────────────────
+
+const repoStyles = StyleSheet.create({
+  actionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 14, marginTop: 10, marginBottom: 14 },
+  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 22, borderWidth: 1, borderColor: '#C7C7CC', backgroundColor: '#FFFFFF', paddingVertical: 10, paddingHorizontal: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+  actionBtnText: { fontSize: 13, fontWeight: '500', color: '#1C1C1E' },
+  deleteBg: { ...StyleSheet.absoluteFillObject, backgroundColor: '#FF3B30', borderRadius: 14, marginHorizontal: 14, marginBottom: 8, alignItems: 'flex-end', justifyContent: 'center', paddingRight: 22 },
+  deletedText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15, letterSpacing: 0.2 },
+  card: { backgroundColor: '#FFFFFF', marginHorizontal: 14, borderRadius: 14, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 1 },
+  cardLeft: { flex: 1, marginRight: 10 },
+  repoName: { fontSize: 15, fontWeight: '600', color: '#1C1C1E', marginBottom: 5 },
+  repoBranch: { fontSize: 12, color: '#8E8E93' },
+  repoBadge: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
+  repoBadgeText: { fontSize: 12, fontWeight: '600' },
+  swipeHint: { textAlign: 'center', fontSize: 13, color: '#8E8E93', marginTop: 8, marginBottom: 10 },
+});
+
+// ─── Profile Menu Styles ──────────────────────────────────────────────────────
+
+const profileStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
+  menu: { position: 'absolute', backgroundColor: '#1e2a1e', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(100,140,100,0.2)', paddingVertical: 6, paddingHorizontal: 4, minWidth: 150, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8 },
+  logoutText: { fontSize: 16, fontWeight: '600', color: '#ef4444' },
 });

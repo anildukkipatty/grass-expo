@@ -6,6 +6,7 @@ import { GetMoreSheet } from '@/components/GetMoreSheet';
 export default function GetMoreScreen() {
   const router = useRouter();
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [sheetInitialView] = useState<"home" | "connect-agent" | "connect-laptop" | "add-repository">("home");
 
   // Open the sheet shortly after the screen mounts so the
   // slide-up animation is visible.
@@ -21,7 +22,7 @@ export default function GetMoreScreen() {
 
   return (
     <View style={styles.container}>
-      <GetMoreSheet visible={sheetVisible} onClose={handleClose} />
+      <GetMoreSheet visible={sheetVisible} onClose={handleClose} initialView={sheetInitialView} />
     </View>
   );
 }
