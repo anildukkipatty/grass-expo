@@ -1,5 +1,7 @@
 import { requestOtp, verifyOtp } from "@/api/auth";
-import { saveAuth } from "@/store/auth-store";
+import { heartbeat, requestContainer } from "@/api/containers";
+import { saveAuth, getToken } from "@/store/auth-store";
+import { saveUrl } from "@/store/url-store";
 import { NationalPark } from "@/constants/theme";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -11,7 +13,6 @@ import {
   Animated,
   Dimensions,
   FlatList,
-  ImageBackground,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -51,58 +52,127 @@ const CAROUSEL_CARDS = [
   },
 ];
 
-const SETUP_DURATION = 5000; // ms
-
 // ─── SetupLoadingModal ────────────────────────────────────────────────────────
 
 function SetupLoadingModal({
   visible,
-  onComplete,
+  userType,
 }: {
   visible: boolean;
-  onComplete: () => void;
+  userType: "new" | "old";
 }) {
   const router = useRouter();
-  const progressAnim = useRef(new Animated.Value(0)).current;
   const spinAnim = useRef(new Animated.Value(0)).current;
-  const [completed, setCompleted] = useState(false);
+  const progressAnim = useRef(new Animated.Value(0)).current;
   const [activeIndex, setActiveIndex] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
-  // Reset & start whenever modal opens
+  // Call container APIs when modal opens
   useEffect(() => {
     if (!visible) return;
-    setCompleted(false);
+    setError(null);
     setActiveIndex(0);
     progressAnim.setValue(0);
 
-    // Progress bar fill
+    let cancelled = false;
     const progressTimer = Animated.timing(progressAnim, {
-      toValue: 1,
-      duration: SETUP_DURATION,
+      toValue: 0.95,
+      duration: 18000,
       useNativeDriver: false,
     });
-    progressTimer.start(({ finished }) => {
-      if (finished) setCompleted(true);
-    });
+    progressTimer.start();
 
-    // Advance carousel automatically every ~1.6 s
+    const finishAndRedirect = (path: "/push-commit" | "/navbar") => {
+      Animated.timing(progressAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: false,
+      }).start(() => {
+        if (!cancelled) {
+          router.replace(path);
+        }
+      });
+    };
+
+    async function provision() {
+      const token = await getToken();
+      if (!token || cancelled) return;
+
+      if (userType === "new") {
+        // New user: request container directly
+        const result = await requestContainer(token);
+        if (cancelled) return;
+        if (result.ok) {
+          if (result.data.url) await saveUrl(result.data.url);
+          finishAndRedirect("/push-commit");
+        } else {
+          progressTimer.stop();
+          setError(result.error);
+        }
+      } else {
+        // Old user: check heartbeat first
+        const hb = await heartbeat(token);
+        if (cancelled) return;
+
+        if (hb.ok && hb.data.container === "running") {
+          finishAndRedirect("/navbar");
+          return;
+        }
+
+        // If provisioning, poll heartbeat every 2s for 10s before requesting
+        if (hb.ok && hb.data.container === "provisioning") {
+          const pollStart = Date.now();
+          while (Date.now() - pollStart < 10000) {
+            await new Promise((r) => setTimeout(r, 2000));
+            if (cancelled) return;
+            const poll = await heartbeat(token);
+            if (cancelled) return;
+            if (poll.ok && poll.data.container === "running") {
+              finishAndRedirect("/navbar");
+              return;
+            }
+            if (poll.ok && poll.data.container !== "provisioning") {
+              break; // stopped/not found — fall through to request
+            }
+          }
+        }
+
+        if (cancelled) return;
+
+        // Container stopped/not found/provisioning timed out — request/restart it
+        const result = await requestContainer(token);
+        if (cancelled) return;
+        if (result.ok) {
+          if (result.data.url) await saveUrl(result.data.url);
+          finishAndRedirect("/navbar");
+        } else {
+          progressTimer.stop();
+          setError(result.error);
+        }
+      }
+    }
+
+    provision();
+
+    // Advance carousel automatically
     let idx = 0;
     const cardInterval = setInterval(() => {
       idx = (idx + 1) % CAROUSEL_CARDS.length;
       setActiveIndex(idx);
       flatListRef.current?.scrollToIndex({ index: idx, animated: true });
-    }, SETUP_DURATION / CAROUSEL_CARDS.length);
+    }, 2000);
 
     return () => {
+      cancelled = true;
       progressTimer.stop();
       clearInterval(cardInterval);
     };
-  }, [visible]);
+  }, [visible, userType, router, progressAnim]);
 
   // Spinner rotation loop
   useEffect(() => {
-    if (!visible || completed) return;
+    if (!visible) return;
     const loop = Animated.loop(
       Animated.timing(spinAnim, {
         toValue: 1,
@@ -112,7 +182,7 @@ function SetupLoadingModal({
     );
     loop.start();
     return () => loop.stop();
-  }, [visible, completed]);
+  }, [visible]);
 
   const spinDeg = spinAnim.interpolate({
     inputRange: [0, 1],
@@ -128,6 +198,11 @@ function SetupLoadingModal({
     const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
     setActiveIndex(idx);
   };
+
+  const title =
+    userType === "new"
+      ? "Setting up\nyour virtual VM"
+      : "Starting your\nContainer";
 
   return (
     <Modal
@@ -152,81 +227,60 @@ function SetupLoadingModal({
 
         <SafeAreaView style={setup.safeArea}>
           {/* Title */}
-          <Text style={setup.title}>{"Setting up\nyour GrassVM"}</Text>
+          <Text style={setup.title}>{title}</Text>
 
           {/* Card carousel — centered vertically */}
-          {!completed && (
-            <View style={{ flex: 1, justifyContent: "center" }}>
-              <FlatList
-                ref={flatListRef}
-                data={CAROUSEL_CARDS}
-                keyExtractor={(_, i) => String(i)}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={handleScroll}
-                style={setup.carouselList}
-                getItemLayout={(_, index) => ({
-                  length: SCREEN_WIDTH,
-                  offset: SCREEN_WIDTH * index,
-                  index,
-                })}
-                renderItem={({ item }) => (
-                  <View style={setup.cardWrapper}>
-                    <View style={setup.card}>
-                      <Image
-                        source={require("@/assets/images/setup/tabler-power.png")}
-                        style={setup.cardIcon}
-                        contentFit="contain"
-                      />
-                      <View style={setup.cardText}>
-                        <Text style={setup.cardTitle} numberOfLines={1}>
-                          {item.title}
-                        </Text>
-                        <Text style={setup.cardBody}>{item.body}</Text>
-                      </View>
+          <View style={{ flex: 1, justifyContent: "center" }}>
+            <FlatList
+              ref={flatListRef}
+              data={CAROUSEL_CARDS}
+              keyExtractor={(_, i) => String(i)}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={handleScroll}
+              style={setup.carouselList}
+              getItemLayout={(_, index) => ({
+                length: SCREEN_WIDTH,
+                offset: SCREEN_WIDTH * index,
+                index,
+              })}
+              renderItem={({ item }) => (
+                <View style={setup.cardWrapper}>
+                  <View style={setup.card}>
+                    <Image
+                      source={require("@/assets/images/setup/tabler-power.png")}
+                      style={setup.cardIcon}
+                      contentFit="contain"
+                    />
+                    <View style={setup.cardText}>
+                      <Text style={setup.cardTitle} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <Text style={setup.cardBody}>{item.body}</Text>
                     </View>
                   </View>
-                )}
-              />
+                </View>
+              )}
+            />
 
-              {/* Pagination dots */}
-              <View style={setup.dotsRow}>
-                {CAROUSEL_CARDS.map((_, i) => (
-                  <View
-                    key={i}
-                    style={[setup.dot, i === activeIndex && setup.dotActive]}
-                  />
-                ))}
-              </View>
+            {/* Pagination dots */}
+            <View style={setup.dotsRow}>
+              {CAROUSEL_CARDS.map((_, i) => (
+                <View
+                  key={i}
+                  style={[setup.dot, i === activeIndex && setup.dotActive]}
+                />
+              ))}
             </View>
-          )}
+          </View>
 
-          {/* Status & progress */}
-
-          {completed && <View style={{ flex: 1 }} />}
+          {/* Status */}
           <View style={setup.bottomArea}>
-            {completed ? (
-              <TouchableOpacity
-                style={setup.commitButtonOuter}
-                onPress={() => {
-                  onComplete();
-                  router.push("/push-commit");
-                }}
-                activeOpacity={0.88}
-              >
-                <LinearGradient
-                  colors={["#00FF40", "#E0FF47"]}
-                  locations={[0.2806, 1]}
-                  start={{ x: 0.17, y: 0.12 }}
-                  end={{ x: 0.83, y: 0.88 }}
-                  style={setup.commitButton}
-                >
-                  <Text style={setup.commitButtonText}>
-                    Push your first commit →
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+            {error ? (
+              <Text style={[setup.statusText, { color: "#ef4444", textAlign: "center" }]}>
+                {error}
+              </Text>
             ) : (
               <>
                 <View style={setup.statusRow}>
@@ -238,12 +292,14 @@ function SetupLoadingModal({
                   >
                     ✳
                   </Animated.Text>
-                  <Text style={setup.statusText}>Planting the seeds...</Text>
+                  <Text style={setup.statusText}>
+                    {userType === "new"
+                      ? "Planting the seeds..."
+                      : "Waking up your container..."}
+                  </Text>
                 </View>
                 <View style={setup.progressTrack}>
-                  <Animated.View
-                    style={[setup.progressFill, { width: progressWidth }]}
-                  />
+                  <Animated.View style={[setup.progressFill, { width: progressWidth }]} />
                 </View>
               </>
             )}
@@ -265,7 +321,7 @@ function AuthSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  onVerified: () => void;
+  onVerified: (userType: "new" | "old") => void;
 }) {
   const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
@@ -366,7 +422,7 @@ function AuthSheet({
 
     if (result.ok) {
       await saveAuth(result.data.token, result.data.user);
-      onVerified();
+      onVerified(result.data.user.userType);
     } else {
       Alert.alert("Verification Failed", result.error);
     }
@@ -527,11 +583,12 @@ function AuthSheet({
                         styles.ctaButton,
                         loading && { opacity: 0.7 },
                       ]}
-                      colors={["#00FF40", "#E0FF47"]}
+                      colors={["#00FF26", "#E0FF47"]}
                       locations={[0.2806, 1]}
-                      start={{ x: 0.85, y: 0.15 }}
-                      end={{ x: 0.15, y: 0.85 }}
+                      start={{ x: 0.828, y: 0.123 }}
+                      end={{ x: 0.172, y: 0.878 }}
                     >
+                      <View style={styles.ctaButtonInsetHighlight} pointerEvents="none" />
                       {loading ? (
                         <ActivityIndicator color="#0a1a00" />
                       ) : (
@@ -564,30 +621,29 @@ function AuthSheet({
 export default function WelcomeScreen() {
   const [sheetVisible, setSheetVisible] = useState(false);
   const [setupVisible, setSetupVisible] = useState(false);
+  const [userType, setUserType] = useState<"new" | "old">("new");
 
-  const handleVerified = () => {
+  const handleVerified = (type: "new" | "old") => {
+    setUserType(type);
     setSheetVisible(false);
     setTimeout(() => setSetupVisible(true), 300);
   };
 
   return (
     <View style={styles.container}>
-      <ImageBackground
-        source={require("@/assets/images/banner-image.png")}
-        style={styles.background}
-        resizeMode="cover"
-      >
-        {/* Multi-layer overlay simulating a top-to-bottom darkening gradient */}
-        {/* <View style={styles.gradientLayer1} />
-        <View style={styles.gradientLayer2} />
-        <View style={styles.gradientLayer3} /> */}
+      <View style={styles.background}>
+        <Image
+          source={require("@/assets/images/banner-image.png")}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+        />
 
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.content}>
             <Image
               source={require("@/assets/images/home-screen/welcome-text-background-image.png")}
               style={styles.logo}
-              contentFit="cover"
+              contentFit="contain"
             />
 
             <Text style={styles.title}>{"Welcome\nto Grass"}</Text>
@@ -599,20 +655,22 @@ export default function WelcomeScreen() {
             <TouchableOpacity
               onPress={() => setSheetVisible(true)}
               activeOpacity={0.88}
+              style={styles.buttonShadow}
             >
               <LinearGradient
                 style={styles.button}
                 colors={["#00FF26", "#E0FF47"]}
                 locations={[0.2806, 1]}
-                start={{ x: 0.85, y: 0.15 }}
-                end={{ x: 0.15, y: 0.85 }}
+                start={{ x: 0.828, y: 0.123 }}
+                end={{ x: 0.172, y: 0.878 }}
               >
+                <View style={styles.buttonInsetHighlight} pointerEvents="none" />
                 <Text style={styles.buttonText}>Get started →</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
-      </ImageBackground>
+      </View>
 
       <AuthSheet
         visible={sheetVisible}
@@ -622,7 +680,7 @@ export default function WelcomeScreen() {
 
       <SetupLoadingModal
         visible={setupVisible}
-        onComplete={() => setSetupVisible(false)}
+        userType={userType}
       />
     </View>
   );
@@ -633,7 +691,6 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    fontFamily: "NationalPark-Regular",
   },
   background: {
     flex: 1,
@@ -667,19 +724,19 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   content: {
-    paddingHorizontal: 28,
-    paddingBottom: 32,
+    paddingHorizontal: 30,
+    // paddingBottom: 30,
   },
   logo: {
     width: 69,
     height: 69,
-    borderRadius: 20,
-    marginBottom: 20,
+    // borderRadius: 20,
+    // marginBottom: 20,
   },
   title: {
-    fontFamily: NationalPark.bold,
+    fontFamily: NationalPark.semiBold,
     fontSize: 48,
-    fontWeight: "600",
+    fontWeight: 600,
     color: "#E5FFEC",
     lineHeight: 48,
     letterSpacing: -1,
@@ -689,14 +746,34 @@ const styles = StyleSheet.create({
     fontFamily: NationalPark.semiBold,
     fontSize: 20,
     fontWeight: 600,
-    marginBottom: 25,
+    marginBottom:25
+  },
+  buttonShadow: {
+    borderRadius: 63,
+    shadowColor: "#00FF26",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 12,
   },
   button: {
     borderRadius: 63,
+    borderWidth: 2,
     borderColor: "#00CC1E",
     paddingVertical: 18,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  buttonInsetHighlight: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.40)",
+    borderTopLeftRadius: 63,
+    borderTopRightRadius: 63,
   },
   buttonText: {
     color: "#000",
@@ -785,19 +862,30 @@ const styles = StyleSheet.create({
   ctaButtonShadow: {
     marginTop: 28,
     borderRadius: 63,
-    shadowColor: "rgba(0, 255, 38, 1)",
+    shadowColor: "#00FF26",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 24,
-    elevation: 8,
+    elevation: 12,
   },
   ctaButton: {
     borderRadius: 63,
-    borderWidth: 1,
-    borderColor: "#00CC33",
+    borderWidth: 2,
+    borderColor: "#00CC1E",
     paddingVertical: 17,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  ctaButtonInsetHighlight: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.40)",
+    borderTopLeftRadius: 63,
+    borderTopRightRadius: 63,
   },
   ctaButtonText: {
     fontSize: 17,

@@ -6,6 +6,7 @@ const USER_KEY = "auth_user";
 export type AuthUser = {
   id: string;
   email: string;
+  userType: "new" | "old";
 };
 
 export async function saveAuth(token: string, user: AuthUser) {

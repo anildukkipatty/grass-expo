@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { Image } from "expo-image";
 import * as Linking from "expo-linking";
 import { LinearGradient } from "expo-linear-gradient";
+import { saveUrl } from "@/store/url-store";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -31,9 +33,10 @@ const OPENCODE_AUTH_URL = "opencode.ai/oauth/device?code=xxxxxxxxxxxxxxxx";
 interface Props {
   visible: boolean;
   onClose: () => void;
+  onUrlDetected?: (url: string) => void | Promise<void>;
 }
 
-export function GetMoreSheet({ visible, onClose }: Props) {
+export function GetMoreSheet({ visible, onClose, onUrlDetected }: Props) {
   const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const panY = useRef(new Animated.Value(0)).current;
@@ -42,6 +45,11 @@ export function GetMoreSheet({ visible, onClose }: Props) {
   const [claudeCode, setClaudeCode] = useState("");
   const [opencodeCode, setOpencodeCode] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [scannedQr, setScannedQr] = useState<string | null>(null);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scannerPaused, setScannerPaused] = useState(false);
+  const scanLockRef = useRef(false);
 
   const authCode = activeTab === "claude" ? claudeCode : opencodeCode;
   const setAuthCode = activeTab === "claude" ? setClaudeCode : setOpencodeCode;
@@ -50,6 +58,27 @@ export function GetMoreSheet({ visible, onClose }: Props) {
   // Keep a stable ref to onClose for use inside PanResponder
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  useEffect(() => {
+    if (!visible || currentView !== "connect-laptop") return;
+    if (cameraPermission?.granted) return;
+    if (cameraPermission?.canAskAgain === false) return;
+    void requestCameraPermission();
+  }, [
+    visible,
+    currentView,
+    cameraPermission?.granted,
+    cameraPermission?.canAskAgain,
+    requestCameraPermission,
+  ]);
+
+  useEffect(() => {
+    if (!visible || currentView !== "connect-laptop") return;
+    setScannerPaused(false);
+    setScannedQr(null);
+    setScanBusy(false);
+    scanLockRef.current = false;
+  }, [visible, currentView]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -137,6 +166,93 @@ export function GetMoreSheet({ visible, onClose }: Props) {
   function handleCopyTerminalCommand() {
     Clipboard.setString("npx grass start");
     Alert.alert("Copied!", "Command copied to clipboard.");
+  }
+
+  function normalizeVmUrl(rawValue: string): string | null {
+    const raw = rawValue.trim();
+    if (!raw) return null;
+
+    const hasScheme = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(raw);
+    const candidate = hasScheme ? raw : `https://${raw}`;
+
+    try {
+      const parsed = new URL(candidate);
+      if (parsed.protocol === "ws:") parsed.protocol = "http:";
+      if (parsed.protocol === "wss:") parsed.protocol = "https:";
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return null;
+      }
+      return parsed.toString().replace(/\/$/, "");
+    } catch {
+      return null;
+    }
+  }
+
+  function extractVmUrlFromQr(payload: string): string | null {
+    const trimmed = payload.trim();
+    if (!trimmed) return null;
+
+    const direct = normalizeVmUrl(trimmed);
+    if (direct) return direct;
+
+    try {
+      const parsed = new URL(trimmed);
+      const queryUrl =
+        parsed.searchParams.get("url") ??
+        parsed.searchParams.get("server") ??
+        parsed.searchParams.get("host");
+      if (queryUrl) {
+        const normalizedQueryUrl = normalizeVmUrl(decodeURIComponent(queryUrl));
+        if (normalizedQueryUrl) return normalizedQueryUrl;
+      }
+    } catch {
+      // Continue to regex extraction fallback.
+    }
+
+    const embedded = trimmed.match(/((?:https?|wss?):\/\/[^\s"'<>]+)/i)?.[1];
+    if (embedded) {
+      return normalizeVmUrl(embedded);
+    }
+
+    return null;
+  }
+
+  function confirmAddScannedUrl(url: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      Alert.alert(
+        "Add server?",
+        `Detected server:\n${url}\n\nDo you want to add this VM?`,
+        [
+          { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+          { text: "Add", onPress: () => resolve(true) },
+        ],
+      );
+    });
+  }
+
+  async function handleQrScanned(data: string) {
+    if (scanLockRef.current || scanBusy) return;
+    scanLockRef.current = true;
+    setScanBusy(true);
+    setScannerPaused(true);
+
+    const normalizedUrl = extractVmUrlFromQr(data);
+    if (!normalizedUrl) {
+      Alert.alert("Invalid QR", "This QR does not contain a valid server URL.");
+      return;
+    }
+
+    if (scannedQr === normalizedUrl) {
+      return;
+    }
+
+    const confirmed = await confirmAddScannedUrl(normalizedUrl);
+    if (!confirmed) return;
+
+    await saveUrl(normalizedUrl);
+    setScannedQr(normalizedUrl);
+    await onUrlDetected?.(normalizedUrl);
+    onClose();
   }
 
   // ── Home view ────────────────────────────────────────────────────────────────
@@ -448,12 +564,51 @@ export function GetMoreSheet({ visible, onClose }: Props) {
         </View>
 
         <View style={styles.qrImageContainer}>
-          <Image
-            source={require("@/assets/images/get-more/connect-laptop.png")}
-            style={styles.qrImage}
-            contentFit="cover"
-          />
-          <Text style={styles.qrCaption}>POINT THE CAMERA AT THE QR</Text>
+          {cameraPermission?.granted && !scannerPaused ? (
+            <CameraView
+              style={styles.qrCamera}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+              onBarcodeScanned={({ data }) => {
+                void handleQrScanned(data);
+              }}
+            />
+          ) : cameraPermission?.granted ? (
+            <View style={styles.qrPausedState}>
+              <Ionicons name="pause-circle-outline" size={32} color="#7AAA58" />
+              <Text style={styles.qrPermissionText}>Scanner paused after detection</Text>
+            </View>
+          ) : (
+            <View style={styles.qrPermissionState}>
+              <Ionicons name="camera-outline" size={32} color="#7AAA58" />
+              <Text style={styles.qrPermissionText}>Allow camera access to scan the QR code</Text>
+              <TouchableOpacity
+                style={styles.qrPermissionBtn}
+                onPress={() => requestCameraPermission()}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.qrPermissionBtnText}>Enable Camera</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <Text style={styles.qrCaption}>
+            {cameraPermission?.granted
+              ? "POINT THE CAMERA AT THE QR"
+              : "ENABLE CAMERA TO SCAN QR"}
+          </Text>
+          {cameraPermission?.granted && scannerPaused && (
+            <TouchableOpacity
+              style={styles.scanAgainBtn}
+              onPress={() => {
+                scanLockRef.current = false;
+                setScanBusy(false);
+                setScannerPaused(false);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.scanAgainBtnText}>Scan again</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     );
@@ -928,9 +1083,45 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#000000",
   },
-  qrImage: {
+  qrCamera: {
     width: "100%",
     aspectRatio: 1.25,
+  },
+  qrPermissionState: {
+    width: "100%",
+    aspectRatio: 1.25,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "#0A0A0A",
+    paddingHorizontal: 18,
+  },
+  qrPausedState: {
+    width: "100%",
+    aspectRatio: 1.25,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "#0A0A0A",
+    paddingHorizontal: 18,
+  },
+  qrPermissionText: {
+    fontSize: 13,
+    color: "#E5E7EB",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  qrPermissionBtn: {
+    marginTop: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: "#1A5200",
+  },
+  qrPermissionBtnText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "700",
   },
   qrCaption: {
     fontSize: 11,
@@ -940,6 +1131,20 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: 12,
     backgroundColor: "#ffffff",
+  },
+  scanAgainBtn: {
+    alignSelf: "center",
+    marginBottom: 12,
+    marginTop: -2,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: "#1A5200",
+  },
+  scanAgainBtnText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "700",
   },
 
   // ── Add repository view ───────────────────────────────────────

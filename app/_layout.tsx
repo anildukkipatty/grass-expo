@@ -1,5 +1,6 @@
 import { PermissionModal } from "@/components/PermissionModal";
-import { GrassColors } from "@/constants/theme";
+import { GrassColors, NationalPark } from "@/constants/theme";
+import { useFonts } from "expo-font";
 import {
   getConnectedUrls,
   getPermissions,
@@ -9,7 +10,6 @@ import {
   subscribeToPermissions,
 } from "@/store/connection-store";
 import { useTheme } from "@/store/theme-store";
-import * as Font from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -22,7 +22,7 @@ SplashScreen.preventAutoHideAsync();
 // Apply National Park as the default font for all Text components
 const DefaultText = Text as any;
 if (DefaultText.defaultProps == null) DefaultText.defaultProps = {};
-DefaultText.defaultProps.style = {};
+DefaultText.defaultProps.style = { fontFamily: NationalPark.regular };
 
 // Tracks which server URLs currently have active connections so we can open
 // a permissions SSE for each one.
@@ -101,14 +101,14 @@ function GlobalPermissionsManager({ theme }: { theme: "light" | "dark" }) {
 export default function RootLayout() {
   const [theme] = useTheme();
   const c = GrassColors[theme];
-  const [fontsLoaded] = Font.useFonts({
-    'NationalPark-ExtraLight': require('../assets/fonts/National_Park/static/NationalPark-ExtraLight.ttf'),
-    'NationalPark-Light':      require('../assets/fonts/National_Park/static/NationalPark-Light.ttf'),
-    'NationalPark-Regular':    require('../assets/fonts/National_Park/static/NationalPark-Regular.ttf'),
-    'NationalPark-Medium':     require('../assets/fonts/National_Park/static/NationalPark-Medium.ttf'),
-    'NationalPark-SemiBold':   require('../assets/fonts/National_Park/static/NationalPark-SemiBold.ttf'),
-    'NationalPark-Bold':       require('../assets/fonts/National_Park/static/NationalPark-Bold.ttf'),
-    'NationalPark-ExtraBold':  require('../assets/fonts/National_Park/static/NationalPark-ExtraBold.ttf'),
+  const [fontsLoaded] = useFonts({
+    [NationalPark.extraLight]: require("../assets/fonts/National_Park/static/NationalPark-ExtraLight.ttf"),
+    [NationalPark.light]:      require("../assets/fonts/National_Park/static/NationalPark-Light.ttf"),
+    [NationalPark.regular]:    require("../assets/fonts/National_Park/static/NationalPark-Regular.ttf"),
+    [NationalPark.medium]:     require("../assets/fonts/National_Park/static/NationalPark-Medium.ttf"),
+    [NationalPark.semiBold]:   require("../assets/fonts/National_Park/static/NationalPark-SemiBold.ttf"),
+    [NationalPark.bold]:       require("../assets/fonts/National_Park/static/NationalPark-Bold.ttf"),
+    [NationalPark.extraBold]:  require("../assets/fonts/National_Park/static/NationalPark-ExtraBold.ttf"),
   });
 
   useEffect(() => {
@@ -139,6 +139,7 @@ export default function RootLayout() {
         <Stack.Screen name="project" options={{ headerShown: false }} />
         <Stack.Screen name="sessions" options={{ headerShown: false }} />
         <Stack.Screen name="chat" options={{ headerShown: false }} />
+        <Stack.Screen name="container-setup" options={{ headerShown: false }} />
         <Stack.Screen name="push-commit" options={{ headerShown: false }} />
         <Stack.Screen
           name="diffs"

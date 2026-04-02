@@ -40,3 +40,12 @@ export async function removeUrl(url: string): Promise<void> {
   const filtered = urls.filter(u => u !== url);
   await AsyncStorage.setItem(URLS_KEY, JSON.stringify(filtered));
 }
+
+export async function clearUrls(): Promise<void> {
+  // Write empty arrays first to avoid any stale reads racing remove calls.
+  await AsyncStorage.multiSet([
+    [URLS_KEY, JSON.stringify([])],
+    [OLD_URLS_KEY, JSON.stringify([])],
+  ]);
+  await AsyncStorage.multiRemove([URLS_KEY, OLD_URLS_KEY]);
+}
