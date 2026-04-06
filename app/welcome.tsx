@@ -2,7 +2,7 @@ import { requestOtp, verifyOtp } from "@/api/auth";
 import { heartbeat, requestContainer } from "@/api/containers";
 import { NationalPark } from "@/constants/theme";
 import { getToken, saveAuth } from "@/store/auth-store";
-import { saveUrl } from "@/store/url-store";
+import { saveVmUrl } from "@/store/url-store";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -110,7 +110,7 @@ function SetupLoadingModal({
         const result = await requestContainer(token);
         if (cancelled) return;
         if (result.ok) {
-          if (result.data.url) await saveUrl(result.data.url);
+          if (result.data.url) await saveVmUrl(result.data.url);
           finishAndRedirect("/push-commit");
         } else {
           progressTimer.stop();
@@ -150,7 +150,7 @@ function SetupLoadingModal({
         const result = await requestContainer(token);
         if (cancelled) return;
         if (result.ok) {
-          if (result.data.url) await saveUrl(result.data.url);
+          if (result.data.url) await saveVmUrl(result.data.url);
           finishAndRedirect("/navbar");
         } else {
           progressTimer.stop();

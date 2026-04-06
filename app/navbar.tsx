@@ -9,7 +9,7 @@ import {
   listReposStore,
   openConnection,
 } from "@/store/connection-store";
-import { clearUrls, getUrls, removeUrl, saveUrl } from "@/store/url-store";
+import { clearUrls, getUrls, removeUrl, saveVmUrl } from "@/store/url-store";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Image as ExpoImage } from "expo-image";
@@ -608,10 +608,13 @@ export default function NavbarScreen() {
           backendPreviewUrl = hb.data.url;
         }
         if (backendPreviewUrl) {
+          console.log('[navbar] setting primaryVmUrl:', backendPreviewUrl);
           setPrimaryVmUrl(backendPreviewUrl);
-          await saveUrl(backendPreviewUrl);
+          await saveVmUrl(backendPreviewUrl);
         }
         const urls = await getUrls();
+        console.log('[navbar] urls from store after save:', JSON.stringify(urls));
+        console.log('[navbar] ordered urls:', JSON.stringify(orderVmUrls(urls, backendPreviewUrl)));
         if (!cancelled) {
           setVmUrls(orderVmUrls(urls, backendPreviewUrl));
         }

@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const URLS_KEY = 'grass_server_urls';
 const OLD_URLS_KEY = 'grass_ws_urls';
+const VM_URL_KEY = 'grass_vm_url';
 
 export async function getUrls(): Promise<string[]> {
   // One-time migration: convert old ws:// URLs to http://
@@ -35,6 +36,23 @@ export async function saveUrl(url: string): Promise<void> {
   }
 }
 
+/** Save a VM preview URL, replacing the previous VM URL in the list. */
+export async function saveVmUrl(url: string): Promise<void> {
+  const oldVmUrl = await AsyncStorage.getItem(VM_URL_KEY);
+  const urls = await getUrls();
+  console.log('[saveVmUrl] new url:', url);
+  console.log('[saveVmUrl] old VM url from key:', oldVmUrl);
+  console.log('[saveVmUrl] urls before filter:', JSON.stringify(urls));
+  const filtered = oldVmUrl ? urls.filter((u) => u !== oldVmUrl) : urls;
+  console.log('[saveVmUrl] urls after filter:', JSON.stringify(filtered));
+  if (!filtered.includes(url)) {
+    filtered.unshift(url);
+  }
+  console.log('[saveVmUrl] final urls:', JSON.stringify(filtered));
+  await AsyncStorage.setItem(VM_URL_KEY, url);
+  await AsyncStorage.setItem(URLS_KEY, JSON.stringify(filtered));
+}
+
 export async function removeUrl(url: string): Promise<void> {
   const urls = await getUrls();
   const filtered = urls.filter(u => u !== url);
@@ -47,5 +65,5 @@ export async function clearUrls(): Promise<void> {
     [URLS_KEY, JSON.stringify([])],
     [OLD_URLS_KEY, JSON.stringify([])],
   ]);
-  await AsyncStorage.multiRemove([URLS_KEY, OLD_URLS_KEY]);
+  await AsyncStorage.multiRemove([URLS_KEY, OLD_URLS_KEY, VM_URL_KEY]);
 }
