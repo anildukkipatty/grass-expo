@@ -50,6 +50,7 @@ export async function saveVmUrl(url: string): Promise<void> {
   }
   console.log('[saveVmUrl] final urls:', JSON.stringify(filtered));
   await AsyncStorage.setItem(VM_URL_KEY, url);
+  _cachedPrimaryVmUrl = url;
   await AsyncStorage.setItem(URLS_KEY, JSON.stringify(filtered));
 }
 
@@ -59,11 +60,43 @@ export async function removeUrl(url: string): Promise<void> {
   await AsyncStorage.setItem(URLS_KEY, JSON.stringify(filtered));
 }
 
+export const GRASS_VM_KEY = 'grassvm';
+
+export async function getPrimaryVmUrl(): Promise<string | null> {
+  return AsyncStorage.getItem(VM_URL_KEY);
+}
+
+let _cachedPrimaryVmUrl: string | null = null;
+
+export function getCachedPrimaryVmUrl(): string | null {
+  return _cachedPrimaryVmUrl;
+}
+
+export async function refreshPrimaryVmUrl(): Promise<string | null> {
+  _cachedPrimaryVmUrl = await AsyncStorage.getItem(VM_URL_KEY);
+  return _cachedPrimaryVmUrl;
+}
+
+export function resolveServerKey(url: string): string {
+  if (_cachedPrimaryVmUrl && url === _cachedPrimaryVmUrl) {
+    return GRASS_VM_KEY;
+  }
+  return url;
+}
+
+export function resolveServerUrl(key: string): string {
+  if (key === GRASS_VM_KEY && _cachedPrimaryVmUrl) {
+    return _cachedPrimaryVmUrl;
+  }
+  return key;
+}
+
 export async function clearUrls(): Promise<void> {
   // Write empty arrays first to avoid any stale reads racing remove calls.
   await AsyncStorage.multiSet([
     [URLS_KEY, JSON.stringify([])],
     [OLD_URLS_KEY, JSON.stringify([])],
   ]);
+  _cachedPrimaryVmUrl = null;
   await AsyncStorage.multiRemove([URLS_KEY, OLD_URLS_KEY, VM_URL_KEY]);
 }

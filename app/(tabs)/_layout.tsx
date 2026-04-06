@@ -2,7 +2,7 @@ import { GetMoreSheet } from "@/components/GetMoreSheet";
 import { AgentPickerSheet } from "@/components/NavBanner";
 import { NavbarProvider, orderVmUrls, useNavbar } from "@/contexts/navbar-context";
 import { getEntry, getRepoDetailsStore, listReposStore } from "@/store/connection-store";
-import { getUrls } from "@/store/url-store";
+import { getUrls, resolveServerKey } from "@/store/url-store";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 
 // ─── TabsLayoutInner ──────────────────────────────────────────────────────────
@@ -76,12 +76,13 @@ function TabsLayoutInner() {
         }}
         onRepoAdded={async () => {
           if (!selectedVmUrl) return;
+          const key = resolveServerKey(selectedVmUrl);
           setReposLoading(true);
-          await listReposStore(selectedVmUrl);
-          const entry = getEntry(selectedVmUrl);
+          await listReposStore(key);
+          const entry = getEntry(key);
           const repoList = entry?.repos ?? [];
-          await Promise.all(repoList.map((r) => getRepoDetailsStore(selectedVmUrl, r.path)));
-          const updatedEntry = getEntry(selectedVmUrl);
+          await Promise.all(repoList.map((r) => getRepoDetailsStore(key, r.path)));
+          const updatedEntry = getEntry(key);
           const details = updatedEntry?.repoDetails ?? new Map();
           setRepos(
             repoList.map((r, i) => ({

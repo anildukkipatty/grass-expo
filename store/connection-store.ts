@@ -1,6 +1,7 @@
 import { AppState } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { fetch } from 'expo/fetch';
+import { resolveServerKey, resolveServerUrl } from './url-store';
 
 export interface Message {
   role: 'user' | 'assistant' | 'error' | 'tool';
@@ -114,13 +115,14 @@ function notifyPermissionsListeners(serverUrl: string) {
 }
 
 async function openPermissionsSSE(serverUrl: string) {
-  let entry = _permissionsSSE.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const realUrl = _connections.get(key)?.baseUrl ?? resolveServerUrl(serverUrl);
+  let entry = _permissionsSSE.get(key);
   if (!entry) {
     entry = { abortController: null, permissions: [], listeners: new Set() };
-    _permissionsSSE.set(serverUrl, entry);
+    _permissionsSSE.set(key, entry);
   }
 
-  // Already open
   if (entry.abortController) return;
 
   const controller = new AbortController();
@@ -130,7 +132,7 @@ async function openPermissionsSSE(serverUrl: string) {
 
   try {
     const response = await fetch(
-      `${serverUrl}/permissions/events`,
+      `${realUrl}/permissions/events`,
       { headers: { Accept: 'text/event-stream' }, signal: controller.signal, reactNativeFetchMode: 'stream' } as unknown as Parameters<typeof fetch>[1]
     );
 
@@ -149,10 +151,10 @@ async function openPermissionsSSE(serverUrl: string) {
         if (frame.event === 'permissions' && frame.data) {
           try {
             const parsed = JSON.parse(frame.data) as { permissions: GlobalPermissionItem[] };
-            const e2 = _permissionsSSE.get(serverUrl);
+            const e2 = _permissionsSSE.get(key);
             if (e2) {
               e2.permissions = parsed.permissions ?? [];
-              notifyPermissionsListeners(serverUrl);
+              notifyPermissionsListeners(key);
             }
           } catch { /* ignore parse error */ }
         }
@@ -162,47 +164,50 @@ async function openPermissionsSSE(serverUrl: string) {
     // aborted or network error
   }
 
-  const e2 = _permissionsSSE.get(serverUrl);
+  const e2 = _permissionsSSE.get(key);
   if (e2) {
     e2.abortController = null;
   }
 }
 
 export function closePermissionsSSE(serverUrl: string) {
-  const entry = _permissionsSSE.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _permissionsSSE.get(key);
   if (!entry) return;
   entry.abortController?.abort();
   entry.abortController = null;
 }
 
 export function subscribeToPermissions(serverUrl: string, fn: () => void): () => void {
-  let entry = _permissionsSSE.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  let entry = _permissionsSSE.get(key);
   if (!entry) {
     entry = { abortController: null, permissions: [], listeners: new Set() };
-    _permissionsSSE.set(serverUrl, entry);
+    _permissionsSSE.set(key, entry);
   }
   entry.listeners.add(fn);
-  // Start SSE if not already open
   openPermissionsSSE(serverUrl);
   return () => {
-    const e = _permissionsSSE.get(serverUrl);
+    const e = _permissionsSSE.get(key);
     if (e) e.listeners.delete(fn);
   };
 }
 
 export function getPermissions(serverUrl: string): GlobalPermissionItem[] {
-  return _permissionsSSE.get(serverUrl)?.permissions ?? [];
+  const key = resolveServerKey(serverUrl);
+  return _permissionsSSE.get(key)?.permissions ?? [];
 }
 
 export async function respondGlobalPermission(serverUrl: string, sessionId: string, toolUseID: string, approved: boolean) {
-  // Optimistically remove from local list
-  const entry = _permissionsSSE.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const realUrl = _connections.get(key)?.baseUrl ?? resolveServerUrl(serverUrl);
+  const entry = _permissionsSSE.get(key);
   if (entry) {
     entry.permissions = entry.permissions.filter(p => p.toolUseID !== toolUseID);
-    notifyPermissionsListeners(serverUrl);
+    notifyPermissionsListeners(key);
   }
   try {
-    await fetch(`${serverUrl}/sessions/${sessionId}/permission`, {
+    await fetch(`${realUrl}/sessions/${sessionId}/permission`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ toolUseID, approved }),
@@ -380,17 +385,16 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
 }
 
 // --- SSE stream ---
-async function openSSEStream(serverUrl: string, sessionId: string) {
-  const entry = _connections.get(serverUrl);
+async function openSSEStream(serverKey: string, sessionId: string) {
+  const entry = _connections.get(serverKey);
   if (!entry) return;
 
-  // Close any existing stream
-  closeSSEStream(serverUrl);
+  closeSSEStream(serverKey);
 
   const controller = new AbortController();
   entry.sseAbortController = controller;
   entry.streaming = true;
-  notifyListeners(serverUrl);
+  notifyListeners(serverKey);
 
   const headers: Record<string, string> = { Accept: 'text/event-stream' };
   if (entry.lastEventId) headers['Last-Event-ID'] = entry.lastEventId;
@@ -399,7 +403,7 @@ async function openSSEStream(serverUrl: string, sessionId: string) {
 
   try {
     const response = await fetch(
-      `${serverUrl}/events?sessionId=${encodeURIComponent(sessionId)}`,
+      `${entry.baseUrl}/events?sessionId=${encodeURIComponent(sessionId)}`,
       { headers, signal: controller.signal, reactNativeFetchMode: 'stream' } as unknown as Parameters<typeof fetch>[1]
     );
 
@@ -418,23 +422,24 @@ async function openSSEStream(serverUrl: string, sessionId: string) {
         if (frame.id) {
           entry.lastEventId = frame.id;
         }
-        handleSSEEvent(serverUrl, frame.event, frame.data);
+        handleSSEEvent(serverKey, frame.event, frame.data);
       }
     }
   } catch {
-    // aborted or network error — streaming stops, no auto-reconnect
+    // aborted or network error
   }
 
-  const e = _connections.get(serverUrl);
+  const e = _connections.get(serverKey);
   if (e) {
     e.sseAbortController = null;
     e.streaming = false;
-    notifyListeners(serverUrl);
+    notifyListeners(serverKey);
   }
 }
 
 export function closeSSEStream(serverUrl: string) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
   if (entry.sseAbortController) {
     entry.sseAbortController.abort();
@@ -471,9 +476,11 @@ AppState.addEventListener('change', (next) => {
 // --- Connection lifecycle ---
 
 export function openConnection(serverUrl: string) {
-  if (_connections.has(serverUrl)) return;
+  const key = resolveServerKey(serverUrl);
+  const realUrl = resolveServerUrl(serverUrl);
+  if (_connections.has(key)) return;
   const entry: ConnectionEntry = {
-    baseUrl: serverUrl,
+    baseUrl: realUrl,
     currentRepoPath: null,
     currentAgent: null,
     currentSessionId: null,
@@ -495,22 +502,55 @@ export function openConnection(serverUrl: string) {
     msgCounter: 0,
     listeners: new Set(),
   };
-  _connections.set(serverUrl, entry);
-  healthStore(serverUrl);
-  listReposStore(serverUrl);
+  _connections.set(key, entry);
+  healthStore(key);
+  listReposStore(key);
+  _globalListeners.forEach(fn => fn());
+}
+
+export function openConnectionWithKey(key: string, realUrl: string) {
+  if (_connections.has(key)) return;
+  const entry: ConnectionEntry = {
+    baseUrl: realUrl,
+    currentRepoPath: null,
+    currentAgent: null,
+    currentSessionId: null,
+    sseAbortController: null,
+    lastEventId: null,
+    streaming: false,
+    messages: [],
+    activity: null,
+    permissionQueue: [],
+    sessionId: null,
+    sessionsList: [],
+    repos: [],
+    repoDetails: new Map(),
+    diffs: null,
+    dirListing: null,
+    fileContent: null,
+    cloneStatus: { cloning: false, creating: false, error: null },
+    serverCwd: null,
+    msgCounter: 0,
+    listeners: new Set(),
+  };
+  _connections.set(key, entry);
+  healthStore(key);
+  listReposStore(key);
   _globalListeners.forEach(fn => fn());
 }
 
 export function closeConnection(serverUrl: string) {
-  closeSSEStream(serverUrl);
-  closePermissionsSSE(serverUrl);
-  _permissionsSSE.delete(serverUrl);
-  _connections.delete(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  closeSSEStream(key);
+  closePermissionsSSE(key);
+  _permissionsSSE.delete(key);
+  _connections.delete(key);
   _globalListeners.forEach(fn => fn());
 }
 
 export function subscribeToConnection(url: string, fn: () => void): () => void {
-  const entry = _connections.get(url);
+  const key = resolveServerKey(url);
+  const entry = _connections.get(key);
   if (!entry) return () => {};
   entry.listeners.add(fn);
   return () => entry.listeners.delete(fn);
@@ -522,7 +562,8 @@ export function subscribeToAll(fn: () => void): () => void {
 }
 
 export function getEntry(url: string): ConnectionEntry | undefined {
-  return _connections.get(url);
+  const key = resolveServerKey(url);
+  return _connections.get(key);
 }
 
 export function getConnectedUrls(): string[] {
@@ -532,16 +573,17 @@ export function getConnectedUrls(): string[] {
 // --- Chat ---
 
 export async function sendMessageStore(serverUrl: string, text: string) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry || !text.trim()) return;
 
   entry.messages = [...entry.messages, { role: 'user', content: text, complete: true, msgId: nextMsgId(entry) }];
   entry.streaming = true;
   entry.activity = { label: 'Thinking' };
-  notifyListeners(serverUrl);
+  notifyListeners(key);
 
   try {
-    const res = await fetch(`${serverUrl}/chat`, {
+    const res = await fetch(`${entry.baseUrl}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -557,14 +599,14 @@ export async function sendMessageStore(serverUrl: string, text: string) {
       entry.currentSessionId = sid;
       entry.sessionId = sid;
       entry.lastEventId = null;
-      notifyListeners(serverUrl);
-      openSSEStream(serverUrl, sid);
+      notifyListeners(key);
+      openSSEStream(key, sid);
     }
   } catch {
     entry.streaming = false;
     entry.activity = null;
     entry.messages = [...entry.messages, { role: 'error', content: 'Failed to send message', complete: true, msgId: nextMsgId(entry) }];
-    notifyListeners(serverUrl);
+    notifyListeners(key);
   }
 }
 
@@ -572,12 +614,13 @@ export async function sendMessageStore(serverUrl: string, text: string) {
 export const sendMessage = sendMessageStore;
 
 export async function abortStore(serverUrl: string) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry || !entry.currentSessionId) return;
   entry.permissionQueue = [];
-  notifyListeners(serverUrl);
+  notifyListeners(key);
   try {
-    await fetch(`${serverUrl}/sessions/${entry.currentSessionId}/abort`, { method: 'POST' });
+    await fetch(`${entry.baseUrl}/sessions/${entry.currentSessionId}/abort`, { method: 'POST' });
   } catch { /* ignore */ }
 }
 
@@ -585,13 +628,14 @@ export async function abortStore(serverUrl: string) {
 export const abortConnection = abortStore;
 
 export async function respondPermissionStore(serverUrl: string, approved: boolean) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry || entry.permissionQueue.length === 0 || !entry.currentSessionId) return;
   const current = entry.permissionQueue[0];
   entry.permissionQueue = entry.permissionQueue.slice(1);
-  notifyListeners(serverUrl);
+  notifyListeners(key);
   try {
-    await fetch(`${serverUrl}/sessions/${entry.currentSessionId}/permission`, {
+    await fetch(`${entry.baseUrl}/sessions/${entry.currentSessionId}/permission`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ toolUseID: current.toolUseID, approved }),
@@ -602,14 +646,15 @@ export async function respondPermissionStore(serverUrl: string, approved: boolea
 // --- Health ---
 
 export async function healthStore(serverUrl: string) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
   try {
-    const res = await fetch(`${serverUrl}/health`);
+    const res = await fetch(`${entry.baseUrl}/health`);
     const json = await res.json() as { cwd?: string };
-    if (_connections.has(serverUrl) && json.cwd) {
+    if (_connections.has(key) && json.cwd) {
       entry.serverCwd = json.cwd;
-      notifyListeners(serverUrl);
+      notifyListeners(key);
     }
   } catch { /* ignore */ }
 }
@@ -617,44 +662,47 @@ export async function healthStore(serverUrl: string) {
 // --- Repos ---
 
 export async function listReposStore(serverUrl: string) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
   try {
-    const res = await fetch(`${serverUrl}/repos`);
+    const res = await fetch(`${entry.baseUrl}/repos`);
     const json = await res.json() as { repos?: Repo[] };
-    if (_connections.has(serverUrl)) {
+    if (_connections.has(key)) {
       entry.repos = json.repos ?? [];
-      notifyListeners(serverUrl);
+      notifyListeners(key);
     }
   } catch { /* ignore */ }
 }
 
 export async function getRepoDetailsStore(serverUrl: string, repoPath: string): Promise<void> {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
   try {
-    const res = await fetch(`${serverUrl}/repos/details?repoPath=${encodeURIComponent(repoPath)}`);
+    const res = await fetch(`${entry.baseUrl}/repos/details?repoPath=${encodeURIComponent(repoPath)}`);
     const json = await res.json() as RepoDetails;
-    if (_connections.has(serverUrl)) {
+    if (_connections.has(key)) {
       entry.repoDetails = new Map(entry.repoDetails).set(repoPath, json);
-      notifyListeners(serverUrl);
+      notifyListeners(key);
     }
   } catch { /* ignore */ }
 }
 
 export async function cloneRepoStore(serverUrl: string, gitUrl: string): Promise<void> {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
   entry.cloneStatus = { cloning: true, creating: false, error: null };
-  notifyListeners(serverUrl);
+  notifyListeners(key);
   try {
-    const res = await fetch(`${serverUrl}/repos/clone`, {
+    const res = await fetch(`${entry.baseUrl}/repos/clone`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: gitUrl }),
     });
     const json = await res.json() as { path?: string; name?: string; error?: string };
-    if (!_connections.has(serverUrl)) return;
+    if (!_connections.has(key)) return;
     if (json.error) {
       entry.cloneStatus = { cloning: false, creating: false, error: json.error };
     } else {
@@ -662,28 +710,29 @@ export async function cloneRepoStore(serverUrl: string, gitUrl: string): Promise
       entry.repos = [...entry.repos, repo];
       entry.cloneStatus = { cloning: false, creating: false, error: null };
     }
-    notifyListeners(serverUrl);
+    notifyListeners(key);
   } catch (err) {
-    if (_connections.has(serverUrl)) {
+    if (_connections.has(key)) {
       entry.cloneStatus = { cloning: false, creating: false, error: String(err) };
-      notifyListeners(serverUrl);
+      notifyListeners(key);
     }
   }
 }
 
 export async function createFolderStore(serverUrl: string, name: string): Promise<void> {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
   entry.cloneStatus = { cloning: false, creating: true, error: null };
-  notifyListeners(serverUrl);
+  notifyListeners(key);
   try {
-    const res = await fetch(`${serverUrl}/folders`, {
+    const res = await fetch(`${entry.baseUrl}/folders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     });
     const json = await res.json() as { path?: string; name?: string; error?: string };
-    if (!_connections.has(serverUrl)) return;
+    if (!_connections.has(key)) return;
     if (json.error) {
       entry.cloneStatus = { cloning: false, creating: false, error: json.error };
     } else {
@@ -691,51 +740,55 @@ export async function createFolderStore(serverUrl: string, name: string): Promis
       entry.repos = [...entry.repos, repo];
       entry.cloneStatus = { cloning: false, creating: false, error: null };
     }
-    notifyListeners(serverUrl);
+    notifyListeners(key);
   } catch (err) {
-    if (_connections.has(serverUrl)) {
+    if (_connections.has(key)) {
       entry.cloneStatus = { cloning: false, creating: false, error: String(err) };
-      notifyListeners(serverUrl);
+      notifyListeners(key);
     }
   }
 }
 
 export function clearCloneStatusStore(serverUrl: string) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
   entry.cloneStatus = { cloning: false, creating: false, error: null };
-  notifyListeners(serverUrl);
+  notifyListeners(key);
 }
 
 export function resetFileViewStore(serverUrl: string) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
   entry.fileContent = null;
   entry.dirListing = null;
-  notifyListeners(serverUrl);
+  notifyListeners(key);
 }
 
 // --- Sessions ---
 
 export async function listSessionsStore(serverUrl: string, repoPath?: string, agent?: string) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
   try {
     const params = new URLSearchParams();
     if (repoPath) params.set('repoPath', repoPath);
     if (agent) params.set('agent', agent);
     const qs = params.toString();
-    const res = await fetch(`${serverUrl}/sessions${qs ? '?' + qs : ''}`);
+    const res = await fetch(`${entry.baseUrl}/sessions${qs ? '?' + qs : ''}`);
     const json = await res.json() as { sessions?: Session[] };
-    if (_connections.has(serverUrl)) {
+    if (_connections.has(key)) {
       entry.sessionsList = json.sessions ?? [];
-      notifyListeners(serverUrl);
+      notifyListeners(key);
     }
   } catch { /* ignore */ }
 }
 
 export async function initSessionStore(serverUrl: string, id: string | null, agent?: string | null, repoPath?: string | null) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
   entry.currentSessionId = id;
   entry.sessionId = id;
@@ -743,7 +796,7 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
   if (repoPath !== undefined) entry.currentRepoPath = repoPath ?? null;
   entry.messages = [];
   entry.activity = null;
-  notifyListeners(serverUrl);
+  notifyListeners(key);
 
   if (id) {
     try {
@@ -751,9 +804,9 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
       if (agent) params.set('agent', agent);
       if (repoPath) params.set('repoPath', repoPath);
       const qs = params.toString();
-      const res = await fetch(`${serverUrl}/sessions/${id}/history${qs ? '?' + qs : ''}`);
+      const res = await fetch(`${entry.baseUrl}/sessions/${id}/history${qs ? '?' + qs : ''}`);
       const json = await res.json() as { messages?: Array<{ role: string; content: string }> };
-      if (_connections.has(serverUrl)) {
+      if (_connections.has(key)) {
         const msgs = json.messages ?? [];
         entry.messages = msgs.map(m => ({
           role: m.role as Message['role'],
@@ -761,7 +814,7 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
           complete: true,
           msgId: nextMsgId(entry),
         }));
-        notifyListeners(serverUrl);
+        notifyListeners(key);
       }
     } catch { /* ignore */ }
   }
@@ -773,62 +826,63 @@ const _dirAbortControllers = new Map<string, AbortController>();
 const _fileAbortControllers = new Map<string, AbortController>();
 
 export async function listDirStore(serverUrl: string, path: string, repoPath: string) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
 
-  // Cancel previous inflight request
-  const prevCtrl = _dirAbortControllers.get(serverUrl);
+  const prevCtrl = _dirAbortControllers.get(key);
   if (prevCtrl) prevCtrl.abort();
   const ctrl = new AbortController();
-  _dirAbortControllers.set(serverUrl, ctrl);
+  _dirAbortControllers.set(key, ctrl);
 
   entry.dirListing = null;
-  notifyListeners(serverUrl);
+  notifyListeners(key);
 
   try {
     const params = new URLSearchParams({ repoPath, path });
-    const res = await fetch(`${serverUrl}/dir?${params.toString()}`, { signal: ctrl.signal });
+    const res = await fetch(`${entry.baseUrl}/dir?${params.toString()}`, { signal: ctrl.signal });
     const json = await res.json() as { entries?: DirEntry[] };
-    if (_connections.has(serverUrl)) {
+    if (_connections.has(key)) {
       entry.dirListing = json.entries ?? [];
-      notifyListeners(serverUrl);
+      notifyListeners(key);
     }
   } catch { /* aborted or error */ }
 }
 
 export async function readFileStore(serverUrl: string, path: string, repoPath: string) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
 
-  // Cancel previous inflight request
-  const prevCtrl = _fileAbortControllers.get(serverUrl);
+  const prevCtrl = _fileAbortControllers.get(key);
   if (prevCtrl) prevCtrl.abort();
   const ctrl = new AbortController();
-  _fileAbortControllers.set(serverUrl, ctrl);
+  _fileAbortControllers.set(key, ctrl);
 
   try {
     const params = new URLSearchParams({ repoPath, path });
-    const res = await fetch(`${serverUrl}/file?${params.toString()}`, { signal: ctrl.signal });
+    const res = await fetch(`${entry.baseUrl}/file?${params.toString()}`, { signal: ctrl.signal });
     const json = await res.json() as { content: string; size: number };
-    if (_connections.has(serverUrl)) {
+    if (_connections.has(key)) {
       entry.fileContent = { path, content: json.content, size: json.size };
-      notifyListeners(serverUrl);
+      notifyListeners(key);
     }
   } catch { /* aborted or error */ }
 }
 
 export async function getDiffsStore(serverUrl: string, repoPath?: string) {
-  const entry = _connections.get(serverUrl);
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
   if (!entry) return;
   try {
     const params = new URLSearchParams();
     if (repoPath) params.set('repoPath', repoPath);
     const qs = params.toString();
-    const res = await fetch(`${serverUrl}/diffs${qs ? '?' + qs : ''}`);
+    const res = await fetch(`${entry.baseUrl}/diffs${qs ? '?' + qs : ''}`);
     const json = await res.json() as { diff?: string };
-    if (_connections.has(serverUrl)) {
+    if (_connections.has(key)) {
       entry.diffs = json.diff ?? null;
-      notifyListeners(serverUrl);
+      notifyListeners(key);
     }
   } catch { /* ignore */ }
 }

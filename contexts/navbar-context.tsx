@@ -1,4 +1,4 @@
-import { heartbeat, signedPreviewUrl } from "@/api/containers";
+import { heartbeat, requestContainer, signedPreviewUrl } from "@/api/containers";
 import { clearAuth, getToken } from "@/store/auth-store";
 import {
   closeConnection,
@@ -7,11 +7,16 @@ import {
   getRepoDetailsStore,
   listReposStore,
   openConnection,
+  openConnectionWithKey,
 } from "@/store/connection-store";
 import {
+  GRASS_VM_KEY,
   clearUrls,
   getUrls,
+  refreshPrimaryVmUrl,
   removeUrl,
+  resolveServerKey,
+  resolveServerUrl,
   saveVmUrl,
 } from "@/store/url-store";
 import {
@@ -85,6 +90,7 @@ interface NavbarContextValue {
   activeVmTab: number;
   setActiveVmTab: React.Dispatch<React.SetStateAction<number>>;
   selectedVmUrl: string | undefined;
+  selectedServerKey: string | undefined;
 
   // Permissions
   permissions: PermissionCardData[];
@@ -152,18 +158,27 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   const [threads, setThreads] = useState<Thread[]>([]);
 
   const selectedVmUrl = vmUrls[activeVmTab] ?? undefined;
+  const selectedServerKey = selectedVmUrl
+    ? resolveServerKey(selectedVmUrl)
+    : undefined;
 
-  // Load threads for the active server
+  // Hydrate the cached primary VM URL from storage on mount
   useEffect(() => {
-    if (!selectedVmUrl) {
+    refreshPrimaryVmUrl();
+  }, []);
+
+  // Load threads for the active server (using resolved key so GrassVM threads persist)
+  useEffect(() => {
+    const key = selectedServerKey;
+    if (!key) {
       setThreads([]);
       return;
     }
-    getThreadsForServer(selectedVmUrl).then(setThreads);
+    getThreadsForServer(key).then(setThreads);
     return subscribeThreads(() => {
-      getThreadsForServer(selectedVmUrl).then(setThreads);
+      getThreadsForServer(key).then(setThreads);
     });
-  }, [selectedVmUrl]);
+  }, [selectedServerKey]);
 
   // Load VM URLs when primaryVmUrl changes
   useEffect(() => {
@@ -225,17 +240,20 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     };
   }, [router]);
 
-  // Poll health for all known URLs to drive per-URL status dots
+  // Poll health for all known URLs to drive per-URL status dots.
+  // If the primary GrassVM goes down, call requestContainer to wake it.
   useEffect(() => {
     if (vmUrls.length === 0) return;
+    let reviving = false;
 
     async function pollAll() {
       const results = await Promise.all(
         vmUrls.map(async (url) => {
+          const realUrl = resolveServerUrl(url);
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), 4000);
           try {
-            const res = await fetch(`${url}/health`, { signal: controller.signal });
+            const res = await fetch(`${realUrl}/health`, { signal: controller.signal });
             return { url, ok: res.ok };
           } catch {
             return { url, ok: false };
@@ -249,12 +267,32 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         results.forEach(({ url, ok }) => next.set(url, ok));
         return next;
       });
+
+      // If primary GrassVM is down, try to wake it
+      const primaryResult = primaryVmUrl
+        ? results.find((r) => r.url === primaryVmUrl)
+        : undefined;
+      if (primaryResult && !primaryResult.ok && !reviving) {
+        reviving = true;
+        console.log("[health] GrassVM down, calling requestContainer");
+        const token = await getToken();
+        if (token) {
+          const res = await requestContainer(token);
+          if (res.ok && res.data.url) {
+            setPrimaryVmUrl(res.data.url);
+            await saveVmUrl(res.data.url);
+            const urls = await getUrls();
+            setVmUrls(orderVmUrls(urls, res.data.url));
+          }
+        }
+        reviving = false;
+      }
     }
 
     pollAll();
     const interval = setInterval(pollAll, 15000);
     return () => clearInterval(interval);
-  }, [vmUrls]);
+  }, [vmUrls, primaryVmUrl]);
 
   // Fetch repos from the grass server when VM is running
   useEffect(() => {
@@ -274,19 +312,21 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      openConnection(serverUrl);
-      await listReposStore(serverUrl);
+      const key = resolveServerKey(serverUrl);
+      const realUrl = resolveServerUrl(serverUrl);
+      openConnectionWithKey(key, realUrl);
+      await listReposStore(key);
       if (cancelled) return;
 
-      const entry = getEntry(serverUrl);
+      const entry = getEntry(key);
       const repoList = entry?.repos ?? [];
 
       await Promise.all(
-        repoList.map((r) => getRepoDetailsStore(serverUrl, r.path)),
+        repoList.map((r) => getRepoDetailsStore(key, r.path)),
       );
       if (cancelled) return;
 
-      const updatedEntry = getEntry(serverUrl);
+      const updatedEntry = getEntry(key);
       const details = updatedEntry?.repoDetails ?? new Map();
 
       const mapped: RepoItem[] = repoList.map((r, i) => {
@@ -326,13 +366,13 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   }
 
   function handleSelectAgent(agentId: string) {
-    if (!pendingRepo || !selectedVmUrl) return;
+    if (!pendingRepo || !selectedServerKey) return;
     const repo = pendingRepo;
     setPendingRepo(null);
     router.push({
       pathname: "/sessions",
       params: {
-        serverUrl: selectedVmUrl,
+        serverUrl: selectedServerKey,
         repoPath: repo.path,
         repoName: repo.name,
         agent: agentId,
@@ -368,6 +408,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     activeVmTab,
     setActiveVmTab,
     selectedVmUrl,
+    selectedServerKey,
     permissions,
     setPermissions,
     repos,

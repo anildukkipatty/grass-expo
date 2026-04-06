@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { resolveServerKey } from './url-store';
 
 const STORAGE_KEY = 'grass_threads_v1';
 const MAX_THREADS = 50;
@@ -42,18 +43,20 @@ async function persist(): Promise<void> {
 
 export async function getThreadsForServer(serverUrl: string): Promise<Thread[]> {
   await load();
-  return [...(_map[serverUrl] ?? [])];
+  const key = resolveServerKey(serverUrl);
+  return [...(_map[key] ?? [])];
 }
 
 export async function upsertThread(thread: Thread): Promise<void> {
   await load();
-  const list = _map[thread.serverUrl] ?? [];
+  const key = resolveServerKey(thread.serverUrl);
+  const list = _map[key] ?? [];
   const idx = list.findIndex(t => t.id === thread.id);
   if (idx !== -1) {
     list.splice(idx, 1);
   }
-  list.unshift(thread);
-  _map[thread.serverUrl] = list.slice(0, MAX_THREADS);
+  list.unshift({ ...thread, serverUrl: key });
+  _map[key] = list.slice(0, MAX_THREADS);
   notify();
   await persist();
 }
