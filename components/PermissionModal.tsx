@@ -169,12 +169,10 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 11,
     paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 4,
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
+    paddingVertical: 6,
+    borderRadius: 6,
     borderWidth: 1,
-    borderBottomWidth: 0,
+    marginBottom: 4,
   },
   actions: {
     flexDirection: 'row',

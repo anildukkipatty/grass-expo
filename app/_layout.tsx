@@ -2,6 +2,7 @@ import { PermissionModal } from "@/components/PermissionModal";
 import { GrassColors, NationalPark } from "@/constants/theme";
 import {
   getConnectedUrls,
+  getEntry,
   getPermissions,
   GlobalPermissionItem,
   respondGlobalPermission,
@@ -10,7 +11,7 @@ import {
 } from "@/store/connection-store";
 import { useTheme } from "@/store/theme-store";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack, usePathname, useLocalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
@@ -37,15 +38,17 @@ function useConnectedServers(): string[] {
   return servers;
 }
 
-// Renders the PermissionModal for the first pending permission across all connected servers.
+// Renders the PermissionModal only when the user is on the chat screen for the
+// specific session that triggered the permission. Elsewhere, the perms tab handles it.
 function GlobalPermissionsManager({ theme }: { theme: "light" | "dark" }) {
   const servers = useConnectedServers();
-  // Collect all pending permissions across servers, tag with serverUrl
+  const pathname = usePathname();
+  const params = useLocalSearchParams<{ serverUrl?: string; sessionId?: string }>();
+
   const [allPerms, setAllPerms] = useState<
     (GlobalPermissionItem & { serverUrl: string })[]
   >([]);
 
-  // Re-subscribe whenever server list changes — we collect via a single state update
   useEffect(() => {
     if (servers.length === 0) {
       setAllPerms([]);
@@ -68,7 +71,25 @@ function GlobalPermissionsManager({ theme }: { theme: "light" | "dark" }) {
     return () => unsubscribers.forEach((fn) => fn());
   }, [servers]);
 
-  const first = allPerms[0];
+  // Only show the modal when the user is on the chat screen
+  const isOnChat = pathname === '/chat';
+  // chatSessionId: from routing params (grass ID). For new sessions it may be null,
+  // so also check the live entry.sessionId from the store.
+  const routeSessionId = params.sessionId ?? null;
+  const liveSessionId = params.serverUrl ? (getEntry(params.serverUrl)?.sessionId ?? null) : null;
+
+  // Find the first permission that matches the current chat session.
+  // A match occurs if the permission's grass sessionId OR sdkSessionId equals
+  // either the routing param session ID or the live store session ID.
+  const first = isOnChat
+    ? allPerms.find((p) => {
+        const knownIds = [routeSessionId, liveSessionId].filter(Boolean);
+        return knownIds.some(
+          (id) => p.sessionId === id || p.sdkSessionId === id,
+        );
+      })
+    : undefined;
+
   if (!first) return null;
 
   return (
