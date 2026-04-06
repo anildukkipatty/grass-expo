@@ -9,6 +9,7 @@ import { BlurView } from 'expo-blur';
 import { useServer } from '@/hooks/use-server';
 import { closeSSEStream } from '@/store/connection-store';
 import { getSessionLabel, subscribeSessionLabel } from '@/store/session-label-store';
+import { upsertThread } from '@/store/thread-store';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { MessageBubble } from '@/components/MessageBubble';
@@ -27,12 +28,16 @@ export default function Chat() {
   const inputTextRef = useRef('');
   const flatListRef = useRef<FlatList>(null);
   const sessionInitialized = useRef(false);
+  const hasSent = useRef(false);
   const c = GrassColors[theme];
   const sendScale = useRef(new Animated.Value(1)).current;
   const sendRotation = useRef(new Animated.Value(0)).current;
   const prevStreaming = useRef(false);
 
   const ws = useServer(serverUrl ?? null);
+
+  const [sessionLabel, setSessionLabelState] = useState<string | null>(getSessionLabel);
+  useEffect(() => subscribeSessionLabel(setSessionLabelState), []);
 
   // Cross-fade send/stop with rotation
   useEffect(() => {
@@ -73,11 +78,24 @@ export default function Chat() {
       Animated.spring(sendScale, { toValue: 1.2, useNativeDriver: true, speed: 50, bounciness: 12 }),
       Animated.spring(sendScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }),
     ]).start();
+    hasSent.current = true;
     ws.send(text);
+    // If sessionId already exists (returning to an existing thread), update timestamp now
+    if (ws.sessionId && serverUrl) {
+      upsertThread({
+        id: ws.sessionId,
+        title: sessionLabel ?? repoName ?? 'Chat',
+        repo: repoName ?? '',
+        repoPath: repoPath ?? '',
+        tool: agent ?? '',
+        serverUrl: serverUrl,
+        time: new Date().toISOString(),
+      });
+    }
     inputTextRef.current = '';
     setInputText('');
     setTimeout(() => setInputText(''), 100);
-  }, [ws, sendScale]);
+  }, [ws, sendScale, sessionLabel, repoName, repoPath, agent, serverUrl]);
 
   const goDiffs = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -91,8 +109,20 @@ export default function Chat() {
     outputRange: ['0deg', '90deg'],
   });
 
-  const [sessionLabel, setSessionLabelState] = useState<string | null>(getSessionLabel);
-  useEffect(() => subscribeSessionLabel(setSessionLabelState), []);
+  // Save/update thread in storage whenever sessionId is known and user has sent a message
+  useEffect(() => {
+    if (!hasSent.current || !ws.sessionId || !serverUrl) return;
+    const title = sessionLabel ?? repoName ?? 'Chat';
+    upsertThread({
+      id: ws.sessionId,
+      title,
+      repo: repoName ?? '',
+      repoPath: repoPath ?? '',
+      tool: agent ?? '',
+      serverUrl: serverUrl,
+      time: new Date().toISOString(),
+    });
+  }, [ws.sessionId, sessionLabel]);
 
   // Header derived values
   const branch = repoPath ? ws.repoDetails.get(repoPath)?.branch : null;

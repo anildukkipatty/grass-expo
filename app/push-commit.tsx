@@ -117,7 +117,7 @@ export default function PushCommitScreen() {
           {/* Action buttons */}
           <TouchableOpacity
             activeOpacity={0.88}
-            onPress={() => router.push("/navbar")}
+            onPress={() => router.push("/(tabs)/home")}
           >
             <LinearGradient
               colors={["#00FF40", "#E0FF47"]}
@@ -135,7 +135,7 @@ export default function PushCommitScreen() {
           <TouchableOpacity
             style={styles.skipButton}
             activeOpacity={0.6}
-            onPress={() => router.push("/navbar")}
+            onPress={() => router.push("/(tabs)/home")}
           >
             <Text style={styles.skipButtonText}>Skip for now</Text>
           </TouchableOpacity>

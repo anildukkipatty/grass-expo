@@ -111,7 +111,7 @@ export default function ContainerSetupScreen() {
         useNativeDriver: false,
       }).start(() => {
         if (!cancelled) {
-          router.replace("/navbar");
+          router.replace("/(tabs)/home");
         }
       });
     }

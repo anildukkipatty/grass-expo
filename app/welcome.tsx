@@ -89,7 +89,7 @@ function SetupLoadingModal({
     });
     progressTimer.start();
 
-    const finishAndRedirect = (path: "/push-commit" | "/navbar") => {
+    const finishAndRedirect = (path: "/push-commit" | "/(tabs)/home") => {
       Animated.timing(progressAnim, {
         toValue: 1,
         duration: 400,
@@ -122,7 +122,7 @@ function SetupLoadingModal({
         if (cancelled) return;
 
         if (hb.ok && hb.data.container === "running") {
-          finishAndRedirect("/navbar");
+          finishAndRedirect("/(tabs)/home");
           return;
         }
 
@@ -135,7 +135,7 @@ function SetupLoadingModal({
             const poll = await heartbeat(token);
             if (cancelled) return;
             if (poll.ok && poll.data.container === "running") {
-              finishAndRedirect("/navbar");
+              finishAndRedirect("/(tabs)/home");
               return;
             }
             if (poll.ok && poll.data.container !== "provisioning") {
@@ -151,7 +151,7 @@ function SetupLoadingModal({
         if (cancelled) return;
         if (result.ok) {
           if (result.data.url) await saveVmUrl(result.data.url);
-          finishAndRedirect("/navbar");
+          finishAndRedirect("/(tabs)/home");
         } else {
           progressTimer.stop();
           setError(result.error);

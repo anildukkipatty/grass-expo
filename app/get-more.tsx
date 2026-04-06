@@ -17,7 +17,7 @@ export default function GetMoreScreen() {
 
   function handleClose() {
     setSheetVisible(false);
-    setTimeout(() => router.replace('/home'), 300);
+    setTimeout(() => router.replace('/(tabs)/home'), 300);
   }
 
   return (

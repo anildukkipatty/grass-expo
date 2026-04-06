@@ -1,0 +1,360 @@
+import { heartbeat, signedPreviewUrl } from "@/api/containers";
+import { clearAuth, getToken } from "@/store/auth-store";
+import {
+  closeConnection,
+  getConnectedUrls,
+  getEntry,
+  getRepoDetailsStore,
+  listReposStore,
+  openConnection,
+} from "@/store/connection-store";
+import {
+  clearUrls,
+  getUrls,
+  removeUrl,
+  saveVmUrl,
+} from "@/store/url-store";
+import {
+  Thread,
+  getThreadsForServer,
+  subscribeThreads,
+} from "@/store/thread-store";
+import { useRouter } from "expo-router";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import { Alert } from "react-native";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type CodeLine = { num: number; prefix: "+" | "-" | " "; text: string };
+
+export interface PermissionCardData {
+  id: string;
+  toolName: string;
+  toolType: "Write" | "Edit" | "Bash" | "Read" | string;
+  time: string;
+  path: string;
+  origin: string;
+  initials: string;
+  codeLines: CodeLine[];
+}
+
+export interface RepoItem {
+  id: string;
+  name: string;
+  path: string;
+  branch: string;
+  action: string;
+  badge: string;
+  badgeType: "green" | "gray";
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+export function extractHost(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.hostname;
+  } catch {
+    return url
+      .replace(/^https?:\/\//, "")
+      .split("/")[0]
+      .split(":")[0];
+  }
+}
+
+export function orderVmUrls(urls: string[], primaryVmUrl?: string): string[] {
+  const unique = Array.from(new Set(urls));
+  if (!primaryVmUrl) return unique;
+  const rest = unique.filter((u) => u !== primaryVmUrl);
+  return [primaryVmUrl, ...rest];
+}
+
+// ─── Context Shape ────────────────────────────────────────────────────────────
+
+interface NavbarContextValue {
+  // VM URLs / tabs
+  vmUrls: string[];
+  setVmUrls: React.Dispatch<React.SetStateAction<string[]>>;
+  primaryVmUrl: string | undefined;
+  setPrimaryVmUrl: React.Dispatch<React.SetStateAction<string | undefined>>;
+  activeVmTab: number;
+  setActiveVmTab: React.Dispatch<React.SetStateAction<number>>;
+  selectedVmUrl: string | undefined;
+
+  // Permissions
+  permissions: PermissionCardData[];
+  setPermissions: React.Dispatch<React.SetStateAction<PermissionCardData[]>>;
+
+  // Repos
+  repos: RepoItem[];
+  setRepos: React.Dispatch<React.SetStateAction<RepoItem[]>>;
+  reposLoading: boolean;
+  setReposLoading: React.Dispatch<React.SetStateAction<boolean>>;
+
+  // Threads
+  threads: Thread[];
+
+  // Agent picker
+  pendingRepo: RepoItem | null;
+  setPendingRepo: React.Dispatch<React.SetStateAction<RepoItem | null>>;
+
+  // GetMore sheet
+  getMoreVisible: boolean;
+  setGetMoreVisible: React.Dispatch<React.SetStateAction<boolean>>;
+  sheetInitialView: "home" | "connect-agent" | "connect-laptop" | "add-repository";
+  setSheetInitialView: React.Dispatch<
+    React.SetStateAction<"home" | "connect-agent" | "connect-laptop" | "add-repository">
+  >;
+
+  // VM state
+  vmRunning: boolean;
+
+  // Actions
+  handleRemoveUserVm: (idx: number) => Promise<void>;
+  handleSelectAgent: (agentId: string) => void;
+  handleLogout: () => void;
+}
+
+const NavbarContext = createContext<NavbarContextValue | null>(null);
+
+export function useNavbar(): NavbarContextValue {
+  const ctx = useContext(NavbarContext);
+  if (!ctx) {
+    throw new Error("useNavbar must be used inside <NavbarProvider>");
+  }
+  return ctx;
+}
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
+
+export function NavbarProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+
+  const [activeVmTab, setActiveVmTab] = useState(0);
+  const [permissions, setPermissions] = useState<PermissionCardData[]>([]);
+  const [repos, setRepos] = useState<RepoItem[]>([]);
+  const [reposLoading, setReposLoading] = useState(false);
+  const [getMoreVisible, setGetMoreVisible] = useState(false);
+  const [sheetInitialView, setSheetInitialView] = useState<
+    "home" | "connect-agent" | "connect-laptop" | "add-repository"
+  >("home");
+  const [vmRunning, setVmRunning] = useState(true);
+  const [vmUrls, setVmUrls] = useState<string[]>([]);
+  const [primaryVmUrl, setPrimaryVmUrl] = useState<string | undefined>(undefined);
+  const [pendingRepo, setPendingRepo] = useState<RepoItem | null>(null);
+  const [threads, setThreads] = useState<Thread[]>([]);
+
+  const selectedVmUrl = vmUrls[activeVmTab] ?? undefined;
+
+  // Load threads for the active server
+  useEffect(() => {
+    if (!selectedVmUrl) {
+      setThreads([]);
+      return;
+    }
+    getThreadsForServer(selectedVmUrl).then(setThreads);
+    return subscribeThreads(() => {
+      getThreadsForServer(selectedVmUrl).then(setThreads);
+    });
+  }, [selectedVmUrl]);
+
+  // Load VM URLs when primaryVmUrl changes
+  useEffect(() => {
+    let cancelled = false;
+    async function loadVmUrls() {
+      const urls = await getUrls();
+      if (!cancelled) {
+        setVmUrls(orderVmUrls(urls, primaryVmUrl));
+      }
+    }
+    loadVmUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [primaryVmUrl]);
+
+  // Clamp activeVmTab if vmUrls shrinks
+  useEffect(() => {
+    if (activeVmTab >= vmUrls.length && vmUrls.length > 0) {
+      setActiveVmTab(0);
+    }
+  }, [activeVmTab, vmUrls.length]);
+
+  // Check container health on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function checkContainer() {
+      const token = await getToken();
+      if (!token || cancelled) return;
+
+      const hb = await heartbeat(token);
+      if (cancelled) return;
+
+      if (!hb.ok || hb.data.container !== "running" || !hb.data.grass) {
+        setVmRunning(false);
+        router.replace("/container-setup");
+      } else {
+        setVmRunning(true);
+        let backendPreviewUrl: string | undefined;
+        const preview = await signedPreviewUrl(token);
+        if (preview.ok) {
+          backendPreviewUrl = preview.data.url;
+        } else if (hb.data.url) {
+          backendPreviewUrl = hb.data.url;
+        }
+        if (backendPreviewUrl) {
+          setPrimaryVmUrl(backendPreviewUrl);
+          await saveVmUrl(backendPreviewUrl);
+        }
+        const urls = await getUrls();
+        if (!cancelled) {
+          setVmUrls(orderVmUrls(urls, backendPreviewUrl));
+        }
+      }
+    }
+    checkContainer();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  // Fetch repos from the grass server when VM is running
+  useEffect(() => {
+    if (!vmRunning) return;
+    let cancelled = false;
+
+    async function fetchRepos() {
+      if (!selectedVmUrl) {
+        setRepos([]);
+        setReposLoading(false);
+        return;
+      }
+      setReposLoading(true);
+      const serverUrl = selectedVmUrl;
+      if (cancelled) {
+        setReposLoading(false);
+        return;
+      }
+
+      openConnection(serverUrl);
+      await listReposStore(serverUrl);
+      if (cancelled) return;
+
+      const entry = getEntry(serverUrl);
+      const repoList = entry?.repos ?? [];
+
+      await Promise.all(
+        repoList.map((r) => getRepoDetailsStore(serverUrl, r.path)),
+      );
+      if (cancelled) return;
+
+      const updatedEntry = getEntry(serverUrl);
+      const details = updatedEntry?.repoDetails ?? new Map();
+
+      const mapped: RepoItem[] = repoList.map((r, i) => {
+        const d = details.get(r.path);
+        return {
+          id: String(i),
+          name: r.name,
+          path: r.path,
+          branch: d?.branch ?? "main",
+          action: "Open Code",
+          badge: d?.dominantLanguage ?? (r.isGit ? "Git" : "Folder"),
+          badgeType: "gray" as const,
+        };
+      });
+
+      if (!cancelled) {
+        setRepos(mapped);
+        setReposLoading(false);
+      }
+    }
+
+    fetchRepos();
+    return () => {
+      cancelled = true;
+    };
+  }, [vmRunning, selectedVmUrl]);
+
+  async function handleRemoveUserVm(idx: number) {
+    if (idx <= 0 || idx >= vmUrls.length) return;
+    const targetUrl = vmUrls[idx];
+    await removeUrl(targetUrl);
+    const updated = await getUrls();
+    setVmUrls(orderVmUrls(updated, primaryVmUrl));
+    if (activeVmTab === idx || activeVmTab >= updated.length) {
+      setActiveVmTab(0);
+    }
+  }
+
+  function handleSelectAgent(agentId: string) {
+    if (!pendingRepo || !selectedVmUrl) return;
+    const repo = pendingRepo;
+    setPendingRepo(null);
+    router.push({
+      pathname: "/sessions",
+      params: {
+        serverUrl: selectedVmUrl,
+        repoPath: repo.path,
+        repoName: repo.name,
+        agent: agentId,
+      },
+    });
+  }
+
+  function handleLogout() {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          const connectedUrls = getConnectedUrls();
+          connectedUrls.forEach((url) => closeConnection(url));
+          await clearUrls();
+          setVmUrls([]);
+          setPrimaryVmUrl(undefined);
+          setActiveVmTab(0);
+          await clearAuth();
+          router.replace("/welcome");
+        },
+      },
+    ]);
+  }
+
+  const value: NavbarContextValue = {
+    vmUrls,
+    setVmUrls,
+    primaryVmUrl,
+    setPrimaryVmUrl,
+    activeVmTab,
+    setActiveVmTab,
+    selectedVmUrl,
+    permissions,
+    setPermissions,
+    repos,
+    setRepos,
+    reposLoading,
+    setReposLoading,
+    threads,
+    pendingRepo,
+    setPendingRepo,
+    getMoreVisible,
+    setGetMoreVisible,
+    sheetInitialView,
+    setSheetInitialView,
+    vmRunning,
+    handleRemoveUserVm,
+    handleSelectAgent,
+    handleLogout,
+  };
+
+  return (
+    <NavbarContext.Provider value={value}>{children}</NavbarContext.Provider>
+  );
+}

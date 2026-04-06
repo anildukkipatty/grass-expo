@@ -5,23 +5,25 @@ import {
   claudeStatus,
 } from "@/api/claude";
 import { getToken } from "@/store/auth-store";
+import { cloneRepoStore, getEntry } from "@/store/connection-store";
 import { saveUrl } from "@/store/url-store";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Linking from "expo-linking";
-import React, { useEffect, useRef, useState } from "react";
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  useBottomSheetTimingConfigs,
+} from "@gorhom/bottom-sheet";
+import { Easing } from "react-native-reanimated";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   Clipboard,
-  KeyboardAvoidingView,
-  Modal,
-  PanResponder,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -39,6 +41,8 @@ interface Props {
   onClose: () => void;
   onUrlDetected?: (url: string) => void | Promise<void>;
   initialView?: SheetView;
+  serverUrl?: string;
+  onRepoAdded?: () => void;
 }
 
 export function GetMoreSheet({
@@ -46,12 +50,16 @@ export function GetMoreSheet({
   onClose,
   onUrlDetected,
   initialView = "home",
+  serverUrl,
+  onRepoAdded,
 }: Props) {
   const [currentView, setCurrentView] = useState<SheetView>(initialView);
   const [activeTab, setActiveTab] = useState<AgentTab>("claude");
   const [claudeCode, setClaudeCode] = useState("");
   const [opencodeCode, setOpencodeCode] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
+  const [cloning, setCloning] = useState(false);
+  const [cloneError, setCloneError] = useState<string | null>(null);
 
   // Claude auth state
   const [claudeAuthUrl, setClaudeAuthUrl] = useState<string | null>(null);
@@ -66,33 +74,18 @@ export function GetMoreSheet({
   const [scanBusy, setScanBusy] = useState(false);
   const [scannerPaused, setScannerPaused] = useState(false);
   const scanLockRef = useRef(false);
-  const translateY = useRef(new Animated.Value(0)).current;
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 2,
-      onPanResponderMove: (_, gs) => {
-        if (gs.dy > 0) translateY.setValue(gs.dy);
-      },
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dy > 80 || gs.vy > 0.5) {
-          Animated.timing(translateY, {
-            toValue: 800,
-            duration: 250,
-            useNativeDriver: true,
-          }).start(() => {
-            translateY.setValue(0);
-            onClose();
-          });
-        } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-    })
-  ).current;
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
+  const snapPoints = useMemo(() => ["90%"], []);
+  const animationConfigs = useBottomSheetTimingConfigs({
+    duration: 300,
+    easing: Easing.out(Easing.cubic),
+  });
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+    ),
+    []
+  );
 
   const authCode = activeTab === "claude" ? claudeCode : opencodeCode;
   const setAuthCode = activeTab === "claude" ? setClaudeCode : setOpencodeCode;
@@ -104,9 +97,10 @@ export function GetMoreSheet({
   useEffect(() => {
     if (visible) {
       setCurrentView(initialView ?? "home");
-      translateY.setValue(0);
+      bottomSheetRef.current?.present();
     } else {
       setRepoUrl("");
+      bottomSheetRef.current?.dismiss();
     }
   }, [visible, initialView]);
 
@@ -365,11 +359,7 @@ export function GetMoreSheet({
 
   function renderHomeView() {
     return (
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-        bounces={false}
-      >
+      <View style={styles.content}>
         <Text style={styles.title}>Get More from Grass</Text>
         <Text style={styles.subtitle}>
           All optional. Set up whenever you&#39;re ready.
@@ -553,7 +543,7 @@ export function GetMoreSheet({
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
     );
   }
 
@@ -561,12 +551,7 @@ export function GetMoreSheet({
 
   function renderConnectAgentView() {
     return (
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        bounces={false}
-      >
+      <View style={styles.content}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => setCurrentView("home")}
@@ -779,7 +764,7 @@ export function GetMoreSheet({
             )}
           </>
         )}
-      </ScrollView>
+      </View>
     );
   }
 
@@ -787,11 +772,7 @@ export function GetMoreSheet({
 
   function renderConnectLaptopView() {
     return (
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-        bounces={false}
-      >
+      <View style={styles.content}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => setCurrentView("home")}
@@ -900,7 +881,7 @@ export function GetMoreSheet({
             </TouchableOpacity>
           )}
         </View>
-      </ScrollView>
+      </View>
     );
   }
 
@@ -908,12 +889,7 @@ export function GetMoreSheet({
 
   function renderAddRepositoryView() {
     return (
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        bounces={false}
-      >
+      <View style={styles.content}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => setCurrentView("home")}
@@ -945,80 +921,101 @@ export function GetMoreSheet({
           keyboardType="url"
         />
 
+        {cloneError && (
+          <Text style={{ color: "#ef4444", fontSize: 13, marginTop: 4 }}>
+            {cloneError}
+          </Text>
+        )}
+
         <TouchableOpacity
           style={[
             styles.verifyBtn,
-            repoUrl.trim().length > 0 && styles.verifyBtnActive,
+            repoUrl.trim().length > 0 && !cloning && styles.verifyBtnActive,
+            { opacity: !repoUrl.trim() || cloning ? 0.5 : 1 },
           ]}
-          activeOpacity={repoUrl.trim().length > 0 ? 0.8 : 1}
-          onPress={() => {
-            if (!repoUrl.trim()) return;
-            Alert.alert("Cloning…", `Starting clone of ${repoUrl.trim()}`);
+          activeOpacity={repoUrl.trim().length > 0 && !cloning ? 0.8 : 1}
+          disabled={!repoUrl.trim() || cloning}
+          onPress={async () => {
+            const url = repoUrl.trim();
+            if (!url || cloning) return;
+            if (!serverUrl) {
+              Alert.alert("No server", "No server connected. Please connect a server first.");
+              return;
+            }
+            setCloning(true);
+            setCloneError(null);
+            await cloneRepoStore(serverUrl, url);
+            const entry = getEntry(serverUrl);
+            setCloning(false);
+            if (entry?.cloneStatus.error) {
+              setCloneError(entry.cloneStatus.error);
+            } else {
+              setRepoUrl("");
+              onRepoAdded?.();
+              onClose();
+            }
           }}
         >
-          <Text
-            style={[
-              styles.verifyText,
-              repoUrl.trim().length > 0 && styles.verifyTextActive,
-            ]}
-          >
-            Clone →
-          </Text>
+          {cloning ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text
+              style={[
+                styles.verifyText,
+                repoUrl.trim().length > 0 && styles.verifyTextActive,
+              ]}
+            >
+              Clone →
+            </Text>
+          )}
         </TouchableOpacity>
-      </ScrollView>
+      </View>
     );
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
+    <BottomSheetModal
+      ref={bottomSheetRef}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      animationConfigs={animationConfigs}
+      backdropComponent={renderBackdrop}
+      onDismiss={onClose}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      backgroundStyle={styles.sheetBackground}
+      handleIndicatorStyle={styles.dragHandle}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.modalOverlay}
+      <BottomSheetScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-          <LinearGradient
-            colors={["#FFFFFF", "#CCFFD9"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.dragHandleArea} {...panResponder.panHandlers}>
-            <View style={styles.dragHandle} />
-          </View>
-
-          {currentView === "home" && renderHomeView()}
-          {currentView === "connect-agent" && renderConnectAgentView()}
-          {currentView === "connect-laptop" && renderConnectLaptopView()}
-          {currentView === "add-repository" && renderAddRepositoryView()}
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </Modal>
+        <LinearGradient
+          colors={["#FFFFFF", "#CCFFD9"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        {currentView === "home" && renderHomeView()}
+        {currentView === "connect-agent" && renderConnectAgentView()}
+        {currentView === "connect-laptop" && renderConnectLaptopView()}
+        {currentView === "add-repository" && renderAddRepositoryView()}
+      </BottomSheetScrollView>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  sheet: {
+  sheetBackground: {
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    overflow: "hidden",
-    maxHeight: "90%",
+    backgroundColor: "#FFFFFF",
   },
-  dragHandleArea: {
-    paddingTop: 12,
-    paddingBottom: 8,
-    paddingHorizontal: 80,
-    alignItems: "center",
+  scrollContent: {
+    flexGrow: 1,
   },
   dragHandle: {
     width: 63,
