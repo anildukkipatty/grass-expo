@@ -113,6 +113,7 @@ interface NavbarContextValue {
 
   // VM state
   vmRunning: boolean;
+  vmUrlStatuses: Map<string, boolean>;
 
   // Actions
   handleRemoveUserVm: (idx: number) => Promise<void>;
@@ -146,6 +147,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   const [vmRunning, setVmRunning] = useState(true);
   const [vmUrls, setVmUrls] = useState<string[]>([]);
   const [primaryVmUrl, setPrimaryVmUrl] = useState<string | undefined>(undefined);
+  const [vmUrlStatuses, setVmUrlStatuses] = useState<Map<string, boolean>>(new Map());
   const [pendingRepo, setPendingRepo] = useState<RepoItem | null>(null);
   const [threads, setThreads] = useState<Thread[]>([]);
 
@@ -222,6 +224,37 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [router]);
+
+  // Poll health for all known URLs to drive per-URL status dots
+  useEffect(() => {
+    if (vmUrls.length === 0) return;
+
+    async function pollAll() {
+      const results = await Promise.all(
+        vmUrls.map(async (url) => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 4000);
+          try {
+            const res = await fetch(`${url}/health`, { signal: controller.signal });
+            return { url, ok: res.ok };
+          } catch {
+            return { url, ok: false };
+          } finally {
+            clearTimeout(timer);
+          }
+        }),
+      );
+      setVmUrlStatuses((prev) => {
+        const next = new Map(prev);
+        results.forEach(({ url, ok }) => next.set(url, ok));
+        return next;
+      });
+    }
+
+    pollAll();
+    const interval = setInterval(pollAll, 15000);
+    return () => clearInterval(interval);
+  }, [vmUrls]);
 
   // Fetch repos from the grass server when VM is running
   useEffect(() => {
@@ -349,6 +382,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     sheetInitialView,
     setSheetInitialView,
     vmRunning,
+    vmUrlStatuses,
     handleRemoveUserVm,
     handleSelectAgent,
     handleLogout,

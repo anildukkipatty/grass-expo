@@ -1,75 +1,79 @@
+import { NavBanner } from "@/components/NavBanner";
+import { StickyBannerLayout } from "@/components/StickyBannerLayout";
 import { useNavbar } from "@/contexts/navbar-context";
 import { setSessionLabel } from "@/store/session-label-store";
 import { formatRelativeTime } from "@/store/thread-store";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 
+const BANNER_HEIGHT = 270;
+
 export default function HomeTab() {
   const { threads } = useNavbar();
-  const tabBarHeight = useBottomTabBarHeight();
+  const { bottom } = useSafeAreaInsets();
+  const tabBarHeight = bottom + 110;
   const router = useRouter();
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{
-        paddingBottom: tabBarHeight + 20,
-        paddingTop: 4,
-      }}
-    >
-      <Text style={styles.sectionHeader}>RECENT THREADS</Text>
-      {threads.length === 0 ? (
-        <View style={styles.emptyThreads}>
-          <Text style={styles.emptyThreadsText}>
-            Start a new thread to see chats here
-          </Text>
-        </View>
-      ) : (
-        threads.map((thread) => (
-          <TouchableOpacity
-            key={thread.id}
-            style={styles.threadCard}
-            activeOpacity={0.72}
-            onPress={() => {
-              setSessionLabel(thread.title);
-              router.push({
-                pathname: "/chat",
-                params: {
-                  serverUrl: thread.serverUrl,
-                  sessionId: thread.id,
-                  repoName: thread.repo,
-                  repoPath: thread.repoPath,
-                  agent: thread.tool,
-                },
-              });
-            }}
-          >
-            <View style={styles.threadRow}>
-              <View style={styles.threadLeft}>
-                <Text style={styles.threadTitle} numberOfLines={1}>
-                  {thread.title}
-                </Text>
-                <Text style={styles.threadMeta}>
-                  {thread.repo}
-                  {thread.tool ? ` · ${thread.tool}` : ""}
+    <View style={{ flex: 1 }}>
+      <NavBanner />
+      <StickyBannerLayout
+        bannerHeight={BANNER_HEIGHT}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
+      >
+        <Text style={styles.sectionHeader}>RECENT THREADS</Text>
+        {threads.length === 0 ? (
+          <View style={styles.emptyThreads}>
+            <Text style={styles.emptyThreadsText}>
+              Start a new thread to see chats here
+            </Text>
+          </View>
+        ) : (
+          threads.map((thread) => (
+            <TouchableOpacity
+              key={thread.id}
+              style={styles.threadCard}
+              activeOpacity={0.72}
+              onPress={() => {
+                setSessionLabel(thread.title);
+                router.push({
+                  pathname: "/chat",
+                  params: {
+                    serverUrl: thread.serverUrl,
+                    sessionId: thread.id,
+                    repoName: thread.repo,
+                    repoPath: thread.repoPath,
+                    agent: thread.tool,
+                  },
+                });
+              }}
+            >
+              <View style={styles.threadRow}>
+                <View style={styles.threadLeft}>
+                  <Text style={styles.threadTitle} numberOfLines={1}>
+                    {thread.title}
+                  </Text>
+                  <Text style={styles.threadMeta}>
+                    {thread.repo}
+                    {thread.tool ? ` · ${thread.tool}` : ""}
+                  </Text>
+                </View>
+                <Text style={styles.threadTime}>
+                  {formatRelativeTime(thread.time)}
                 </Text>
               </View>
-              <Text style={styles.threadTime}>
-                {formatRelativeTime(thread.time)}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))
-      )}
-    </ScrollView>
+            </TouchableOpacity>
+          ))
+        )}
+      </StickyBannerLayout>
+    </View>
   );
 }
 

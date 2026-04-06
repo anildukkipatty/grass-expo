@@ -3,13 +3,18 @@ import { heartbeat, requestContainer } from "@/api/containers";
 import { NationalPark } from "@/constants/theme";
 import { getToken, saveAuth } from "@/store/auth-store";
 import { saveVmUrl } from "@/store/url-store";
+import {
+  BottomSheetModal,
+  BottomSheetBackdrop,
+  BottomSheetView,
+  BottomSheetTextInput,
+} from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -23,20 +28,15 @@ import {
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  PanResponder,
-  Platform,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.5;
 
 // ─── Carousel data ───────────────────────────────────────────────────────────
 
@@ -359,21 +359,12 @@ function SetupLoadingModal({
 const RESEND_COOLDOWN = 30;
 
 function AuthSheet({
-  visible,
-  onClose,
+  sheetRef,
   onVerified,
 }: {
-  visible: boolean;
-  onClose: () => void;
+  sheetRef: React.RefObject<BottomSheetModal>;
   onVerified: (userType: "new" | "old") => void;
 }) {
-  const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
-  const backdropAnim = useRef(new Animated.Value(0)).current;
-  // Tracks how far the user has dragged the sheet down
-  const dragY = useRef(new Animated.Value(0)).current;
-  // Tracks upward offset applied when keyboard appears
-  const keyboardOffset = useRef(new Animated.Value(0)).current;
-
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState<"email" | "otp">("email");
@@ -402,20 +393,21 @@ function AuthSheet({
     };
   }, []);
 
-  // Reset state when sheet closes
-  useEffect(() => {
-    if (!visible) {
-      setStep("email");
-      setEmail("");
-      setOtp("");
-      setLoading(false);
-      setResendTimer(0);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
+  const resetState = useCallback(() => {
+    setStep("email");
+    setEmail("");
+    setOtp("");
+    setLoading(false);
+    setResendTimer(0);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
-  }, [visible]);
+  }, []);
+
+  const handleDismiss = useCallback(() => {
+    resetState();
+  }, [resetState]);
 
   const handleRequestOtp = useCallback(async () => {
     const trimmed = email.trim();
@@ -423,14 +415,10 @@ function AuthSheet({
       Alert.alert("Email required", "Please enter your email address.");
       return;
     }
-
     setLoading(true);
     Keyboard.dismiss();
-
     const result = await requestOtp(trimmed);
-
     setLoading(false);
-
     if (result.ok) {
       setStep("otp");
       startResendTimer();
@@ -441,11 +429,9 @@ function AuthSheet({
 
   const handleResendOtp = useCallback(async () => {
     if (resendTimer > 0) return;
-
     setLoading(true);
     const result = await requestOtp(email.trim());
     setLoading(false);
-
     if (result.ok) {
       startResendTimer();
       Alert.alert("OTP Sent", "A new OTP has been sent to your email.");
@@ -460,336 +446,152 @@ function AuthSheet({
       Alert.alert("Invalid OTP", "Please enter the 6-digit code.");
       return;
     }
-
     setLoading(true);
     Keyboard.dismiss();
-
     const result = await verifyOtp(email.trim(), trimmedOtp);
-
     setLoading(false);
-
     if (result.ok) {
       await saveAuth(result.data.token, result.data.user);
+      sheetRef.current?.dismiss();
       onVerified(result.data.user.userType);
     } else {
       Alert.alert("Verification Failed", result.error);
     }
-  }, [email, otp, onVerified]);
+  }, [email, otp, onVerified, sheetRef]);
 
-  // Open / close animation
-  useEffect(() => {
-    if (visible) {
-      dragY.setValue(0);
-      slideAnim.setValue(SHEET_HEIGHT);
-      backdropAnim.setValue(0);
-      Animated.parallel([
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          damping: 28,
-          stiffness: 260,
-          mass: 0.9,
-          useNativeDriver: true,
-        }),
-        Animated.timing(backdropAnim, {
-          toValue: 1,
-          duration: 260,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      dragY.setValue(0);
-      keyboardOffset.setValue(0);
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: SHEET_HEIGHT,
-          duration: 280,
-          useNativeDriver: true,
-        }),
-        Animated.timing(backdropAnim, {
-          toValue: 0,
-          duration: 240,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [visible]);
-
-  // Keyboard listeners — move sheet up when keyboard appears, back down when hidden
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const showSub = Keyboard.addListener(showEvent, (e) => {
-      const keyboardHeight = e.endCoordinates.height;
-      // Cap upward movement so the sheet top never goes above 10 px from the screen top
-      const sheetTopY = SCREEN_HEIGHT - SHEET_HEIGHT;
-      const maxUpward = Math.max(0, sheetTopY - 10);
-      const upward = Math.min(keyboardHeight, maxUpward);
-
-      Animated.timing(keyboardOffset, {
-        toValue: -upward,
-        duration: Platform.OS === "ios" ? e.duration : 250,
-        useNativeDriver: true,
-      }).start();
-    });
-
-    const hideSub = Keyboard.addListener(hideEvent, (e) => {
-      Animated.timing(keyboardOffset, {
-        toValue: 0,
-        duration: Platform.OS === "ios" ? e.duration : 250,
-        useNativeDriver: true,
-      }).start();
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, [keyboardOffset]);
-
-  // Drag-to-dismiss pan responder — attached only to the drag handle area
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => Platform.OS === "ios",
-      // Only capture downward vertical drags
-      onMoveShouldSetPanResponder: (_, gs) =>
-        gs.dy > 8 && Math.abs(gs.dy) > Math.abs(gs.dx),
-      onPanResponderGrant: () => {
-        Keyboard.dismiss();
-      },
-      onPanResponderMove: (_, gs) => {
-        if (gs.dy > 0) {
-          dragY.setValue(gs.dy);
-        }
-      },
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dy > 80 || gs.vy > 0.5) {
-          // Fast enough or far enough — animate off-screen then close
-          Animated.timing(dragY, {
-            toValue: SHEET_HEIGHT,
-            duration: 220,
-            useNativeDriver: true,
-          }).start(() => {
-            // Pre-set both slideAnim and backdropAnim to their closed values
-            // before resetting dragY. Without this, resetting dragY to 0 makes
-            // the backdrop opacity formula (backdropAnim × dragFactor) briefly
-            // resolve to 1, causing a visible blink.
-            slideAnim.setValue(SHEET_HEIGHT);
-            backdropAnim.setValue(0);
-            dragY.setValue(0);
-            onClose();
-          });
-        } else {
-          // Not far enough — spring back
-          Animated.spring(dragY, {
-            toValue: 0,
-            damping: 20,
-            stiffness: 300,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-      onPanResponderTerminate: () => {
-        Animated.spring(dragY, {
-          toValue: 0,
-          useNativeDriver: true,
-        }).start();
-      },
-    }),
-  ).current;
-
-  // Backdrop dims proportionally as the user drags the sheet down — native iOS feel
-  const backdropOpacity = useMemo(
-    () =>
-      Animated.multiply(
-        backdropAnim,
-        dragY.interpolate({
-          inputRange: [0, SHEET_HEIGHT],
-          outputRange: [1, 0],
-          extrapolate: "clamp",
-        }),
-      ),
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.45}
+      />
+    ),
     [],
   );
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      statusBarTranslucent
-      onRequestClose={onClose}
+    <BottomSheetModal
+      ref={sheetRef}
+      enableDynamicSizing
+      onDismiss={handleDismiss}
+      backdropComponent={renderBackdrop}
+      enablePanDownToClose
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      android_keyboardInputMode="adjustResize"
+      handleIndicatorStyle={styles.dragHandle}
+      backgroundStyle={styles.sheetBackground}
     >
-      {/* Backdrop */}
-      <TouchableWithoutFeedback
-        onPress={() => {
-          Keyboard.dismiss();
-          onClose();
-        }}
-      >
-        <Animated.View
-          style={[styles.backdrop, { opacity: backdropOpacity }]}
-        />
-      </TouchableWithoutFeedback>
+      <BottomSheetView style={styles.sheetContent}>
+        <Text style={styles.sheetTitle}>
+          {step === "email" ? "Create your account" : "Enter verification code"}
+        </Text>
+        <Text style={styles.sheetSubtitle}>
+          {step === "email"
+            ? "Join thousands of people coding remotely"
+            : `The requested OTP is sent to ${email}`}
+        </Text>
 
-      {/* Sheet — combines open/close slide, drag offset, and keyboard offset */}
-      <Animated.View
-        style={[
-          styles.sheet,
-          {
-            transform: [
-              { translateY: slideAnim },
-              { translateY: dragY },
-              { translateY: keyboardOffset },
-            ],
-          },
-        ]}
-      >
-        <LinearGradient
-          colors={["#FFFFFF", "#CCFFD9"]}
-          style={styles.container}
-        >
-          {/* Drag handle — pan responder lives here so scroll inside is unaffected */}
-          <View {...panResponder.panHandlers} style={styles.dragHandleArea}>
-            <View style={styles.dragHandle} />
-          </View>
-
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View>
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.sheetContent}
-              >
-                <Text style={styles.sheetTitle}>
-                  {step === "email"
-                    ? "Create your account"
-                    : "Enter verification code"}
-                </Text>
-                <Text style={styles.sheetSubtitle}>
-                  {step === "email"
-                    ? "Join thousands of people coding remotely"
-                    : `The requested OTP is sent to ${email}`}
-                </Text>
-
-                {step === "email" ? (
-                  <>
-                    {/* Email field */}
-                    <Text style={styles.fieldLabel}>EMAIL</Text>
-                    <View style={styles.inputRow}>
-                      <Image
-                        source={require("@/assets/images/home-screen/email-placeholder-icon.png")}
-                        style={styles.inputIconImage}
-                        contentFit="contain"
-                      />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="name@email.com"
-                        placeholderTextColor="#59B26E"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="done"
-                        value={email}
-                        onChangeText={setEmail}
-                        onSubmitEditing={handleRequestOtp}
-                      />
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    {/* OTP field */}
-                    <Text style={styles.fieldLabel}>OTP CODE</Text>
-                    <View style={styles.inputRow}>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Enter 6-digit code"
-                        placeholderTextColor="#59B26E"
-                        keyboardType="number-pad"
-                        maxLength={6}
-                        autoFocus
-                        value={otp}
-                        onChangeText={setOtp}
-                        returnKeyType="done"
-                        onSubmitEditing={handleVerifyOtp}
-                      />
-                    </View>
-
-                    {/* Resend OTP */}
-                    <View style={styles.resendRow}>
-                      {resendTimer > 0 ? (
-                        <Text style={styles.resendTimerText}>
-                          Resend OTP in {resendTimer}s
-                        </Text>
-                      ) : (
-                        <TouchableOpacity onPress={handleResendOtp}>
-                          <Text style={styles.resendButtonText}>
-                            Resend OTP
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </>
-                )}
-
-                {/* Primary CTA */}
-                <TouchableOpacity
-                  onPress={
-                    step === "email" ? handleRequestOtp : handleVerifyOtp
-                  }
-                  activeOpacity={0.88}
-                  style={styles.ctaButtonShadow}
-                  disabled={loading}
-                >
-                  <LinearGradient
-                    style={[styles.ctaButton, loading && { opacity: 0.7 }]}
-                    colors={["#00FF26", "#E0FF47"]}
-                    locations={[0.2806, 1]}
-                    start={{ x: 0.828, y: 0.123 }}
-                    end={{ x: 0.172, y: 0.878 }}
-                  >
-                    <View
-                      style={styles.ctaButtonInsetHighlight}
-                      pointerEvents="none"
-                    />
-                    {loading ? (
-                      <ActivityIndicator color="#0a1a00" />
-                    ) : (
-                      <Text style={styles.ctaButtonText}>
-                        {step === "email" ? "Get started →" : "Verify OTP →"}
-                      </Text>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
-
-                {/* Legal */}
-                <Text style={styles.legal}>
-                  By continuing, you agree to our{"\n"}
-                  <Text style={styles.legalLink}>Terms of Service</Text>
-                  <Text style={styles.legal}> and </Text>
-                  <Text style={styles.legalLink}>Privacy Policy.</Text>
-                </Text>
-              </ScrollView>
+        {step === "email" ? (
+          <>
+            <Text style={styles.fieldLabel}>EMAIL</Text>
+            <View style={styles.inputRow}>
+              <Image
+                source={require("@/assets/images/home-screen/email-placeholder-icon.png")}
+                style={styles.inputIconImage}
+                contentFit="contain"
+              />
+              <BottomSheetTextInput
+                style={styles.input}
+                placeholder="name@email.com"
+                placeholderTextColor="#59B26E"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+                value={email}
+                onChangeText={setEmail}
+                onSubmitEditing={handleRequestOtp}
+              />
             </View>
-          </TouchableWithoutFeedback>
-        </LinearGradient>
-      </Animated.View>
-    </Modal>
+          </>
+        ) : (
+          <>
+            <Text style={styles.fieldLabel}>OTP CODE</Text>
+            <View style={styles.inputRow}>
+              <BottomSheetTextInput
+                style={styles.input}
+                placeholder="Enter 6-digit code"
+                placeholderTextColor="#59B26E"
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus
+                value={otp}
+                onChangeText={setOtp}
+                returnKeyType="done"
+                onSubmitEditing={handleVerifyOtp}
+              />
+            </View>
+            <View style={styles.resendRow}>
+              {resendTimer > 0 ? (
+                <Text style={styles.resendTimerText}>
+                  Resend OTP in {resendTimer}s
+                </Text>
+              ) : (
+                <TouchableOpacity onPress={handleResendOtp}>
+                  <Text style={styles.resendButtonText}>Resend OTP</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </>
+        )}
+
+        <TouchableOpacity
+          onPress={step === "email" ? handleRequestOtp : handleVerifyOtp}
+          activeOpacity={0.88}
+          style={styles.ctaButtonShadow}
+          disabled={loading}
+        >
+          <LinearGradient
+            style={[styles.ctaButton, loading && { opacity: 0.7 }]}
+            colors={["#00FF26", "#E0FF47"]}
+            locations={[0.2806, 1]}
+            start={{ x: 0.828, y: 0.123 }}
+            end={{ x: 0.172, y: 0.878 }}
+          >
+            <View style={styles.ctaButtonInsetHighlight} pointerEvents="none" />
+            {loading ? (
+              <ActivityIndicator color="#0a1a00" />
+            ) : (
+              <Text style={styles.ctaButtonText}>
+                {step === "email" ? "Get started →" : "Verify OTP →"}
+              </Text>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <Text style={styles.legal}>
+          By continuing, you agree to our{"\n"}
+          <Text style={styles.legalLink}>Terms of Service</Text>
+          <Text style={styles.legal}> and </Text>
+          <Text style={styles.legalLink}>Privacy Policy.</Text>
+        </Text>
+      </BottomSheetView>
+    </BottomSheetModal>
   );
 }
 
 // ─── WelcomeScreen ────────────────────────────────────────────────────────────
 
 export default function WelcomeScreen() {
-  const [sheetVisible, setSheetVisible] = useState(false);
+  const sheetRef = useRef<BottomSheetModal>(null);
   const [setupVisible, setSetupVisible] = useState(false);
   const [userType, setUserType] = useState<"new" | "old">("new");
 
   const handleVerified = (type: "new" | "old") => {
     setUserType(type);
-    setSheetVisible(false);
     setTimeout(() => setSetupVisible(true), 300);
   };
 
@@ -820,14 +622,14 @@ export default function WelcomeScreen() {
               priority="high"
             />
 
-            <Text style={styles.title}>{"Welcome\nto Grass"}</Text>
+            <Text style={styles.title}>{"Welcome\nto Grass Beta"}</Text>
 
             <Text style={styles.subtitle}>
               Control your coding agent{"\n"}from anywhere
             </Text>
 
             <TouchableOpacity
-              onPress={() => setSheetVisible(true)}
+              onPress={() => sheetRef.current?.present()}
               activeOpacity={0.88}
               style={styles.buttonShadow}
             >
@@ -849,11 +651,7 @@ export default function WelcomeScreen() {
         </SafeAreaView>
       </View>
 
-      <AuthSheet
-        visible={sheetVisible}
-        onClose={() => setSheetVisible(false)}
-        onVerified={handleVerified}
-      />
+      <AuthSheet sheetRef={sheetRef} onVerified={handleVerified} />
 
       <SetupLoadingModal visible={setupVisible} userType={userType} />
     </View>
@@ -960,23 +758,10 @@ const styles = StyleSheet.create({
   },
 
   // --- Sheet ---
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.45)",
-  },
-  sheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: SHEET_HEIGHT,
+  sheetBackground: {
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    overflow: "hidden",
-  },
-  dragHandleArea: {
-    paddingVertical: 12,
-    alignItems: "center",
   },
   dragHandle: {
     width: 36,

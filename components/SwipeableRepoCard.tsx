@@ -1,15 +1,11 @@
-import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
 import Animated, {
-  Extrapolation,
-  interpolate,
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from "react-native-reanimated";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,11 +19,6 @@ export interface RepoItem {
   badgeType: "green" | "gray";
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const { width: SCREEN_W } = Dimensions.get("window");
-const SWIPE_THRESHOLD = -110;
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function SwipeableRepoCard({
@@ -39,7 +30,8 @@ export function SwipeableRepoCard({
   onDelete: () => void;
   onPress: () => void;
 }) {
-  const translateX = useSharedValue(0);
+  const swipeableRef = useRef<Swipeable>(null);
+  const isSwiping = useRef(false);
   const containerHeight = useSharedValue(76);
   const [deletePhase, setDeletePhase] = useState<"idle" | "deleted">("idle");
 
@@ -48,49 +40,30 @@ export function SwipeableRepoCard({
     overflow: "hidden" as const,
   }));
 
-  const cardStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
-
-  const bgStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      translateX.value,
-      [-SCREEN_W, -8, 0],
-      [1, 0.75, 0],
-      Extrapolation.CLAMP,
-    ),
-  }));
-
-  const doSpringBack = () => {
-    translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
-  };
-
-  const doDelete = () => {
-    translateX.value = withTiming(-SCREEN_W, { duration: 220 });
+  const collapse = () => {
+    setDeletePhase("deleted");
     setTimeout(() => {
-      setDeletePhase("deleted");
-      setTimeout(() => {
-        containerHeight.value = withTiming(0, { duration: 250 });
-        setTimeout(onDelete, 250);
-      }, 1000);
-    }, 220);
+      containerHeight.value = withTiming(0, { duration: 250 });
+      setTimeout(onDelete, 250);
+    }, 400);
   };
 
-  const pan = Gesture.Pan()
-    .activeOffsetX([-8, 8])
-    .failOffsetY([-15, 15])
-    .onUpdate((e) => {
-      if (e.translationX < 0) {
-        translateX.value = e.translationX;
-      }
-    })
-    .onEnd((e) => {
-      if (e.translationX < SWIPE_THRESHOLD) {
-        runOnJS(doDelete)();
-      } else {
-        runOnJS(doSpringBack)();
-      }
-    });
+  const handleDeletePress = () => {
+    swipeableRef.current?.close();
+    collapse();
+  };
+
+  const renderRightActions = () => (
+    <TouchableOpacity
+      style={repoStyles.deleteAction}
+      onPress={handleDeletePress}
+      activeOpacity={0.85}
+    >
+      <Text style={repoStyles.deleteActionText}>
+        {deletePhase === "deleted" ? "Deleted" : "Delete"}
+      </Text>
+    </TouchableOpacity>
+  );
 
   const badge =
     item.badgeType === "green"
@@ -99,19 +72,19 @@ export function SwipeableRepoCard({
 
   return (
     <Animated.View style={wrapStyle}>
-      {/* Red background revealed on swipe */}
-      <Animated.View style={[repoStyles.deleteBg, bgStyle]}>
-        <Text style={repoStyles.deletedText}>
-          {deletePhase === "deleted" ? "Deleted" : "Deleting..."}
-        </Text>
-      </Animated.View>
-
-      {/* Sliding card */}
-      <GestureDetector gesture={pan}>
-        <Animated.View style={[repoStyles.card, cardStyle]}>
+      <Swipeable
+        ref={swipeableRef}
+        renderRightActions={renderRightActions}
+        rightThreshold={80}
+        overshootRight={false}
+        friction={2}
+        onSwipeableWillOpen={() => { isSwiping.current = true; }}
+        onSwipeableClose={() => { isSwiping.current = false; }}
+      >
+        <View style={repoStyles.card}>
           <TouchableOpacity
             style={{ flex: 1, flexDirection: "row", alignItems: "center" }}
-            onPress={onPress}
+            onPress={() => { if (!isSwiping.current) onPress(); }}
             activeOpacity={0.72}
           >
             <View style={repoStyles.cardLeft}>
@@ -134,8 +107,8 @@ export function SwipeableRepoCard({
               </Text>
             </View>
           </TouchableOpacity>
-        </Animated.View>
-      </GestureDetector>
+        </View>
+      </Swipeable>
     </Animated.View>
   );
 }
@@ -173,17 +146,16 @@ export const repoStyles = StyleSheet.create({
     fontWeight: "500",
     color: "#1C1C1E",
   },
-  deleteBg: {
-    ...StyleSheet.absoluteFillObject,
+  deleteAction: {
     backgroundColor: "#FF3B30",
     borderRadius: 14,
-    marginHorizontal: 14,
+    marginRight: 14,
     marginBottom: 8,
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "center",
-    paddingRight: 22,
+    paddingHorizontal: 22,
   },
-  deletedText: {
+  deleteActionText: {
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 15,

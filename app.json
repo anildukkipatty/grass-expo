@@ -48,7 +48,11 @@
             "backgroundColor": "#a8d97f"
           }
         }
-      ]
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-web-browser",
+      "react-native-bottom-tabs"
     ],
     "experiments": {
       "typedRoutes": true,

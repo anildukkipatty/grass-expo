@@ -1,7 +1,12 @@
-import React, { useRef, useCallback, useState } from 'react';
+import React, { useRef, useCallback, useState, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated, RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import {
+  BottomSheetModal,
+  BottomSheetBackdrop,
+  BottomSheetView,
+} from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -370,6 +375,13 @@ export default function Folders() {
 
   const ws = useWebSocket(serverUrl ?? null);
   const [pendingRepo, setPendingRepo] = useState<Repo | null>(null);
+  const agentSheetRef = useRef<BottomSheetModal>(null);
+  const renderAgentBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+    ),
+    []
+  );
   const [repoDetails, setRepoDetails] = useState<Map<string, RepoDetails>>(new Map());
 
   // Show loading if repos haven't loaded yet
@@ -402,12 +414,13 @@ export default function Folders() {
       });
     } else {
       setPendingRepo(repo);
+      agentSheetRef.current?.present();
     }
   }
 
   function handleSelectAgent(agentId: string) {
     if (!pendingRepo || !serverUrl) return;
-    setPendingRepo(null);
+    agentSheetRef.current?.dismiss();
     router.push({
       pathname: '/sessions',
       params: { serverUrl, repoPath: pendingRepo.path, repoName: pendingRepo.name, agent: agentId },
@@ -502,48 +515,41 @@ export default function Folders() {
         />
       )}
 
-      {/* iPhone-only: agent picker modal */}
+      {/* iPhone-only: agent picker bottom sheet */}
       {!isIPad && (
-        <Modal
-          visible={!!pendingRepo}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setPendingRepo(null)}
+        <BottomSheetModal
+          ref={agentSheetRef}
+          enableDynamicSizing
+          enablePanDownToClose
+          backdropComponent={renderAgentBackdrop}
+          onDismiss={() => setPendingRepo(null)}
+          backgroundStyle={[styles.agentSheetBg, { backgroundColor: BG }]}
+          handleIndicatorStyle={[styles.agentSheetHandle, { backgroundColor: SUBTEXT }]}
         >
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
-            onPress={() => setPendingRepo(null)}
-          >
-            <View
-              style={[styles.modalSheet, { backgroundColor: BG, borderTopColor: CARD_BORDER }]}
-              onStartShouldSetResponder={() => true}
-            >
-              <View style={[styles.modalHandle, { backgroundColor: SUBTEXT }]} />
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: SUBTEXT }]}>Select an agent</Text>
-                <TouchableOpacity onPress={() => setPendingRepo(null)} hitSlop={8}>
-                  <Ionicons name="close" size={20} color={SUBTEXT} />
-                </TouchableOpacity>
-              </View>
-              {pendingRepo && (
-                <Text style={[styles.modalRepo, { color: TEXT }]} numberOfLines={1}>
-                  {pendingRepo.name}
-                </Text>
-              )}
-              <View style={styles.agentList}>
-                {AGENTS.map(agent => (
-                  <AgentCard
-                    key={agent.id}
-                    agent={agent}
-                    c={c}
-                    onPress={() => handleSelectAgent(agent.id)}
-                  />
-                ))}
-              </View>
+          <BottomSheetView style={styles.agentSheetContent}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: SUBTEXT }]}>Select an agent</Text>
+              <TouchableOpacity onPress={() => agentSheetRef.current?.dismiss()} hitSlop={8}>
+                <Ionicons name="close" size={20} color={SUBTEXT} />
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        </Modal>
+            {pendingRepo && (
+              <Text style={[styles.modalRepo, { color: TEXT }]} numberOfLines={1}>
+                {pendingRepo.name}
+              </Text>
+            )}
+            <View style={styles.agentList}>
+              {AGENTS.map(agent => (
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  c={c}
+                  onPress={() => handleSelectAgent(agent.id)}
+                />
+              ))}
+            </View>
+          </BottomSheetView>
+        </BottomSheetModal>
       )}
     </SafeAreaView>
   );
@@ -686,6 +692,20 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: -0.2,
+  },
+  agentSheetBg: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  agentSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.3,
+  },
+  agentSheetContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 32,
   },
   modalBackdrop: {
     flex: 1,
