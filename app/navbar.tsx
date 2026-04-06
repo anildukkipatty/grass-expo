@@ -17,9 +17,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Dimensions,
   FlatList,
   Image,
+  Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -177,6 +179,7 @@ const PERMISSIONS: PermissionCardData[] = [
 interface RepoItem {
   id: string;
   name: string;
+  path: string;
   branch: string;
   action: string;
   badge: string;
@@ -433,9 +436,11 @@ const SWIPE_THRESHOLD = -110;
 function SwipeableRepoCard({
   item,
   onDelete,
+  onPress,
 }: {
   item: RepoItem;
   onDelete: () => void;
+  onPress: () => void;
 }) {
   const translateX = useSharedValue(0);
   const containerHeight = useSharedValue(76);
@@ -507,25 +512,31 @@ function SwipeableRepoCard({
       {/* Sliding card */}
       <GestureDetector gesture={pan}>
         <Animated.View style={[repoStyles.card, cardStyle]}>
-          <View style={repoStyles.cardLeft}>
-            <Text style={repoStyles.repoName}>{item.name}</Text>
-            <Text style={repoStyles.repoBranch}>
-              {"↑ "}
-              {item.branch}
-              {"  ·  "}
-              {item.action}
-            </Text>
-          </View>
-          <View
-            style={[
-              repoStyles.repoBadge,
-              { backgroundColor: badge.bg, borderColor: badge.border },
-            ]}
+          <TouchableOpacity
+            style={{ flex: 1, flexDirection: "row", alignItems: "center" }}
+            onPress={onPress}
+            activeOpacity={0.72}
           >
-            <Text style={[repoStyles.repoBadgeText, { color: badge.text }]}>
-              {item.badge}
-            </Text>
-          </View>
+            <View style={repoStyles.cardLeft}>
+              <Text style={repoStyles.repoName}>{item.name}</Text>
+              <Text style={repoStyles.repoBranch}>
+                {"↑ "}
+                {item.branch}
+                {"  ·  "}
+                {item.action}
+              </Text>
+            </View>
+            <View
+              style={[
+                repoStyles.repoBadge,
+                { backgroundColor: badge.bg, borderColor: badge.border },
+              ]}
+            >
+              <Text style={[repoStyles.repoBadgeText, { color: badge.text }]}>
+                {item.badge}
+              </Text>
+            </View>
+          </TouchableOpacity>
         </Animated.View>
       </GestureDetector>
     </Animated.View>
@@ -551,6 +562,7 @@ export default function NavbarScreen() {
   const [primaryVmUrl, setPrimaryVmUrl] = useState<string | undefined>(
     undefined,
   );
+  const [pendingRepo, setPendingRepo] = useState<RepoItem | null>(null);
   const router = useRouter();
   const selectedVmUrl = vmUrls[activeVmTab] ?? undefined;
 
@@ -662,6 +674,7 @@ export default function NavbarScreen() {
         return {
           id: String(i),
           name: r.name,
+          path: r.path,
           branch: d?.branch ?? "main",
           action: "Open Code",
           badge: d?.dominantLanguage ?? (r.isGit ? "Git" : "Folder"),
@@ -680,6 +693,21 @@ export default function NavbarScreen() {
       cancelled = true;
     };
   }, [vmRunning, selectedVmUrl]);
+
+  function handleSelectAgent(agentId: string) {
+    if (!pendingRepo || !selectedVmUrl) return;
+    const repo = pendingRepo;
+    setPendingRepo(null);
+    router.push({
+      pathname: "/sessions",
+      params: {
+        serverUrl: selectedVmUrl,
+        repoPath: repo.path,
+        repoName: repo.name,
+        agent: agentId,
+      },
+    });
+  }
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -981,6 +1009,7 @@ export default function NavbarScreen() {
                   onDelete={() =>
                     setRepos((prev) => prev.filter((r) => r.id !== item.id))
                   }
+                  onPress={() => setPendingRepo(item)}
                 />
               ))
             )}
@@ -1095,6 +1124,76 @@ export default function NavbarScreen() {
           </View>
         </BlurView>
       </View>
+
+      {/* ─────────────────── AGENT PICKER MODAL ─────────────────── */}
+      <Modal
+        visible={!!pendingRepo}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPendingRepo(null)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}
+          activeOpacity={1}
+          onPress={() => setPendingRepo(null)}
+        >
+          <View
+            style={{
+              backgroundColor: "#fff",
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              borderTopWidth: 1,
+              borderTopColor: "rgba(0,0,0,0.08)",
+              paddingTop: 12,
+              paddingHorizontal: 16,
+              paddingBottom: 48,
+            }}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: "#ccc", alignSelf: "center", marginBottom: 16 }} />
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4, marginBottom: 4 }}>
+              <Text style={{ fontSize: 13, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, color: "#8E8E93" }}>Select an agent</Text>
+              <TouchableOpacity onPress={() => setPendingRepo(null)} hitSlop={8}>
+                <Ionicons name="close" size={20} color="#8E8E93" />
+              </TouchableOpacity>
+            </View>
+            {pendingRepo && (
+              <Text style={{ fontSize: 15, fontWeight: "500", paddingHorizontal: 4, marginBottom: 14, opacity: 0.6, color: "#1C1C1E" }} numberOfLines={1}>
+                {pendingRepo.name}
+              </Text>
+            )}
+            <View style={{ gap: 10 }}>
+              {[
+                { id: "claude-code", label: "Claude Code", description: "Anthropic's AI coding agent", logo: require("@/assets/images/cluade-logo.jpg") },
+                { id: "opencode", label: "Opencode", description: "Open source AI coding agent", logo: require("@/assets/images/open-code.png") },
+              ].map((agent) => (
+                <TouchableOpacity
+                  key={agent.id}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: 16,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: "rgba(0,0,0,0.08)",
+                    backgroundColor: "rgba(0,0,0,0.02)",
+                    gap: 14,
+                  }}
+                  onPress={() => handleSelectAgent(agent.id)}
+                  activeOpacity={0.72}
+                >
+                  <Image source={agent.logo} style={{ width: 44, height: 44, borderRadius: 10 }} />
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={{ fontSize: 17, fontWeight: "600", letterSpacing: -0.3, color: "#1C1C1E" }}>{agent.label}</Text>
+                    <Text style={{ fontSize: 13, opacity: 0.7, color: "#1C1C1E" }}>{agent.description}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* ─────────────────── GET MORE SHEET ─────────────────── */}
       <GetMoreSheet
