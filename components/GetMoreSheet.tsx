@@ -1,3 +1,10 @@
+import {
+  claudeComplete,
+  claudeDisconnect,
+  claudeStart,
+  claudeStatus,
+} from "@/api/claude";
+import { getToken } from "@/store/auth-store";
 import { saveUrl } from "@/store/url-store";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -6,6 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Linking from "expo-linking";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Clipboard,
@@ -24,7 +32,6 @@ import {
 type SheetView = "home" | "connect-agent" | "connect-laptop" | "add-repository";
 type AgentTab = "claude" | "opencode";
 
-const CLAUDE_AUTH_URL = "claude.ai/oauth/device?code=xxxxxxxxxxxxxxxx";
 const OPENCODE_AUTH_URL = "opencode.ai/oauth/device?code=xxxxxxxxxxxxxxxx";
 
 interface Props {
@@ -45,6 +52,15 @@ export function GetMoreSheet({
   const [claudeCode, setClaudeCode] = useState("");
   const [opencodeCode, setOpencodeCode] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
+
+  // Claude auth state
+  const [claudeAuthUrl, setClaudeAuthUrl] = useState<string | null>(null);
+  const [claudeSessionId, setClaudeSessionId] = useState<string | null>(null);
+  const [claudeCmdId, setClaudeCmdId] = useState<string | null>(null);
+  const [claudeConnected, setClaudeConnected] = useState(false);
+  const [claudeLoading, setClaudeLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [scannedQr, setScannedQr] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
@@ -80,7 +96,10 @@ export function GetMoreSheet({
 
   const authCode = activeTab === "claude" ? claudeCode : opencodeCode;
   const setAuthCode = activeTab === "claude" ? setClaudeCode : setOpencodeCode;
-  const authUrl = activeTab === "claude" ? CLAUDE_AUTH_URL : OPENCODE_AUTH_URL;
+  const authUrl =
+    activeTab === "claude"
+      ? claudeAuthUrl ?? "Loading..."
+      : OPENCODE_AUTH_URL;
 
   useEffect(() => {
     if (visible) {
@@ -90,6 +109,50 @@ export function GetMoreSheet({
       setRepoUrl("");
     }
   }, [visible, initialView]);
+
+  // Fetch Claude auth status when sheet opens
+  useEffect(() => {
+    if (!visible) return;
+    (async () => {
+      const token = await getToken();
+      if (!token) return;
+      const res = await claudeStatus(token);
+      if (res.ok) {
+        setClaudeConnected(res.data.connected);
+      }
+    })();
+  }, [visible]);
+
+  // Start Claude auth flow when navigating to connect-agent with claude tab
+  useEffect(() => {
+    if (!visible || currentView !== "connect-agent" || activeTab !== "claude")
+      return;
+    if (claudeConnected) return;
+    // Don't call /start again if we already have a session
+    if (claudeSessionId) return;
+
+    (async () => {
+      setClaudeLoading(true);
+      const token = await getToken();
+      if (!token) {
+        setClaudeLoading(false);
+        return;
+      }
+      const res = await claudeStart(token);
+      if (res.ok) {
+        if (res.data.alreadyAuthenticated) {
+          setClaudeConnected(true);
+        } else {
+          setClaudeAuthUrl(res.data.authUrl ?? null);
+          setClaudeSessionId(res.data.sessionId ?? null);
+          setClaudeCmdId(res.data.cmdId ?? null);
+        }
+      } else {
+        Alert.alert("Error", res.error);
+      }
+      setClaudeLoading(false);
+    })();
+  }, [visible, currentView, activeTab, claudeConnected, claudeSessionId]);
 
   useEffect(() => {
     if (!visible || currentView !== "connect-laptop") return;
@@ -113,19 +176,96 @@ export function GetMoreSheet({
   }, [visible, currentView]);
 
   function handleCopyAuthUrl() {
-    Clipboard.setString("https://" + authUrl);
+    const url = activeTab === "claude" && claudeAuthUrl ? claudeAuthUrl : "https://" + authUrl;
+    Clipboard.setString(url);
     Alert.alert("Copied!", "URL copied to clipboard.");
   }
 
   function handleOpenBrowser() {
-    Linking.openURL("https://" + authUrl);
+    const url = activeTab === "claude" && claudeAuthUrl ? claudeAuthUrl : "https://" + authUrl;
+    Linking.openURL(url);
   }
 
-  function handleVerify() {
+  async function handleVerify() {
     if (!authCode.trim()) return;
+
+    if (activeTab === "claude") {
+      if (!claudeSessionId || !claudeCmdId) {
+        Alert.alert("Error", "Auth session not ready. Please wait or try again.");
+        return;
+      }
+      setVerifying(true);
+      const token = await getToken();
+      if (!token) {
+        setVerifying(false);
+        Alert.alert("Error", "Not logged in.");
+        return;
+      }
+      console.log("[claude-auth] completing with:", {
+        sessionId: claudeSessionId,
+        cmdId: claudeCmdId,
+        authCodeLength: claudeCode.trim().length,
+      });
+      const res = await claudeComplete(token, {
+        authCode: claudeCode.trim(),
+        sessionId: claudeSessionId,
+        cmdId: claudeCmdId,
+      });
+      console.log("[claude-auth] complete response:", res);
+      setVerifying(false);
+      if (res.ok && res.data.success) {
+        setClaudeConnected(true);
+        setClaudeCode("");
+        Alert.alert("Connected!", "Claude Code authenticated successfully.");
+      } else {
+        // Reset session so a fresh /start is triggered on retry
+        setClaudeSessionId(null);
+        setClaudeCmdId(null);
+        setClaudeAuthUrl(null);
+        Alert.alert(
+          "Failed",
+          (res.ok ? res.data.message : res.error) +
+            "\n\nThe session has expired. Please try again.",
+        );
+      }
+    } else {
+      Alert.alert(
+        "Verifying…",
+        "Checking your Opencode authorization code.",
+      );
+    }
+  }
+
+  async function handleDisconnectClaude() {
     Alert.alert(
-      "Verifying…",
-      `Checking your ${activeTab === "claude" ? "Claude" : "Opencode"} authorization code.`,
+      "Disconnect Claude?",
+      "This will remove Claude Code authentication from your VM.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: async () => {
+            setDisconnecting(true);
+            const token = await getToken();
+            if (!token) {
+              setDisconnecting(false);
+              return;
+            }
+            const res = await claudeDisconnect(token);
+            setDisconnecting(false);
+            if (res.ok && res.data.success) {
+              setClaudeConnected(false);
+              setClaudeAuthUrl(null);
+              setClaudeSessionId(null);
+              setClaudeCmdId(null);
+              Alert.alert("Disconnected", "Claude Code has been disconnected.");
+            } else {
+              Alert.alert("Error", res.ok ? res.data.message : res.error);
+            }
+          },
+        },
+      ],
     );
   }
 
@@ -486,91 +626,159 @@ export function GetMoreSheet({
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.agentName}>
-          {activeTab === "claude" ? "Claude Code" : "Opencode"}
-        </Text>
-        <Text style={styles.agentSubtitle}>
-          {activeTab === "claude"
-            ? "Open the link, log in, paste the code.\nTakes 30 seconds."
-            : "Open the link, authenticate, paste the code.\nTakes 30 seconds."}
-        </Text>
+        {activeTab === "claude" && claudeConnected ? (
+          <>
+            <Text style={styles.agentName}>Claude Code</Text>
+            <Text style={styles.agentSubtitle}>
+              {disconnecting
+                ? "Disconnecting..."
+                : "Connected and ready to use."}
+            </Text>
 
-        <View style={styles.urlRow}>
-          <Text style={styles.urlText} numberOfLines={1} ellipsizeMode="tail">
-            {authUrl}
-          </Text>
-          <TouchableOpacity
-            style={styles.copyBtnWrap}
-            onPress={handleCopyAuthUrl}
-            activeOpacity={0.75}
-          >
-            <LinearGradient
-              colors={["#FFEE00", "#FFFA9B"]}
-              start={{ x: 0.07, y: 0 }}
-              end={{ x: 0.87, y: 1 }}
-              style={styles.copyBtn}
+            <View style={styles.connectedBadge}>
+              <Ionicons name="checkmark-circle" size={20} color="#1A5200" />
+              <Text style={styles.connectedBadgeText}>Connected</Text>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.disconnectBtn,
+                disconnecting && styles.disconnectBtnDisabled,
+              ]}
+              onPress={handleDisconnectClaude}
+              activeOpacity={0.8}
+              disabled={disconnecting}
             >
-              <Image
-                source={require("@/assets/images/get-more/copy-icon.png")}
-                style={styles.copyIcon}
-                contentFit="contain"
-              />
-              <Text style={styles.copyText}>COPY</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
+              {disconnecting ? (
+                <ActivityIndicator size="small" color="#E05050" />
+              ) : (
+                <Text style={styles.disconnectBtnText}>Disconnect</Text>
+              )}
+            </TouchableOpacity>
+          </>
+        ) : activeTab === "claude" && claudeLoading ? (
+          <>
+            <Text style={styles.agentName}>Claude Code</Text>
+            <ActivityIndicator
+              size="small"
+              color="#004D13"
+              style={{ marginTop: 16 }}
+            />
+            <Text style={styles.agentSubtitle}>
+              {"Setting up authentication..."}
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.agentName}>
+              {activeTab === "claude" ? "Claude Code" : "Opencode"}
+            </Text>
+            <Text style={styles.agentSubtitle}>
+              {activeTab === "claude"
+                ? "Open the link, log in, paste the code.\nTakes 30 seconds."
+                : "Open the link, authenticate, paste the code.\nTakes 30 seconds."}
+            </Text>
 
-        <TouchableOpacity
-          onPress={handleOpenBrowser}
-          activeOpacity={0.85}
-          style={styles.browserBtnWrap}
-        >
-          <LinearGradient
-            colors={["#5CC830", "#3AAD14"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.browserBtn}
-          >
-            <Text style={styles.browserBtnText}>Open in browser →</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <View style={styles.urlRow}>
+              <Text
+                style={styles.urlText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {authUrl}
+              </Text>
+              <TouchableOpacity
+                style={styles.copyBtnWrap}
+                onPress={handleCopyAuthUrl}
+                activeOpacity={0.75}
+              >
+                <LinearGradient
+                  colors={["#FFEE00", "#FFFA9B"]}
+                  start={{ x: 0.07, y: 0 }}
+                  end={{ x: 0.87, y: 1 }}
+                  style={styles.copyBtn}
+                >
+                  <Image
+                    source={require("@/assets/images/get-more/copy-icon.png")}
+                    style={styles.copyIcon}
+                    contentFit="contain"
+                  />
+                  <Text style={styles.copyText}>COPY</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
 
-        <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>OR PASTE CODE</Text>
-          <View style={styles.dividerLine} />
-        </View>
+            <TouchableOpacity
+              onPress={handleOpenBrowser}
+              activeOpacity={0.85}
+              style={styles.browserBtnWrap}
+            >
+              <LinearGradient
+                colors={["#5CC830", "#3AAD14"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.browserBtn}
+              >
+                <Text style={styles.browserBtnText}>Open in browser →</Text>
+              </LinearGradient>
+            </TouchableOpacity>
 
-        <Text style={styles.codeLabel}>Authorization Code</Text>
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR PASTE CODE</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
-        <TextInput
-          style={styles.codeInput}
-          placeholder="XXX - XXX"
-          placeholderTextColor="#B0BEAA"
-          value={authCode}
-          onChangeText={setAuthCode}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          textAlign="center"
-        />
+            <Text style={styles.codeLabel}>Authorization Code</Text>
 
-        <TouchableOpacity
-          style={[
-            styles.verifyBtn,
-            authCode.trim().length > 0 && styles.verifyBtnActive,
-          ]}
-          onPress={handleVerify}
-          activeOpacity={authCode.trim().length > 0 ? 0.8 : 1}
-        >
-          <Text
-            style={[
-              styles.verifyText,
-              authCode.trim().length > 0 && styles.verifyTextActive,
-            ]}
-          >
-            Verify →
-          </Text>
-        </TouchableOpacity>
+            <TextInput
+              style={styles.codeInput}
+              placeholder="XXX - XXX"
+              placeholderTextColor="#B0BEAA"
+              value={authCode}
+              onChangeText={setAuthCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              textAlign="center"
+              returnKeyType="go"
+              onSubmitEditing={handleVerify}
+              editable={!verifying}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.verifyBtn,
+                verifying
+                  ? styles.verifyBtnActive
+                  : authCode.trim().length > 0 && styles.verifyBtnActive,
+              ]}
+              onPress={handleVerify}
+              activeOpacity={authCode.trim().length > 0 ? 0.8 : 1}
+              disabled={verifying}
+            >
+              {verifying ? (
+                <View style={styles.verifyLoadingRow}>
+                  <ActivityIndicator size="small" color="#ffffff" />
+                  <Text style={styles.verifyTextActive}>Verifying...</Text>
+                </View>
+              ) : (
+                <Text
+                  style={[
+                    styles.verifyText,
+                    authCode.trim().length > 0 && styles.verifyTextActive,
+                  ]}
+                >
+                  Verify →
+                </Text>
+              )}
+            </TouchableOpacity>
+            {verifying && (
+              <Text style={styles.verifyHint}>
+                This may take up to 15 seconds. Please wait.
+              </Text>
+            )}
+          </>
+        )}
       </ScrollView>
     );
   }
@@ -1276,6 +1484,53 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 12,
     fontWeight: "700",
+  },
+
+  // ── Connected / disconnect ─────────────────────────────────────
+  connectedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 8,
+    backgroundColor: "#D4F5D0",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  connectedBadgeText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1A5200",
+  },
+  disconnectBtn: {
+    height: 52,
+    backgroundColor: "#ffffff",
+    borderRadius: 63,
+    borderWidth: 1,
+    borderColor: "#E05050",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  disconnectBtnText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#E05050",
+  },
+  disconnectBtnDisabled: {
+    opacity: 0.6,
+  },
+  verifyLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  verifyHint: {
+    fontSize: 13,
+    color: "#588B64",
+    textAlign: "center",
+    fontWeight: "500",
   },
 
   // ── Add repository view ───────────────────────────────────────
