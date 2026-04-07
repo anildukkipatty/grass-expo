@@ -4,6 +4,11 @@ import {
   claudeStart,
   claudeStatus,
 } from "@/api/claude";
+import {
+  opencodeConnect,
+  opencodeDisconnect,
+  opencodeStatus,
+} from "@/api/opencode";
 import { getToken } from "@/store/auth-store";
 import { cloneRepoStore, getEntry } from "@/store/connection-store";
 import { saveUrl } from "@/store/url-store";
@@ -34,7 +39,7 @@ import {
 type SheetView = "home" | "connect-agent" | "connect-laptop" | "add-repository";
 type AgentTab = "claude" | "opencode";
 
-const OPENCODE_AUTH_URL = "opencode.ai/oauth/device?code=xxxxxxxxxxxxxxxx";
+const OPENCODE_AUTH_URL = "opencode.ai/zen";
 
 interface Props {
   visible: boolean;
@@ -67,8 +72,11 @@ export function GetMoreSheet({
   const [claudeCmdId, setClaudeCmdId] = useState<string | null>(null);
   const [claudeConnected, setClaudeConnected] = useState(false);
   const [claudeLoading, setClaudeLoading] = useState(false);
+  const [opencodeConnected, setOpencodeConnected] = useState(false);
+  const [opencodeLoading, setOpencodeLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [opencodeDisconnecting, setOpencodeDisconnecting] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [scannedQr, setScannedQr] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
@@ -110,9 +118,15 @@ export function GetMoreSheet({
     (async () => {
       const token = await getToken();
       if (!token) return;
-      const res = await claudeStatus(token);
-      if (res.ok) {
-        setClaudeConnected(res.data.connected);
+      const [claudeRes, opencodeRes] = await Promise.all([
+        claudeStatus(token),
+        opencodeStatus(token),
+      ]);
+      if (claudeRes.ok) {
+        setClaudeConnected(claudeRes.data.connected);
+      }
+      if (opencodeRes.ok) {
+        setOpencodeConnected(opencodeRes.data.connected);
       }
     })();
   }, [visible]);
@@ -223,10 +237,28 @@ export function GetMoreSheet({
         );
       }
     } else {
-      Alert.alert(
-        "Verifying…",
-        "Checking your Opencode authorization code.",
-      );
+      setVerifying(true);
+      setOpencodeLoading(true);
+      const token = await getToken();
+      if (!token) {
+        setVerifying(false);
+        setOpencodeLoading(false);
+        Alert.alert("Error", "Not logged in.");
+        return;
+      }
+      const res = await opencodeConnect(token, {
+        apiKey: opencodeCode.trim(),
+      });
+      setVerifying(false);
+      setOpencodeLoading(false);
+      if (res.ok && res.data.success) {
+        setOpencodeConnected(true);
+        setOpencodeCode("");
+        Alert.alert("Connected!", "OpenCode Zen authenticated successfully.");
+      } else {
+        setOpencodeCode("");
+        Alert.alert("Failed", res.ok ? res.data.message : res.error);
+      }
     }
   }
 
@@ -254,6 +286,37 @@ export function GetMoreSheet({
               setClaudeSessionId(null);
               setClaudeCmdId(null);
               Alert.alert("Disconnected", "Claude Code has been disconnected.");
+            } else {
+              Alert.alert("Error", res.ok ? res.data.message : res.error);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleDisconnectOpencode() {
+    Alert.alert(
+      "Disconnect OpenCode?",
+      "This will remove OpenCode Zen authentication from your VM.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: async () => {
+            setOpencodeDisconnecting(true);
+            const token = await getToken();
+            if (!token) {
+              setOpencodeDisconnecting(false);
+              return;
+            }
+            const res = await opencodeDisconnect(token);
+            setOpencodeDisconnecting(false);
+            if (res.ok && res.data.success) {
+              setOpencodeConnected(false);
+              setOpencodeCode("");
+              Alert.alert("Disconnected", "OpenCode Zen has been disconnected.");
             } else {
               Alert.alert("Error", res.ok ? res.data.message : res.error);
             }
@@ -611,13 +674,20 @@ export function GetMoreSheet({
           </TouchableOpacity>
         </View>
 
-        {activeTab === "claude" && claudeConnected ? (
+        {(activeTab === "claude" && claudeConnected) ||
+        (activeTab === "opencode" && opencodeConnected) ? (
           <>
-            <Text style={styles.agentName}>Claude Code</Text>
+            <Text style={styles.agentName}>
+              {activeTab === "claude" ? "Claude Code" : "OpenCode Zen"}
+            </Text>
             <Text style={styles.agentSubtitle}>
-              {disconnecting
-                ? "Disconnecting..."
-                : "Connected and ready to use."}
+              {activeTab === "claude"
+                ? disconnecting
+                  ? "Disconnecting..."
+                  : "Connected and ready to use."
+                : opencodeDisconnecting
+                  ? "Disconnecting..."
+                  : "Connected and ready to use."}
             </Text>
 
             <View style={styles.connectedBadge}>
@@ -628,22 +698,30 @@ export function GetMoreSheet({
             <TouchableOpacity
               style={[
                 styles.disconnectBtn,
-                disconnecting && styles.disconnectBtnDisabled,
+                (activeTab === "claude" ? disconnecting : opencodeDisconnecting) &&
+                  styles.disconnectBtnDisabled,
               ]}
-              onPress={handleDisconnectClaude}
+              onPress={
+                activeTab === "claude"
+                  ? handleDisconnectClaude
+                  : handleDisconnectOpencode
+              }
               activeOpacity={0.8}
-              disabled={disconnecting}
+              disabled={activeTab === "claude" ? disconnecting : opencodeDisconnecting}
             >
-              {disconnecting ? (
+              {(activeTab === "claude" ? disconnecting : opencodeDisconnecting) ? (
                 <ActivityIndicator size="small" color="#E05050" />
               ) : (
                 <Text style={styles.disconnectBtnText}>Disconnect</Text>
               )}
             </TouchableOpacity>
           </>
-        ) : activeTab === "claude" && claudeLoading ? (
+        ) : (activeTab === "claude" && claudeLoading) ||
+          (activeTab === "opencode" && opencodeLoading) ? (
           <>
-            <Text style={styles.agentName}>Claude Code</Text>
+            <Text style={styles.agentName}>
+              {activeTab === "claude" ? "Claude Code" : "OpenCode Zen"}
+            </Text>
             <ActivityIndicator
               size="small"
               color="#004D13"
@@ -660,8 +738,8 @@ export function GetMoreSheet({
             </Text>
             <Text style={styles.agentSubtitle}>
               {activeTab === "claude"
-                ? "Open the link, log in, paste the code.\nTakes 30 seconds."
-                : "Open the link, authenticate, paste the code.\nTakes 30 seconds."}
+                ? "Open the link, log in, paste the code."
+                : "Open the link, create/copy API key, paste it below."}
             </Text>
 
             <View style={styles.urlRow}>
@@ -710,20 +788,28 @@ export function GetMoreSheet({
 
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR PASTE CODE</Text>
+              <Text style={styles.dividerText}>
+                {activeTab === "claude" ? "OR PASTE CODE" : "OR PASTE KEY"}
+              </Text>
               <View style={styles.dividerLine} />
             </View>
 
-            <Text style={styles.codeLabel}>Authorization Code</Text>
+            <Text style={styles.codeLabel}>
+              {activeTab === "claude" ? "Authorization Code" : "API Key"}
+            </Text>
 
             <View style={styles.urlRow}>
               <TextInput
                 style={styles.codeInputInline}
-                placeholder="Paste authorization code"
+                placeholder={
+                  activeTab === "claude"
+                    ? "Paste authorization code"
+                    : "Paste OpenCode Zen API key"
+                }
                 placeholderTextColor="#B0BEAA"
                 value={authCode}
                 onChangeText={setAuthCode}
-                autoCapitalize="characters"
+                autoCapitalize={activeTab === "claude" ? "characters" : "none"}
                 autoCorrect={false}
                 returnKeyType="go"
                 onSubmitEditing={handleVerify}
