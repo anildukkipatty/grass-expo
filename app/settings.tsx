@@ -1,3 +1,7 @@
+import InviteFriendsBackgroundSvg from "@/assets/images/settings/invite-friends-background.svg";
+import InviteFriendsSvg from "@/assets/images/settings/invite-friends.svg";
+import MachineIcon from "@/assets/images/settings/machine-icon.svg";
+import ProfileIconSvg from "@/assets/images/settings/profile-icon.svg";
 import { clearAuth } from "@/store/auth-store";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
@@ -58,10 +62,7 @@ export default function SettingsScreen() {
         {/* Profile Section */}
         <View style={styles.profileSection}>
           {/* <View style={styles.avatarWrapper}> */}
-          <Image
-            source={require("@/assets/images/settings/profile-icon.png")}
-            style={styles.avatar}
-          />
+          <ProfileIconSvg style={styles.avatar} />
           {/* </View> */}
           <Text style={styles.userName}>{USER.name}</Text>
           <Text style={styles.userEmail}>{USER.email}</Text>
@@ -103,10 +104,11 @@ export default function SettingsScreen() {
                 style={styles.machineRow}
                 onPress={() => router.push("/machines")}
               >
-                <Image
+                {/* <Image
                   source={require("@/assets/images/settings/machine-icon.png")}
                   style={styles.machineIcon}
-                />
+                /> */}
+                <MachineIcon style={styles.machineIcon} />
                 <View style={styles.machineInfo}>
                   <Text style={styles.machineName}>{machine.name}</Text>
                   <Text style={styles.machineStatus}>{machine.status}</Text>
@@ -126,10 +128,14 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>REFERRAL</Text>
         <View style={styles.card}>
           <TouchableOpacity style={styles.machineRow}>
-            <Image
-              source={require("@/assets/images/settings/invite-friends.png")}
-              style={styles.machineIcon}
-            />
+            <View style={styles.inviteIconContainer}>
+              <InviteFriendsBackgroundSvg
+                style={StyleSheet.absoluteFillObject}
+                width="100%"
+                height="100%"
+              />
+              <InviteFriendsSvg style={styles.inviteIcon} />
+            </View>
             <View style={styles.machineInfo}>
               <Text style={styles.machineName}>Invite friends</Text>
               <Text style={styles.machineStatus}>
@@ -348,6 +354,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     resizeMode: "contain",
     marginRight: 12,
+    textAlign: "center",
   },
   machineInfo: {
     flex: 1,
@@ -379,6 +386,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#59B26E",
     fontWeight: "500",
+  },
+
+  // Invite friends
+  inviteIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  inviteIcon: {
+    width: 24,
+    height: 24,
   },
 
   // Danger zone

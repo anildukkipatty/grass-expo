@@ -32,16 +32,22 @@ function TabsLayoutInner() {
       >
         <NativeTabs.Trigger name="home">
           <NativeTabs.Trigger.Icon
-            sf="house"
-            selectedColor="#088120"
+            src={{
+              default: require("@/assets/images/navbar-screens/navbar-home.png"),
+              selected: require("@/assets/images/navbar-screens/navbar-home-active.png"),
+            }}
+            renderingMode="original"
           />
           <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="perms">
           <NativeTabs.Trigger.Icon
-            sf="shield"
-            selectedColor="#088120"
+            src={{
+              default: require("@/assets/images/navbar-screens/navbar-perms.png"),
+              selected: require("@/assets/images/navbar-screens/navbar-perms-active.png"),
+            }}
+            renderingMode="original"
           />
           <NativeTabs.Trigger.Label>Perms</NativeTabs.Trigger.Label>
           {permsCount > 0 && (
@@ -51,8 +57,11 @@ function TabsLayoutInner() {
 
         <NativeTabs.Trigger name="repos">
           <NativeTabs.Trigger.Icon
-            sf="folder"
-            selectedColor="#088120"
+            src={{
+              default: require("@/assets/images/navbar-screens/navbar-folder.png"),
+              selected: require("@/assets/images/navbar-screens/navbar-folder-active.png"),
+            }}
+            renderingMode="original"
           />
           <NativeTabs.Trigger.Label>Repos</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>

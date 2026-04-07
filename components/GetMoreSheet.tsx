@@ -12,19 +12,33 @@ import {
 import { getToken } from "@/store/auth-store";
 import { cloneRepoStore, getEntry } from "@/store/connection-store";
 import { saveUrl } from "@/store/url-store";
+import AddRepoSvg from "@/assets/images/get-more/add-repo.svg";
+import AppleSvg from "@/assets/images/get-more/apple.svg";
+import BulbSvg from "@/assets/images/get-more/bulb.svg";
+import ClaudeSvg from "@/assets/images/get-more/claude.svg";
+import GithubSvg from "@/assets/images/get-more/github.svg";
+import LinuxSvg from "@/assets/images/get-more/linux.svg";
+import MicrosoftSvg from "@/assets/images/get-more/microsoft.svg";
+import OpencodeLightSvg from "@/assets/images/get-more/opencode-logo-light.svg";
+import OpencodeSvg from "@/assets/images/get-more/opencode.svg";
 import { Ionicons } from "@expo/vector-icons";
-import { CameraView, useCameraPermissions } from "expo-camera";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
-import * as Linking from "expo-linking";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
-import { Easing } from "react-native-reanimated";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Linking from "expo-linking";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -35,6 +49,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Easing } from "react-native-reanimated";
 
 type SheetView = "home" | "connect-agent" | "connect-laptop" | "add-repository";
 type AgentTab = "claude" | "opencode";
@@ -90,16 +105,20 @@ export function GetMoreSheet({
   });
   const renderBackdrop = useCallback(
     (props: any) => (
-      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+      />
     ),
-    []
+    [],
   );
 
   const authCode = activeTab === "claude" ? claudeCode : opencodeCode;
   const setAuthCode = activeTab === "claude" ? setClaudeCode : setOpencodeCode;
   const authUrl =
     activeTab === "claude"
-      ? claudeAuthUrl ?? "Loading..."
+      ? (claudeAuthUrl ?? "Loading...")
       : OPENCODE_AUTH_URL;
 
   useEffect(() => {
@@ -184,13 +203,19 @@ export function GetMoreSheet({
   }, [visible, currentView]);
 
   function handleCopyAuthUrl() {
-    const url = activeTab === "claude" && claudeAuthUrl ? claudeAuthUrl : "https://" + authUrl;
+    const url =
+      activeTab === "claude" && claudeAuthUrl
+        ? claudeAuthUrl
+        : "https://" + authUrl;
     Clipboard.setString(url);
     Alert.alert("Copied!", "URL copied to clipboard.");
   }
 
   function handleOpenBrowser() {
-    const url = activeTab === "claude" && claudeAuthUrl ? claudeAuthUrl : "https://" + authUrl;
+    const url =
+      activeTab === "claude" && claudeAuthUrl
+        ? claudeAuthUrl
+        : "https://" + authUrl;
     Linking.openURL(url);
   }
 
@@ -199,7 +224,10 @@ export function GetMoreSheet({
 
     if (activeTab === "claude") {
       if (!claudeSessionId || !claudeCmdId) {
-        Alert.alert("Error", "Auth session not ready. Please wait or try again.");
+        Alert.alert(
+          "Error",
+          "Auth session not ready. Please wait or try again.",
+        );
         return;
       }
       setVerifying(true);
@@ -438,11 +466,7 @@ export function GetMoreSheet({
             <View style={styles.cardLeftCol}>
               <Text style={styles.cardTitle}>{"Connect your\nown agent"}</Text>
               <View style={styles.hintRow}>
-                <Image
-                  source={require("@/assets/images/get-more/bulb.svg")}
-                  style={styles.hintIcon}
-                  contentFit="contain"
-                />
+                <BulbSvg width={14} height={14} />
                 <Text style={styles.hintText}>
                   Used by 95% {"\n"}Grass users
                 </Text>
@@ -462,18 +486,10 @@ export function GetMoreSheet({
           <View style={styles.cardBottomRow}>
             <View style={styles.cardBottomIcons}>
               <View style={styles.iconBadge}>
-                <Image
-                  source={require("@/assets/images/get-more/claude.svg")}
-                  style={styles.badgeIcon}
-                  contentFit="contain"
-                />
+                <ClaudeSvg width={12} height={12} />
               </View>
               <View style={styles.iconBadge}>
-                <Image
-                  source={require("@/assets/images/get-more/opencode.svg")}
-                  style={styles.badgeIcon}
-                  contentFit="contain"
-                />
+                <OpencodeSvg width={12} height={12} />
               </View>
             </View>
             <Text style={styles.cardNote}>
@@ -492,11 +508,7 @@ export function GetMoreSheet({
             <View style={styles.cardLeftCol}>
               <Text style={styles.cardTitle}>{"Connect your\nLaptop"}</Text>
               <View style={styles.hintRow}>
-                <Image
-                  source={require("@/assets/images/get-more/bulb.svg")}
-                  style={styles.hintIcon}
-                  contentFit="contain"
-                />
+                <BulbSvg width={14} height={14} />
                 <Text style={styles.hintText}>
                   Your machine, {"\n"}your rules
                 </Text>
@@ -540,25 +552,13 @@ export function GetMoreSheet({
           <View style={styles.cardBottomRow}>
             <View style={styles.cardBottomIcons}>
               <View style={styles.iconBadge}>
-                <Image
-                  source={require("@/assets/images/get-more/apple.svg")}
-                  style={styles.badgeIcon}
-                  contentFit="contain"
-                />
+                <AppleSvg width={12} height={12} />
               </View>
               <View style={styles.iconBadge}>
-                <Image
-                  source={require("@/assets/images/get-more/microsoft.svg")}
-                  style={styles.badgeIcon}
-                  contentFit="contain"
-                />
+                <MicrosoftSvg width={12} height={12} />
               </View>
               <View style={styles.iconBadge}>
-                <Image
-                  source={require("@/assets/images/get-more/linux.svg")}
-                  style={styles.badgeIcon}
-                  contentFit="contain"
-                />
+                <LinuxSvg width={12} height={12} />
               </View>
             </View>
             <Text style={styles.cardNote}>
@@ -575,11 +575,7 @@ export function GetMoreSheet({
             onPress={() => setCurrentView("add-repository")}
           >
             <View style={styles.iconCircle}>
-              <Image
-                source={require("@/assets/images/get-more/add-repo.svg")}
-                style={styles.halfCardIcon}
-                contentFit="contain"
-              />
+              <AddRepoSvg width={19} height={19} />
             </View>
             <Text style={styles.halfCardTitle}>{"Add a\nrepository"}</Text>
             <Text style={styles.halfCardSubtitle}>
@@ -590,11 +586,7 @@ export function GetMoreSheet({
           <TouchableOpacity style={styles.halfCard} activeOpacity={0.88}>
             <View style={styles.halfCardHeader}>
               <View style={styles.iconCircle}>
-                <Image
-                  source={require("@/assets/images/get-more/github.svg")}
-                  style={styles.halfCardIcon}
-                  contentFit="contain"
-                />
+                <GithubSvg width={19} height={19} />
               </View>
               <View style={styles.comingBadge}>
                 <Text style={styles.comingBadgeText}>Coming in v2</Text>
@@ -635,11 +627,7 @@ export function GetMoreSheet({
             onPress={() => setActiveTab("claude")}
             activeOpacity={0.8}
           >
-            <Image
-              source={require("@/assets/images/get-more/claude.svg")}
-              style={styles.tabIcon}
-              contentFit="contain"
-            />
+            <ClaudeSvg width={16} height={16} />
             <Text
               style={[
                 styles.tabText,
@@ -658,11 +646,7 @@ export function GetMoreSheet({
             onPress={() => setActiveTab("opencode")}
             activeOpacity={0.8}
           >
-            <Image
-              source={require("@/assets/images/get-more/opencode-logo-light.svg")}
-              style={styles.tabIcon}
-              contentFit="contain"
-            />
+            <OpencodeLightSvg width={16} height={16} />
             <Text
               style={[
                 styles.tabText,
@@ -1046,7 +1030,10 @@ export function GetMoreSheet({
             const url = repoUrl.trim();
             if (!url || cloning) return;
             if (!serverUrl) {
-              Alert.alert("No server", "No server connected. Please connect a server first.");
+              Alert.alert(
+                "No server",
+                "No server connected. Please connect a server first.",
+              );
               return;
             }
             setCloning(true);

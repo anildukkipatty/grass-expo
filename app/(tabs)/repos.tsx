@@ -1,16 +1,11 @@
+import CloneFromGithub from "@/assets/images/navbar-screens/git-icon.svg";
 import { NavBanner } from "@/components/NavBanner";
-import { SwipeableRepoCard, repoStyles } from "@/components/SwipeableRepoCard";
 import { StickyBannerLayout } from "@/components/StickyBannerLayout";
+import { SwipeableRepoCard, repoStyles } from "@/components/SwipeableRepoCard";
 import { useNavbar } from "@/contexts/navbar-context";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const BANNER_HEIGHT = 160;
 
@@ -53,7 +48,8 @@ export default function ReposTab() {
               setGetMoreVisible(true);
             }}
           >
-            <Ionicons name="logo-github" size={14} color="#1C1C1E" />
+            {/* <Ionicons name="logo-github" size={14} color="#1C1C1E" /> */}
+            <CloneFromGithub />
             <Text style={repoStyles.actionBtnText}>Clone from Github</Text>
           </TouchableOpacity>
         </View>
@@ -78,7 +74,9 @@ export default function ReposTab() {
 
         {/* Swipe hint */}
         {repos.length > 0 && !reposLoading && (
-          <Text style={repoStyles.swipeHint}>Swipe left of a repo to delete</Text>
+          <Text style={repoStyles.swipeHint}>
+            Swipe left of a repo to delete
+          </Text>
         )}
       </StickyBannerLayout>
     </View>

@@ -1,7 +1,8 @@
 import { heartbeat, requestContainer } from "@/api/containers";
-import { getToken } from "@/store/auth-store";
 import { NationalPark } from "@/constants/theme";
+import { getToken } from "@/store/auth-store";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -194,11 +195,19 @@ export default function ContainerSetupScreen() {
             renderItem={({ item }) => (
               <View style={styles.cardWrapper}>
                 <View style={styles.card}>
-                  <Image
-                    source={require("@/assets/images/setup/tabler-power.png")}
-                    style={styles.cardIcon}
-                    contentFit="contain"
-                  />
+                  <LinearGradient
+                    colors={["#00FF40", "#E0FF47"]}
+                    start={{ x: 0.28, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.cardIconGradient}
+                  >
+                    <Image
+                      source={require("@/assets/images/setup/tabler-power.png")}
+                      style={styles.cardIcon}
+                      contentFit="contain"
+                    />
+                  </LinearGradient>
+
                   <View style={styles.cardText}>
                     <Text style={styles.cardTitle} numberOfLines={1}>
                       {item.title}
@@ -222,7 +231,12 @@ export default function ContainerSetupScreen() {
 
         <View style={styles.bottomArea}>
           {error ? (
-            <Text style={[styles.statusText, { color: "#ef4444", textAlign: "center" }]}>
+            <Text
+              style={[
+                styles.statusText,
+                { color: "#ef4444", textAlign: "center" },
+              ]}
+            >
               {error}
             </Text>
           ) : (
@@ -241,7 +255,9 @@ export default function ContainerSetupScreen() {
                 </Text>
               </View>
               <View style={styles.progressTrack}>
-                <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
+                <Animated.View
+                  style={[styles.progressFill, { width: progressWidth }]}
+                />
               </View>
             </>
           )}
@@ -280,9 +296,9 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 36,
-    fontWeight: "800",
+    fontWeight: 700,
     color: "#2E2E2E",
-    letterSpacing: -0.5,
+    letterSpacing: -1,
     lineHeight: 40,
     textAlign: "center",
     marginTop: 24,
@@ -309,6 +325,21 @@ const styles = StyleSheet.create({
     gap: 14,
     flex: 1,
     overflow: "hidden",
+  },
+
+  cardIconGradient: {
+    padding: 10,
+    borderRadius: 63,
+    borderWidth: 1,
+    borderColor: "#00CC33",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    shadowColor: "rgba(0, 255, 38, 1)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 8,
   },
   cardIcon: {
     width: 44,
