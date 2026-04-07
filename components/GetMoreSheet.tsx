@@ -716,19 +716,40 @@ export function GetMoreSheet({
 
             <Text style={styles.codeLabel}>Authorization Code</Text>
 
-            <TextInput
-              style={styles.codeInput}
-              placeholder="XXX - XXX"
-              placeholderTextColor="#B0BEAA"
-              value={authCode}
-              onChangeText={setAuthCode}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              textAlign="center"
-              returnKeyType="go"
-              onSubmitEditing={handleVerify}
-              editable={!verifying}
-            />
+            <View style={styles.urlRow}>
+              <TextInput
+                style={styles.codeInputInline}
+                placeholder="Paste authorization code"
+                placeholderTextColor="#B0BEAA"
+                value={authCode}
+                onChangeText={setAuthCode}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                returnKeyType="go"
+                onSubmitEditing={handleVerify}
+                editable={!verifying}
+              />
+              <TouchableOpacity
+                style={styles.copyBtnWrap}
+                onPress={async () => {
+                  const text = await Clipboard.getString();
+                  if (text?.trim()) {
+                    setAuthCode(text.trim());
+                  }
+                }}
+                activeOpacity={0.75}
+                disabled={verifying}
+              >
+                <LinearGradient
+                  colors={["#FFEE00", "#FFFA9B"]}
+                  start={{ x: 0.07, y: 0 }}
+                  end={{ x: 0.87, y: 1 }}
+                  style={styles.copyBtn}
+                >
+                  <Text style={styles.copyText}>PASTE</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity
               style={[
@@ -1361,6 +1382,13 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     color: "#B6B8B6",
     letterSpacing: 4,
+  },
+  codeInputInline: {
+    flex: 1,
+    fontSize: 16,
+    color: "#004D13",
+    fontFamily: "DM Mono",
+    fontWeight: "400",
   },
   verifyBtn: {
     height: 52,
