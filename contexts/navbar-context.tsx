@@ -4,10 +4,12 @@ import {
   closeConnection,
   getConnectedUrls,
   getEntry,
+  getPermissions,
   getRepoDetailsStore,
   listReposStore,
   openConnection,
   openConnectionWithKey,
+  subscribeToPermissions,
 } from "@/store/connection-store";
 import {
   GRASS_VM_KEY,
@@ -93,8 +95,7 @@ interface NavbarContextValue {
   selectedServerKey: string | undefined;
 
   // Permissions
-  permissions: PermissionCardData[];
-  setPermissions: React.Dispatch<React.SetStateAction<PermissionCardData[]>>;
+  permsCount: number;
 
   // Repos
   repos: RepoItem[];
@@ -143,7 +144,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const [activeVmTab, setActiveVmTab] = useState(0);
-  const [permissions, setPermissions] = useState<PermissionCardData[]>([]);
+  const [permsCount, setPermsCount] = useState(0);
   const [repos, setRepos] = useState<RepoItem[]>([]);
   const [reposLoading, setReposLoading] = useState(false);
   const [getMoreVisible, setGetMoreVisible] = useState(false);
@@ -179,6 +180,17 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       getThreadsForServer(key).then(setThreads);
     });
   }, [selectedServerKey]);
+
+  // Subscribe to global permissions SSE to drive the perms tab badge count
+  useEffect(() => {
+    if (!selectedVmUrl) {
+      setPermsCount(0);
+      return;
+    }
+    const sync = () => setPermsCount(getPermissions(selectedVmUrl).length);
+    sync();
+    return subscribeToPermissions(selectedVmUrl, sync);
+  }, [selectedVmUrl]);
 
   // Load VM URLs when primaryVmUrl changes
   useEffect(() => {
@@ -409,8 +421,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     setActiveVmTab,
     selectedVmUrl,
     selectedServerKey,
-    permissions,
-    setPermissions,
+    permsCount,
     repos,
     setRepos,
     reposLoading,

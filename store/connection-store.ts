@@ -105,6 +105,7 @@ interface PermissionsSSEEntry {
   abortController: AbortController | null;
   permissions: GlobalPermissionItem[];
   listeners: Set<() => void>;
+  resolvedUrl: string | null;
 }
 
 const _permissionsSSE = new Map<string, PermissionsSSEEntry>();
@@ -120,12 +121,13 @@ async function openPermissionsSSE(serverUrl: string) {
   const realUrl = _connections.get(key)?.baseUrl ?? resolveServerUrl(serverUrl);
   let entry = _permissionsSSE.get(key);
   if (!entry) {
-    entry = { abortController: null, permissions: [], listeners: new Set() };
+    entry = { abortController: null, permissions: [], listeners: new Set(), resolvedUrl: null };
     _permissionsSSE.set(key, entry);
   }
 
   if (entry.abortController) return;
 
+  entry.resolvedUrl = realUrl;
   const controller = new AbortController();
   entry.abortController = controller;
 
@@ -183,7 +185,7 @@ export function subscribeToPermissions(serverUrl: string, fn: () => void): () =>
   const key = resolveServerKey(serverUrl);
   let entry = _permissionsSSE.get(key);
   if (!entry) {
-    entry = { abortController: null, permissions: [], listeners: new Set() };
+    entry = { abortController: null, permissions: [], listeners: new Set(), resolvedUrl: null };
     _permissionsSSE.set(key, entry);
   }
   entry.listeners.add(fn);
@@ -201,8 +203,8 @@ export function getPermissions(serverUrl: string): GlobalPermissionItem[] {
 
 export async function respondGlobalPermission(serverUrl: string, sessionId: string, toolUseID: string, approved: boolean) {
   const key = resolveServerKey(serverUrl);
-  const realUrl = _connections.get(key)?.baseUrl ?? resolveServerUrl(serverUrl);
   const entry = _permissionsSSE.get(key);
+  const realUrl = entry?.resolvedUrl ?? _connections.get(key)?.baseUrl ?? resolveServerUrl(serverUrl);
   if (entry) {
     entry.permissions = entry.permissions.filter(p => p.toolUseID !== toolUseID);
     notifyPermissionsListeners(key);
@@ -213,7 +215,9 @@ export async function respondGlobalPermission(serverUrl: string, sessionId: stri
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ toolUseID, approved }),
     });
-  } catch { /* ignore */ }
+  } catch (err) {
+    console.warn('[respondGlobalPermission] failed to send response:', { sessionId, toolUseID, approved, err });
+  }
 }
 
 function notifyListeners(url: string) {

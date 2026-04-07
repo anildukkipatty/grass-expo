@@ -38,13 +38,15 @@ function getDefaultModel(agent: string | undefined): string {
 
 export default function Chat() {
   const router = useRouter();
-  const { serverUrl, sessionId: initialSessionId, repoName, repoPath, agent } = useLocalSearchParams<{
+  const { serverUrl, sessionId: initialSessionId, repoName, repoPath, agent, initialOnboarding } = useLocalSearchParams<{
     serverUrl: string;
     sessionId?: string;
     repoName?: string;
     repoPath?: string;
     agent?: string;
+    initialOnboarding?: string;
   }>();
+  const showOnboarding = initialOnboarding === 'true';
   const [theme, setTheme] = useTheme();
   const [inputText, setInputText] = useState('');
   const inputTextRef = useRef('');
@@ -305,9 +307,15 @@ export default function Chat() {
           )}
           ListEmptyComponent={
             <View style={styles.emptyChat}>
-              <Text style={[styles.emptyChatText, { color: c.badgeText }]}>
-                Send a message to get started.
-              </Text>
+              {showOnboarding && !hasSent.current ? (
+                <View style={[styles.onboardingBanner, { backgroundColor: c.accentSoft, borderColor: c.accent }]}>
+                  <Text style={[styles.onboardingText, { color: c.accent }]}>{"This is a demo repo to help you get started. 👋\n\nIt's a sample landing page — feel free to ask the agent to change anything.\n\nA good place to experiment! 🚀"}</Text>
+                </View>
+              ) : (
+                <Text style={[styles.emptyChatText, { color: c.badgeText }]}>
+                  Send a message to get started.
+                </Text>
+              )}
             </View>
           }
         />
@@ -342,9 +350,9 @@ export default function Chat() {
           {/* Toolbar row */}
           <View style={styles.toolbar}>
             {/* Attachment stub */}
-            <TouchableOpacity style={styles.toolbarBtn} hitSlop={8}>
+            {/* <TouchableOpacity style={styles.toolbarBtn} hitSlop={8}>
               <Text style={[styles.toolbarPlusText, { color: c.text }]}>+</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             <View style={styles.toolbarSpacer} />
 
@@ -578,9 +586,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 60,
+    paddingHorizontal: 24,
   },
   emptyChatText: {
     fontSize: 15,
+  },
+  onboardingBanner: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  onboardingText: {
+    fontSize: 15,
+    textAlign: 'center',
   },
 
   // Input area

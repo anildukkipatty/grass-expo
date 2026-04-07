@@ -6,7 +6,7 @@ import GitStarsSvg from "@/assets/images/push-commit/git-stars.svg";
 import OpenCodeSvg from "@/assets/images/push-commit/open-code.svg";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React from "react";
 import {
   SafeAreaView,
@@ -24,6 +24,7 @@ const REPO = {
 
 export default function PushCommitScreen() {
   const router = useRouter();
+  const { serverUrl } = useLocalSearchParams<{ serverUrl: string }>();
 
   return (
     <LinearGradient colors={["#FFFFFF", "#CCFFD9"]} style={styles.container}>
@@ -40,55 +41,52 @@ export default function PushCommitScreen() {
 
           {/* Repo card */}
           <View style={styles.cardShadow}>
-            <View style={styles.card}>
-              {/* SVG card background */}
-              <CardBackgroundSvg
-                style={StyleSheet.absoluteFill}
-                width="100%"
-                height="100%"
-                preserveAspectRatio="none"
-              />
+            <CardBackgroundSvg
+              style={StyleSheet.absoluteFill}
+              width="100%"
+              height="100%"
+              preserveAspectRatio="none"
+            />
 
-              {/* Top half — repo name + thumbnail */}
-              <View style={styles.cardTopSection}>
-                <View style={styles.repoRow}>
-                  <View style={styles.repoInfo}>
-                    <Text style={styles.repoName}>{REPO.name}</Text>
-                  </View>
-                  <Image
-                    source={require("@/assets/images/push-commit/repo-image.png")}
-                    style={styles.repoThumb}
-                    contentFit="cover"
-                    priority="high"
-                  />
+            {/* Top half — repo name + thumbnail */}
+            <View style={styles.cardTopSection}>
+              <View style={[styles.repoRow, { paddingHorizontal: 20 }]}>
+                <View style={styles.repoInfo}>
+                  <Text style={styles.repoName}>{REPO.name}</Text>
                 </View>
+                <Image
+                  source={require("@/assets/images/push-commit/repo-image.png")}
+                  style={styles.repoThumb}
+                  contentFit="cover"
+                  priority="high"
+                />
               </View>
+            </View>
 
-              {/* Horizontal divider */}
-              <View style={styles.cardHDivider} />
+            {/* Horizontal divider */}
+            <View style={styles.cardHDivider} />
 
-              {/* Bottom half — stats */}
-              <View style={styles.cardBottomSection}>
-                <View style={styles.statsRow}>
-                  <View style={styles.statItem}>
-                    <GitStarsSvg width={16} height={16} />
-                    <View style={styles.statTextCol}>
-                      <Text style={styles.statNumber}>{REPO.stars}</Text>
-                      <Text style={styles.statLabel}>Stars</Text>
-                    </View>
+            {/* Bottom half — stats */}
+            <View style={styles.cardBottomSection}>
+              <View style={[styles.statsRow, { paddingHorizontal: 20 }]}>
+                <View style={styles.statItem}>
+                  <GitStarsSvg width={16} height={16} />
+                  <View style={styles.statTextCol}>
+                    <Text style={styles.statNumber}>{REPO.stars}</Text>
+                    <Text style={styles.statLabel}>Stars</Text>
                   </View>
-                  {/* <View style={styles.statDivider} /> */}
-                  <View style={styles.statItem}>
-                    <GitContributersSvg width={16} height={16} />
-                    <View style={styles.statTextCol}>
-                      <Text style={styles.statNumber}>{REPO.contributors}</Text>
-                      <Text style={styles.statLabel}>Contributors</Text>
-                    </View>
+                </View>
+                {/* <View style={styles.statDivider} /> */}
+                <View style={styles.statItem}>
+                  <GitContributersSvg width={16} height={16} />
+                  <View style={styles.statTextCol}>
+                    <Text style={styles.statNumber}>{REPO.contributors}</Text>
+                    <Text style={styles.statLabel}>Contributors</Text>
                   </View>
-                  <View style={{ flex: 1 }} />
-                  <View style={styles.gitIconWrapper}>
-                    <GitSvg width={14} height={15} />
-                  </View>
+                </View>
+                <View style={{ flex: 1 }} />
+                <View style={styles.gitIconWrapper}>
+                  <GitSvg width={14} height={15} />
                 </View>
               </View>
             </View>
@@ -109,7 +107,16 @@ export default function PushCommitScreen() {
           {/* Action buttons */}
           <TouchableOpacity
             activeOpacity={0.88}
-            onPress={() => router.push("/(tabs)/home")}
+            onPress={() => router.push({
+              pathname: '/chat',
+              params: {
+                serverUrl,
+                agent: 'opencode',
+                repoPath: '/home/daytona/start/repo/grass-demo',
+                repoName: 'grass-demo',
+                initialOnboarding: 'true',
+              },
+            })}
           >
             <LinearGradient
               colors={["#00FF40", "#E0FF47"]}
@@ -183,7 +190,6 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     height: "100%",
-    overflow: "hidden",
     borderRadius: 16,
     paddingHorizontal: 20,
   },
@@ -194,7 +200,7 @@ const styles = StyleSheet.create({
   cardHDivider: {
     height: 1,
     backgroundColor: "#EFE5E5",
-    marginHorizontal: -20,
+    marginHorizontal: 20,
   },
   cardBottomSection: {
     flex: 1,

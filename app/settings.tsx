@@ -2,13 +2,14 @@ import InviteFriendsBackgroundSvg from "@/assets/images/settings/invite-friends-
 import InviteFriendsSvg from "@/assets/images/settings/invite-friends.svg";
 import MachineIcon from "@/assets/images/settings/machine-icon.svg";
 import ProfileIconSvg from "@/assets/images/settings/profile-icon.svg";
-import { clearAuth } from "@/store/auth-store";
+import { clearAuth, getUser } from "@/store/auth-store";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
   Alert,
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -35,6 +36,21 @@ function ChevronIcon() {
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [userEmail, setUserEmail] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    getUser().then((u) => setUserEmail(u?.email ?? null));
+  }, []);
+
+  const handleDeleteAccount = () => {
+    const email = userEmail ?? "unknown";
+    const to = "deleteacc@codeongrass.com";
+    const subject = encodeURIComponent("Account Deletion Request");
+    const body = encodeURIComponent(
+      `Hi Grass team,\n\nI would like to request the deletion of my account.\n\nAccount email: ${email}\n\nPlease confirm once the account has been removed.\n\nThank you.`
+    );
+    Linking.openURL(`mailto:${to}?subject=${subject}&body=${body}`);
+  };
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -64,13 +80,13 @@ export default function SettingsScreen() {
           {/* <View style={styles.avatarWrapper}> */}
           <ProfileIconSvg style={styles.avatar} />
           {/* </View> */}
-          <Text style={styles.userName}>{USER.name}</Text>
-          <Text style={styles.userEmail}>{USER.email}</Text>
-          <View style={styles.planBadge}>
+          {/* <Text style={styles.userName}>{USER.name}</Text> */}
+          <Text style={styles.userEmail}>{userEmail}</Text>
+          {/* <View style={styles.planBadge}>
             <Text style={styles.planBadgeText}>
               {USER.plan} • {USER.vmRemaining}
             </Text>
-          </View>
+          </View> */}
         </View>
 
         {/* Account Section */}
@@ -78,9 +94,9 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <View style={styles.cardRowColumn}>
             <Text style={styles.rowLabel}>Email</Text>
-            <Text style={styles.rowValue}>{USER.email}</Text>
+            <Text style={styles.rowValue}>{userEmail}</Text>
           </View>
-          <View style={styles.divider} />
+          {/* <View style={styles.divider} />
           <View style={styles.cardRow}>
             <View>
               <Text style={styles.rowLabel}>Plan</Text>
@@ -92,11 +108,11 @@ export default function SettingsScreen() {
                 <Text>→</Text>
               </Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
         </View>
 
         {/* Machines Section */}
-        <Text style={styles.sectionLabel}>MACHINES</Text>
+        {/* <Text style={styles.sectionLabel}>MACHINES</Text>
         <View style={styles.card}>
           {MACHINES.map((machine, index) => (
             <View key={machine.id}>
@@ -104,10 +120,6 @@ export default function SettingsScreen() {
                 style={styles.machineRow}
                 onPress={() => router.push("/machines")}
               >
-                {/* <Image
-                  source={require("@/assets/images/settings/machine-icon.png")}
-                  style={styles.machineIcon}
-                /> */}
                 <MachineIcon style={styles.machineIcon} />
                 <View style={styles.machineInfo}>
                   <Text style={styles.machineName}>{machine.name}</Text>
@@ -122,10 +134,10 @@ export default function SettingsScreen() {
           <TouchableOpacity style={styles.addMachineRow}>
             <Text style={styles.addMachineText}>+ Add machine</Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
 
         {/* Referral Section */}
-        <Text style={styles.sectionLabel}>REFERRAL</Text>
+        {/* <Text style={styles.sectionLabel}>REFERRAL</Text>
         <View style={styles.card}>
           <TouchableOpacity style={styles.machineRow}>
             <View style={styles.inviteIconContainer}>
@@ -144,7 +156,7 @@ export default function SettingsScreen() {
             </View>
             <ChevronIcon />
           </TouchableOpacity>
-        </View>
+        </View> */}
 
         {/* Danger Zone */}
         <Text style={styles.sectionLabel}>DANGER ZONE</Text>
@@ -153,7 +165,7 @@ export default function SettingsScreen() {
             <Text style={styles.signOutText}>Sign out</Text>
           </TouchableOpacity>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.dangerRow}>
+          <TouchableOpacity style={styles.dangerRow} onPress={handleDeleteAccount}>
             <Text style={styles.deleteText}>Delete account</Text>
           </TouchableOpacity>
         </View>

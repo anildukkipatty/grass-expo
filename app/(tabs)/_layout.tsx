@@ -9,7 +9,7 @@ import { NativeTabs } from "expo-router/unstable-native-tabs";
 
 function TabsLayoutInner() {
   const {
-    permissions,
+    permsCount,
     getMoreVisible,
     setGetMoreVisible,
     sheetInitialView,
@@ -23,7 +23,6 @@ function TabsLayoutInner() {
     setPendingRepo,
     handleSelectAgent,
   } = useNavbar();
-  const permsCount = permissions.length;
 
   return (
     <>
@@ -32,22 +31,16 @@ function TabsLayoutInner() {
       >
         <NativeTabs.Trigger name="home">
           <NativeTabs.Trigger.Icon
-            src={{
-              default: require("@/assets/images/navbar-screens/navbar-home.png"),
-              selected: require("@/assets/images/navbar-screens/navbar-home-active.png"),
-            }}
-            renderingMode="original"
+            sf="house"
+            selectedColor="#088120"
           />
           <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="perms">
           <NativeTabs.Trigger.Icon
-            src={{
-              default: require("@/assets/images/navbar-screens/navbar-perms.png"),
-              selected: require("@/assets/images/navbar-screens/navbar-perms-active.png"),
-            }}
-            renderingMode="original"
+            sf="shield"
+            selectedColor="#088120"
           />
           <NativeTabs.Trigger.Label>Perms</NativeTabs.Trigger.Label>
           {permsCount > 0 && (
@@ -57,11 +50,8 @@ function TabsLayoutInner() {
 
         <NativeTabs.Trigger name="repos">
           <NativeTabs.Trigger.Icon
-            src={{
-              default: require("@/assets/images/navbar-screens/navbar-folder.png"),
-              selected: require("@/assets/images/navbar-screens/navbar-folder-active.png"),
-            }}
-            renderingMode="original"
+            sf="folder"
+            selectedColor="#088120"
           />
           <NativeTabs.Trigger.Label>Repos</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
