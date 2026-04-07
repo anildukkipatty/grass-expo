@@ -20,6 +20,7 @@ export interface PermissionItem {
 
 export interface GlobalPermissionItem {
   sessionId: string;
+  sdkSessionId: string | null;
   agent: 'claude-code' | 'opencode' | string;
   repoPath: string;
   repoName: string;
@@ -444,8 +445,8 @@ export function closeSSEStream(serverUrl: string) {
   if (entry.sseAbortController) {
     entry.sseAbortController.abort();
     entry.sseAbortController = null;
+    entry.streaming = false;
   }
-  entry.streaming = false;
 }
 
 // AppState handling — runs once on import
@@ -817,6 +818,22 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
         notifyListeners(key);
       }
     } catch { /* ignore */ }
+
+    // Check if the server is still actively streaming for this session.
+    // If so, set streaming=true immediately (so UI shows abort button / disabled input)
+    // and re-attach the SSE stream to receive remaining events.
+    try {
+      const statusRes = await fetch(`${entry.baseUrl}/sessions/${id}/status`);
+      if (statusRes.ok && _connections.has(key)) {
+        const statusJson = await statusRes.json() as { streaming?: boolean };
+        if (statusJson.streaming) {
+          entry.streaming = true;
+          entry.activity = { label: 'Thinking' };
+          notifyListeners(key);
+          openSSEStream(key, id);
+        }
+      }
+    } catch { /* ignore — status endpoint unavailable, assume not streaming */ }
   }
 }
 

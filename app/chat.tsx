@@ -7,12 +7,15 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { useServer } from '@/hooks/use-server';
-import { closeSSEStream } from '@/store/connection-store';
-import { getSessionLabel, subscribeSessionLabel } from '@/store/session-label-store';
+import { closeSSEStream, getEntry, getPermissions, respondGlobalPermission, subscribeToConnection, subscribeToPermissions, GlobalPermissionItem } from '@/store/connection-store';
+import { PermissionCard } from '@/components/PermissionCard';
+import { getSessionLabel, setSessionLabel, subscribeSessionLabel } from '@/store/session-label-store';
 import { upsertThread } from '@/store/thread-store';
+import { deriveSessionTitle } from '@/utils/derive-session-title';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { MessageBubble } from '@/components/MessageBubble';
+import { AgentTypingskeleton } from '@/components/SkeletonLoader';
 
 export default function Chat() {
   const router = useRouter();
@@ -38,6 +41,28 @@ export default function Chat() {
 
   const [sessionLabel, setSessionLabelState] = useState<string | null>(getSessionLabel);
   useEffect(() => subscribeSessionLabel(setSessionLabelState), []);
+
+  // Pending permission for this session
+  const [pendingPermission, setPendingPermission] = useState<GlobalPermissionItem | null>(null);
+  useEffect(() => {
+    if (!serverUrl) return;
+    const update = () => {
+      const entry = getEntry(serverUrl);
+      const grassId = entry?.currentSessionId ?? null;
+      const sdkId = entry?.sessionId ?? null;
+      const match = (grassId || sdkId)
+        ? getPermissions(serverUrl).find(p =>
+            (grassId && p.sessionId === grassId) ||
+            (sdkId && p.sdkSessionId === sdkId)
+          ) ?? null
+        : null;
+      setPendingPermission(match);
+    };
+    update();
+    const unsubPerms = subscribeToPermissions(serverUrl, update);
+    const unsubConn = subscribeToConnection(serverUrl, update);
+    return () => { unsubPerms(); unsubConn(); };
+  }, [serverUrl]);
 
   // Cross-fade send/stop with rotation
   useEffect(() => {
@@ -109,6 +134,33 @@ export default function Chat() {
     outputRange: ['0deg', '90deg'],
   });
 
+  // Derive a meaningful title from conversation content once the first exchange
+  // completes.  Mirrors the CLI preview logic: "User msg — Assistant msg" (≤80 chars).
+  const titleDerived = useRef(false);
+  useEffect(() => {
+    // Only derive once, only after user has sent, streaming finished, and we still
+    // have no server-provided label.
+    if (titleDerived.current || !hasSent.current || ws.streaming || sessionLabel) return;
+    if (!ws.sessionId || !serverUrl) return;
+
+    const derived = deriveSessionTitle(ws.messages);
+    if (!derived) return;
+
+    titleDerived.current = true;
+    setSessionLabelState(derived);
+    setSessionLabel(derived);
+
+    upsertThread({
+      id: ws.sessionId,
+      title: derived,
+      repo: repoName ?? '',
+      repoPath: repoPath ?? '',
+      tool: agent ?? '',
+      serverUrl: serverUrl,
+      time: new Date().toISOString(),
+    });
+  }, [ws.streaming, ws.messages, ws.sessionId, sessionLabel, serverUrl, repoName, repoPath, agent]);
+
   // Save/update thread in storage whenever sessionId is known and user has sent a message
   useEffect(() => {
     if (!hasSent.current || !ws.sessionId || !serverUrl) return;
@@ -174,12 +226,13 @@ export default function Chat() {
       </View>
 
       {/* Context placeholder bar */}
-      <View style={[styles.contextBar, { backgroundColor: c.barBg, borderBottomColor: c.border }]}>
+      {/* <View style={[styles.contextBar, { backgroundColor: c.barBg, borderBottomColor: c.border }]}>
         <Text style={[styles.contextLabel, { color: c.badgeText }]}>Context:  24.5k/128k</Text>
         <View style={styles.contextTrack}>
           <View style={[styles.contextFill, { backgroundColor: '#4ade80' }]} />
         </View>
-      </View>
+      </View> */}
+
 
       {/* Messages */}
       <KeyboardAvoidingView
@@ -197,6 +250,19 @@ export default function Chat() {
               flatListRef.current?.scrollToOffset({ offset: 999999, animated: false });
             }
           }}
+          ListFooterComponent={
+            pendingPermission && serverUrl ? (
+              <>
+                <PermissionCard
+                  item={pendingPermission}
+                  theme={theme}
+                  onAllow={() => respondGlobalPermission(serverUrl, pendingPermission.sessionId, pendingPermission.toolUseID, true)}
+                  onDeny={() => respondGlobalPermission(serverUrl, pendingPermission.sessionId, pendingPermission.toolUseID, false)}
+                />
+                {ws.streaming && ws.messages.some(m => m.role === 'assistant') ? <AgentTypingskeleton theme={theme} /> : null}
+              </>
+            ) : ws.streaming && ws.messages.some(m => m.role === 'assistant') ? <AgentTypingskeleton theme={theme} /> : null
+          }
           renderItem={({ item }) => (
             <MessageBubble
               role={item.role}
@@ -213,6 +279,13 @@ export default function Chat() {
             </View>
           }
         />
+
+        {/* First-send status bar */}
+        {ws.streaming && !ws.messages.some(m => m.role === 'assistant') && (
+          <View style={[styles.firstSendBar, { backgroundColor: c.accentSoft, borderColor: c.accent }]}>
+            <Text style={[styles.firstSendBarText, { color: c.accent }]}>Sending message to the agent…</Text>
+          </View>
+        )}
 
         {/* Input area */}
         <View style={[
@@ -399,6 +472,21 @@ const styles = StyleSheet.create({
     width: '19%',
     height: '100%',
     borderRadius: 2,
+  },
+
+  // First-send status bar
+  firstSendBar: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  firstSendBarText: {
+    fontSize: 13,
+    fontFamily: 'ui-monospace',
   },
 
   // Messages
