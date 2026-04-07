@@ -573,7 +573,7 @@ export function getConnectedUrls(): string[] {
 
 // --- Chat ---
 
-export async function sendMessageStore(serverUrl: string, text: string) {
+export async function sendMessageStore(serverUrl: string, text: string, model?: string, mode?: 'plan' | 'build') {
   const key = resolveServerKey(serverUrl);
   const entry = _connections.get(key);
   if (!entry || !text.trim()) return;
@@ -592,6 +592,8 @@ export async function sendMessageStore(serverUrl: string, text: string) {
         agent: entry.currentAgent,
         prompt: text,
         ...(entry.currentSessionId ? { sessionId: entry.currentSessionId } : {}),
+        ...(model ? { model } : {}),
+        ...(mode ? { mode } : {}),
       }),
     });
     const json = await res.json() as { sessionId?: string };

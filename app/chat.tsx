@@ -6,6 +6,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useServer } from '@/hooks/use-server';
 import { closeSSEStream, getEntry, getPermissions, respondGlobalPermission, subscribeToConnection, subscribeToPermissions, GlobalPermissionItem } from '@/store/connection-store';
 import { PermissionCard } from '@/components/PermissionCard';
@@ -16,6 +17,24 @@ import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { MessageBubble } from '@/components/MessageBubble';
 import { AgentTypingskeleton } from '@/components/SkeletonLoader';
+import modelsJson from '@/models.json';
+
+const MODELS_BY_AGENT: Record<string, Record<string, string>> = modelsJson as any;
+const DEFAULTS: Record<string, string> = {
+  'claude-code': 'claude-sonnet-4-6',
+  'opencode': 'opencode/big-pickle',
+};
+
+function getModelsForAgent(agent: string | undefined): { key: string; label: string }[] {
+  const agentKey = agent === 'opencode' ? 'opencode' : 'claude-code';
+  const map = MODELS_BY_AGENT[agentKey] ?? MODELS_BY_AGENT['claude-code'];
+  return Object.entries(map).map(([key, label]) => ({ key, label }));
+}
+
+function getDefaultModel(agent: string | undefined): string {
+  const agentKey = agent === 'opencode' ? 'opencode' : 'claude-code';
+  return DEFAULTS[agentKey] ?? 'claude-sonnet-4-6';
+}
 
 export default function Chat() {
   const router = useRouter();
@@ -32,6 +51,19 @@ export default function Chat() {
   const flatListRef = useRef<FlatList>(null);
   const sessionInitialized = useRef(false);
   const hasSent = useRef(false);
+
+  const [agentMode, setAgentMode] = useState<'plan' | 'build'>('build');
+
+  const defaultModel = getDefaultModel(agent);
+  const [selectedModelKey, setSelectedModelKey] = useState(defaultModel);
+  const modelList = getModelsForAgent(agent);
+  const selectedModelLabel = modelList.find(m => m.key === selectedModelKey)?.label ?? selectedModelKey;
+  const modelSheetRef = useRef<BottomSheetModal>(null);
+  const modelSnapPoints = ['75%'];
+  const renderModelBackdrop = useCallback(
+    (props: any) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />,
+    []
+  );
   const c = GrassColors[theme];
   const sendScale = useRef(new Animated.Value(1)).current;
   const sendRotation = useRef(new Animated.Value(0)).current;
@@ -104,7 +136,7 @@ export default function Chat() {
       Animated.spring(sendScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }),
     ]).start();
     hasSent.current = true;
-    ws.send(text);
+    ws.send(text, selectedModelKey, agentMode);
     // If sessionId already exists (returning to an existing thread), update timestamp now
     if (ws.sessionId && serverUrl) {
       upsertThread({
@@ -120,7 +152,7 @@ export default function Chat() {
     inputTextRef.current = '';
     setInputText('');
     setTimeout(() => setInputText(''), 100);
-  }, [ws, sendScale, sessionLabel, repoName, repoPath, agent, serverUrl]);
+  }, [ws, sendScale, sessionLabel, repoName, repoPath, agent, serverUrl, selectedModelKey, agentMode]);
 
   const goDiffs = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -316,14 +348,27 @@ export default function Chat() {
 
             <View style={styles.toolbarSpacer} />
 
-            {/* Model pill stub */}
-            <TouchableOpacity style={[styles.pill, { borderColor: c.border }]} hitSlop={8}>
-              <Text style={[styles.pillText, { color: c.text }]}>Sonnet 4.6 <Text style={{ fontSize: 17 }}>▾</Text></Text>
+            {/* Model picker pill */}
+            <TouchableOpacity
+              style={[styles.pill, { borderColor: c.border }]}
+              hitSlop={8}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); modelSheetRef.current?.present(); }}
+            >
+              <Text style={[styles.pillText, { color: c.text }]}>{selectedModelLabel} <Text style={{ fontSize: 17 }}>▾</Text></Text>
             </TouchableOpacity>
 
-            {/* Build pill stub */}
-            <TouchableOpacity style={[styles.pill, { borderColor: c.border }]} hitSlop={8}>
-              <Text style={[styles.pillText, { color: c.text }]}>Build ⇅</Text>
+            {/* Plan/Build mode toggle pill */}
+            <TouchableOpacity
+              style={[styles.pill, { borderColor: agentMode === 'plan' ? c.accent : c.border }]}
+              hitSlop={8}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setAgentMode(m => m === 'build' ? 'plan' : 'build');
+              }}
+            >
+              <Text style={[styles.pillText, { color: agentMode === 'plan' ? c.accent : c.text }]}>
+                {agentMode === 'plan' ? 'Plan' : 'Build'}
+              </Text>
             </TouchableOpacity>
 
             {/* Send / Stop button */}
@@ -362,6 +407,40 @@ export default function Chat() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Model picker bottom sheet */}
+      <BottomSheetModal
+        ref={modelSheetRef}
+        snapPoints={modelSnapPoints}
+        enablePanDownToClose
+        backdropComponent={renderModelBackdrop}
+        backgroundStyle={{ backgroundColor: c.barBg }}
+        handleIndicatorStyle={{ backgroundColor: c.badgeText }}
+      >
+        <Text style={[styles.modelSheetTitle, { color: c.badgeText }]}>Select model</Text>
+        <BottomSheetScrollView contentContainerStyle={styles.modelSheetContent}>
+          {modelList.map((m) => (
+            <TouchableOpacity
+              key={m.key}
+              style={[
+                styles.modelRow,
+                { borderBottomColor: c.border },
+                m.key === selectedModelKey && { backgroundColor: c.accentSoft },
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setSelectedModelKey(m.key);
+                modelSheetRef.current?.dismiss();
+              }}
+            >
+              <Text style={[styles.modelRowText, { color: c.text }]}>{m.label}</Text>
+              {m.key === selectedModelKey && (
+                <Text style={[styles.modelRowCheck, { color: c.accent }]}>✓</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </BottomSheetScrollView>
+      </BottomSheetModal>
     </SafeAreaView>
   );
 }
@@ -577,5 +656,35 @@ const styles = StyleSheet.create({
   },
   sendBtnTextDimmed: {
     opacity: 0.4,
+  },
+
+  // Model picker sheet
+  modelSheetContent: {
+    paddingBottom: 32,
+  },
+  modelSheetTitle: {
+    fontSize: 13,
+    fontFamily: 'ui-monospace',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
+    flexShrink: 0,
+  },
+  modelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  modelRowText: {
+    fontSize: 16,
+  },
+  modelRowCheck: {
+    fontSize: 18,
+    fontWeight: '700',
   },
 });
