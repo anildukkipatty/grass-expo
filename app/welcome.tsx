@@ -4,20 +4,15 @@ import { NationalPark } from "@/constants/theme";
 import { getToken, saveAuth } from "@/store/auth-store";
 import { saveVmUrl } from "@/store/url-store";
 import {
-  BottomSheetModal,
   BottomSheetBackdrop,
-  BottomSheetView,
+  BottomSheetModal,
   BottomSheetTextInput,
+  BottomSheetView,
 } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -31,7 +26,6 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -227,16 +221,7 @@ function SetupLoadingModal({
             contentFit="cover"
             priority="normal"
           />
-          {/* Design layer on top of banner — image positioned per spec: 0px -263px / 100% 142.509% */}
-          <Image
-            source={require("@/assets/images/setup/banner.png")}
-            // style={setup.bannerOverlay}
-            contentFit="fill"
-          />
         </View>
-
-        {/* Gradient overlay at bottom so cards are readable */}
-        <View style={setup.gradientOverlay} />
 
         <SafeAreaView style={setup.safeArea}>
           {/* Title */}
@@ -599,7 +584,8 @@ export default function WelcomeScreen() {
     <View style={styles.container}>
       <View style={styles.background}>
         <Image
-          source={require("@/assets/images/banner-image.png")}
+          // source={require("@/assets/images/banner-image.png")}
+          source={require("@/assets/images/home-screen/banner.png")}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           priority="high"
@@ -616,7 +602,7 @@ export default function WelcomeScreen() {
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.content}>
             <Image
-              source={require("@/assets/images/home-screen/welcome-text-background-image.png")}
+              source={require("@/assets/images/home-screen/logo.png")}
               style={styles.logo}
               contentFit="contain"
               priority="high"
@@ -948,25 +934,7 @@ const setup = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
   },
-  // bannerOverlay: {
-  //   position: "absolute",
-  //   left: 0,
-  //   width: SCREEN_WIDTH,
-  //   top: -263.316,
-  //   height: SCREEN_HEIGHT * 1.42509,
-  //   backgroundColor: "lightgray",
-  //   opacity: 0.08,
-  // },
-  gradientOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    top: 0,
-    backgroundColor: "lightgray",
-    height: SCREEN_HEIGHT * 1,
-    opacity: 0.05,
-  },
+
   safeArea: {
     flex: 1,
   },

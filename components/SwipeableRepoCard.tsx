@@ -1,3 +1,5 @@
+import BranchNameIcon from "@/assets/images/navbar-screens/git-add.svg";
+import React, { useRef, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import Animated, {
@@ -5,7 +7,6 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import React, { useRef, useState } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,19 +79,25 @@ export function SwipeableRepoCard({
         rightThreshold={80}
         overshootRight={false}
         friction={2}
-        onSwipeableWillOpen={() => { isSwiping.current = true; }}
-        onSwipeableClose={() => { isSwiping.current = false; }}
+        onSwipeableWillOpen={() => {
+          isSwiping.current = true;
+        }}
+        onSwipeableClose={() => {
+          isSwiping.current = false;
+        }}
       >
         <View style={repoStyles.card}>
           <TouchableOpacity
             style={{ flex: 1, flexDirection: "row", alignItems: "center" }}
-            onPress={() => { if (!isSwiping.current) onPress(); }}
+            onPress={() => {
+              if (!isSwiping.current) onPress();
+            }}
             activeOpacity={0.72}
           >
             <View style={repoStyles.cardLeft}>
               <Text style={repoStyles.repoName}>{item.name}</Text>
               <Text style={repoStyles.repoBranch}>
-                {"↑ "}
+                <BranchNameIcon />
                 {item.branch}
                 {"  ·  "}
                 {item.action}

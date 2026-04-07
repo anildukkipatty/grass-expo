@@ -1,4 +1,9 @@
 import { NationalPark } from "@/constants/theme";
+import CardBackgroundSvg from "@/assets/images/push-commit/card-background.svg";
+import GitContributersSvg from "@/assets/images/push-commit/git-contributers.svg";
+import GitSvg from "@/assets/images/push-commit/git.svg";
+import GitStarsSvg from "@/assets/images/push-commit/git-stars.svg";
+import OpenCodeSvg from "@/assets/images/push-commit/open-code.svg";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -37,10 +42,11 @@ export default function PushCommitScreen() {
           <View style={styles.cardShadow}>
             <View style={styles.card}>
               {/* SVG card background */}
-              <Image
-                source={require("@/assets/images/push-commit/card-background.svg")}
+              <CardBackgroundSvg
                 style={StyleSheet.absoluteFill}
-                contentFit="fill"
+                width="100%"
+                height="100%"
+                preserveAspectRatio="none"
               />
 
               {/* Top half — repo name + thumbnail */}
@@ -65,11 +71,7 @@ export default function PushCommitScreen() {
               <View style={styles.cardBottomSection}>
                 <View style={styles.statsRow}>
                   <View style={styles.statItem}>
-                    <Image
-                      source={require("@/assets/images/push-commit/git-stars.svg")}
-                      style={styles.statIcon}
-                      contentFit="contain"
-                    />
+                    <GitStarsSvg width={16} height={16} />
                     <View style={styles.statTextCol}>
                       <Text style={styles.statNumber}>{REPO.stars}</Text>
                       <Text style={styles.statLabel}>Stars</Text>
@@ -77,22 +79,16 @@ export default function PushCommitScreen() {
                   </View>
                   {/* <View style={styles.statDivider} /> */}
                   <View style={styles.statItem}>
-                    <Image
-                      source={require("@/assets/images/push-commit/git-contributers.svg")}
-                      style={styles.statIcon}
-                      contentFit="contain"
-                    />
+                    <GitContributersSvg width={16} height={16} />
                     <View style={styles.statTextCol}>
                       <Text style={styles.statNumber}>{REPO.contributors}</Text>
                       <Text style={styles.statLabel}>Contributors</Text>
                     </View>
                   </View>
                   <View style={{ flex: 1 }} />
-                  <Image
-                    source={require("@/assets/images/push-commit/git.png")}
-                    style={styles.gitIcon}
-                    contentFit="contain"
-                  />
+                  <View style={styles.gitIconWrapper}>
+                    <GitSvg width={14} height={15} />
+                  </View>
                 </View>
               </View>
             </View>
@@ -102,11 +98,7 @@ export default function PushCommitScreen() {
 
           {/* Heads-up note */}
           <View style={styles.openCodeRow}>
-            <Image
-              source={require("@/assets/images/push-commit/open-code.svg")}
-              contentFit="cover"
-              style={styles.OpenCodeThumb}
-            />
+            <OpenCodeSvg width={44} height={44} />
             <Text style={styles.note}>
               Heads up, we&#39;re running this on Open {"\n"}Code free tier.
               Connect your own Claude {"\n"}or OpenCode for the optimal
@@ -173,7 +165,6 @@ const styles = StyleSheet.create({
     fontFamily: NationalPark.regular,
     fontSize: 16,
     color: "#59B26E",
-    lineHeight: 21,
     marginBottom: 30,
     fontWeight: 500,
   },
@@ -228,8 +219,10 @@ const styles = StyleSheet.create({
   repoThumb: {
     width: 56,
     height: 56,
-    borderRadius: 12,
     overflow: "hidden",
+    borderRadius: 10,
+    borderColor: "#D2CECE",
+    borderWidth: 1,
   },
   statsRow: {
     flexDirection: "row",
@@ -248,9 +241,16 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
   },
+  gitIconWrapper: {
+    padding: 5,
+    borderRadius: 5,
+    borderColor: "#EFE5E5",
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+  },
   gitIcon: {
-    width: 32,
-    height: 32,
+    width: 14,
+    height: 15,
   },
   statNumber: {
     fontSize: 20,
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 14,
     color: "#767676",
-    fontFamily: NationalPark.bold,
+    fontFamily: NationalPark.regular,
     fontWeight: "500",
   },
   statDivider: {

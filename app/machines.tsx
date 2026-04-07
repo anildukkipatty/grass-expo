@@ -1,6 +1,10 @@
+import LaptopIcon from "@/assets/images/machines/laptop-icon.svg";
+import QRIconSvg from "@/assets/images/machines/QR-icon.svg";
+import RemoveIconSvg from "@/assets/images/machines/remove-icon.svg";
+import RestartIconSvg from "@/assets/images/machines/restart-icon.svg";
+import MachineIcon from "@/assets/images/settings/machine-icon.svg";
 import { GetMoreSheet } from "@/components/GetMoreSheet";
 import { BlurView } from "expo-blur";
-import { Image as ExpoImage } from "expo-image";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -13,246 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type MachineStatus = "online" | "offline";
-
-interface Machine {
-  id: string;
-  name: string;
-  detail: string;
-  icon: any;
-  status: MachineStatus;
-  // online only
-  timerLabel?: string;
-  timerValue?: string;
-  activeRepos?: number;
-  agents?: number;
-  // offline only
-  offlineNote?: string;
-}
-
-const MACHINES: Machine[] = [
-  {
-    id: "1",
-    name: "Grass VM",
-    detail: "Online. Ubuntu 24.04",
-    icon: require("@/assets/images/settings/machine-icon.png"),
-    status: "online",
-    timerLabel: "VM Time left",
-    timerValue: "7h",
-    activeRepos: 2,
-    agents: 3,
-  },
-  {
-    id: "2",
-    name: "Anils-Macbook-pro",
-    detail: "Self hosted. Mac OS Sequoia",
-    icon: require("@/assets/images/machines/laptop-icon.png"),
-    status: "offline",
-    offlineNote:
-      "Run  grass start  in your terminal\nto bring this machine online.",
-  },
-];
-
-export default function MachinesScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const [sheetVisible, setSheetVisible] = useState(false);
-  const [sheetInitialView, setSheetInitialView] = useState<
-    "home" | "connect-laptop"
-  >("home");
-
-  function renderOnlineCard(machine: Machine) {
-    return (
-      <View key={machine.id} style={styles.card}>
-        {/* Header row */}
-        <View style={styles.cardHeader}>
-          <Image source={machine.icon} style={styles.machineIcon} />
-          <View style={styles.machineInfo}>
-            <Text style={styles.machineName}>{machine.name}</Text>
-            <Text style={styles.machineDetail}>{machine.detail}</Text>
-          </View>
-          <View style={styles.onlineBadge}>
-            <Text style={styles.onlineBadgeText}>Online</Text>
-          </View>
-        </View>
-
-        {/* Stats row */}
-        <View style={styles.statsRow}>
-          <View style={styles.statBlock}>
-            <Text style={styles.statValue}>{machine.timerValue}</Text>
-            <Text style={styles.statLabel}>{machine.timerLabel}</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statBlock}>
-            <Text style={styles.statValue}>{machine.activeRepos}</Text>
-            <Text style={styles.statLabel}>Active repos</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statBlock}>
-            <Text style={styles.statValue}>{machine.agents}</Text>
-            <Text style={styles.statLabel}>Agents</Text>
-          </View>
-        </View>
-
-        {/* Action buttons */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.restartButton}>
-            <ExpoImage
-              source={require("@/assets/images/machines/restart-icon.svg")}
-              style={styles.actionIcon}
-              contentFit="contain"
-            />
-            <Text style={styles.restartText}>Restart</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.removeButton}>
-            <ExpoImage
-              source={require("@/assets/images/machines/remove-icon.svg")}
-              style={styles.actionIcon}
-              contentFit="contain"
-            />
-            <Text style={styles.removeText}>Remove</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  function renderOfflineCard(machine: Machine) {
-    return (
-      <View key={machine.id} style={styles.card}>
-        {/* Header row */}
-        <View style={styles.cardHeader}>
-          <Image source={machine.icon} style={styles.machineIcon} />
-          <View style={styles.machineInfo}>
-            <Text style={styles.machineName}>{machine.name}</Text>
-            <Text style={styles.machineDetail}>{machine.detail}</Text>
-          </View>
-          <View style={styles.offlineBadge}>
-            <Text style={styles.offlineBadgeText}>Offline</Text>
-          </View>
-        </View>
-
-        <View style={styles.cardDivider} />
-
-        {/* Offline instruction */}
-        <View style={styles.offlineBody}>
-          <View style={styles.offlineRow}>
-            <Text style={styles.offlineNote}>{"Run "}</Text>
-            <View style={styles.grassStartTag}>
-              <Text style={styles.grassStartText}>grass start</Text>
-            </View>
-            <Text style={styles.offlineNote}>{" in your terminal"}</Text>
-          </View>
-          <Text style={styles.offlineNote}>
-            {"to bring this machine online."}
-          </Text>
-        </View>
-
-        <View style={styles.cardDivider} />
-
-        {/* Reconnect button */}
-        <TouchableOpacity
-          style={styles.reconnectButton}
-          onPress={() => {
-            setSheetInitialView("connect-laptop");
-            setSheetVisible(true);
-          }}
-        >
-          <ExpoImage
-            source={require("@/assets/images/machines/QR-icon.svg")}
-            style={styles.actionIcon}
-            contentFit="contain"
-          />
-          <Text style={styles.reconnectText}>Reconnect via QR</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        contentInsetAdjustmentBehavior="never"
-        automaticallyAdjustContentInsets={false}
-      >
-        <View style={styles.headerSpacer} />
-
-        {/* Description */}
-        <Text style={styles.description}>
-          Machines are environments where your agents run. Switch between them
-          from the Home screen.
-        </Text>
-
-        {/* Machine cards */}
-        {MACHINES.map((m) =>
-          m.status === "online" ? renderOnlineCard(m) : renderOfflineCard(m),
-        )}
-
-        {/* Connect another machine card */}
-        <TouchableOpacity
-          style={styles.connectCard}
-          activeOpacity={0.8}
-          onPress={() => {
-            setSheetInitialView("home");
-            setSheetVisible(true);
-          }}
-        >
-          <View style={styles.plusIconWrapper}>
-            <Text style={styles.plusIcon}>+</Text>
-          </View>
-          <Text style={styles.connectTitle}>Connect another machine</Text>
-          <Text style={styles.connectSubtitle}>
-            Any Mac, Linux box, or cloud VM running{"\n"}the Grass daemon
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.bottomPad} />
-      </ScrollView>
-
-      {/* Floating blurred header */}
-      <BlurView
-        intensity={50}
-        tint="light"
-        style={[styles.header, { paddingTop: insets.top }]}
-        pointerEvents="box-none"
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Image
-              source={require("@/assets/images/settings/back-arrow.png")}
-              style={styles.backIcon}
-              tintColor="#000"
-            />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Machines</Text>
-          <View style={styles.headerRight}>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => {
-                setSheetInitialView("home");
-                setSheetVisible(true);
-              }}
-            >
-              <Text style={styles.addButtonText}>+ Add</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </BlurView>
-
-      <GetMoreSheet
-        visible={sheetVisible}
-        onClose={() => setSheetVisible(false)}
-        initialView={sheetInitialView}
-      />
-    </View>
-  );
-}
-
+//styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -572,3 +337,235 @@ const styles = StyleSheet.create({
     height: 32,
   },
 });
+
+type MachineStatus = "online" | "offline";
+
+interface Machine {
+  id: string;
+  name: string;
+  detail: string;
+  icon: any;
+  status: MachineStatus;
+  // online only
+  timerLabel?: string;
+  timerValue?: string;
+  activeRepos?: number;
+  agents?: number;
+  // offline only
+  offlineNote?: string;
+}
+
+const MACHINES: Machine[] = [
+  {
+    id: "1",
+    name: "Grass VM",
+    detail: "Online. Ubuntu 24.04",
+    // icon: require("@/assets/images/settings/machine-icon.png"),
+    icon: <MachineIcon style={styles.machineIcon} />,
+    status: "online",
+    timerLabel: "VM Time left",
+    timerValue: "7h",
+    activeRepos: 2,
+    agents: 3,
+  },
+  {
+    id: "2",
+    name: "Anils-Macbook-pro",
+    detail: "Self hosted. Mac OS Sequoia",
+    // icon: require("@/assets/images/machines/laptop-icon.png"),
+    icon: <LaptopIcon style={styles.machineIcon} />,
+    status: "offline",
+    offlineNote:
+      "Run  grass start  in your terminal\nto bring this machine online.",
+  },
+];
+
+export default function MachinesScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const [sheetInitialView, setSheetInitialView] = useState<
+    "home" | "connect-laptop"
+  >("home");
+
+  function renderOnlineCard(machine: Machine) {
+    return (
+      <View key={machine.id} style={styles.card}>
+        {/* Header row */}
+        <View style={styles.cardHeader}>
+          {/* <Image source={machine.icon} style={styles.machineIcon} /> */}
+          {machine.icon}
+          <View style={styles.machineInfo}>
+            <Text style={styles.machineName}>{machine.name}</Text>
+            <Text style={styles.machineDetail}>{machine.detail}</Text>
+          </View>
+          <View style={styles.onlineBadge}>
+            <Text style={styles.onlineBadgeText}>Online</Text>
+          </View>
+        </View>
+
+        {/* Stats row */}
+        <View style={styles.statsRow}>
+          <View style={styles.statBlock}>
+            <Text style={styles.statValue}>{machine.timerValue}</Text>
+            <Text style={styles.statLabel}>{machine.timerLabel}</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statBlock}>
+            <Text style={styles.statValue}>{machine.activeRepos}</Text>
+            <Text style={styles.statLabel}>Active repos</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statBlock}>
+            <Text style={styles.statValue}>{machine.agents}</Text>
+            <Text style={styles.statLabel}>Agents</Text>
+          </View>
+        </View>
+
+        {/* Action buttons */}
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.restartButton}>
+            <RestartIconSvg width={16} height={16} style={{ marginRight: 6 }} />
+            <Text style={styles.restartText}>Restart</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.removeButton}>
+            <RemoveIconSvg width={16} height={16} style={{ marginRight: 6 }} />
+            <Text style={styles.removeText}>Remove</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  function renderOfflineCard(machine: Machine) {
+    return (
+      <View key={machine.id} style={styles.card}>
+        {/* Header row */}
+        <View style={styles.cardHeader}>
+          {/* <Image source={machine.icon} style={styles.machineIcon} /> */}
+          {machine.icon}
+          <View style={styles.machineInfo}>
+            <Text style={styles.machineName}>{machine.name}</Text>
+            <Text style={styles.machineDetail}>{machine.detail}</Text>
+          </View>
+          <View style={styles.offlineBadge}>
+            <Text style={styles.offlineBadgeText}>Offline</Text>
+          </View>
+        </View>
+
+        <View style={styles.cardDivider} />
+
+        {/* Offline instruction */}
+        <View style={styles.offlineBody}>
+          <View style={styles.offlineRow}>
+            <Text style={styles.offlineNote}>{"Run "}</Text>
+            <View style={styles.grassStartTag}>
+              <Text style={styles.grassStartText}>grass start</Text>
+            </View>
+            <Text style={styles.offlineNote}>{" in your terminal"}</Text>
+          </View>
+          <Text style={styles.offlineNote}>
+            {"to bring this machine online."}
+          </Text>
+        </View>
+
+        <View style={styles.cardDivider} />
+
+        {/* Reconnect button */}
+        <TouchableOpacity
+          style={styles.reconnectButton}
+          onPress={() => {
+            setSheetInitialView("connect-laptop");
+            setSheetVisible(true);
+          }}
+        >
+          <QRIconSvg width={16} height={16} style={{ marginRight: 6 }} />
+          <Text style={styles.reconnectText}>Reconnect via QR</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+      >
+        <View style={styles.headerSpacer} />
+
+        {/* Description */}
+        <Text style={styles.description}>
+          Machines are environments where your agents run. Switch between them
+          from the Home screen.
+        </Text>
+
+        {/* Machine cards */}
+        {MACHINES.map((m) =>
+          m.status === "online" ? renderOnlineCard(m) : renderOfflineCard(m),
+        )}
+
+        {/* Connect another machine card */}
+        <TouchableOpacity
+          style={styles.connectCard}
+          activeOpacity={0.8}
+          onPress={() => {
+            setSheetInitialView("home");
+            setSheetVisible(true);
+          }}
+        >
+          <View style={styles.plusIconWrapper}>
+            <Text style={styles.plusIcon}>+</Text>
+          </View>
+          <Text style={styles.connectTitle}>Connect another machine</Text>
+          <Text style={styles.connectSubtitle}>
+            Any Mac, Linux box, or cloud VM running{"\n"}the Grass daemon
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.bottomPad} />
+      </ScrollView>
+
+      {/* Floating blurred header */}
+      <BlurView
+        intensity={50}
+        tint="light"
+        style={[styles.header, { paddingTop: insets.top }]}
+        pointerEvents="box-none"
+      >
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Image
+              source={require("@/assets/images/settings/back-arrow.png")}
+              style={styles.backIcon}
+              tintColor="#000"
+            />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Machines</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => {
+                setSheetInitialView("home");
+                setSheetVisible(true);
+              }}
+            >
+              <Text style={styles.addButtonText}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </BlurView>
+
+      <GetMoreSheet
+        visible={sheetVisible}
+        onClose={() => setSheetVisible(false)}
+        initialView={sheetInitialView}
+      />
+    </View>
+  );
+}
