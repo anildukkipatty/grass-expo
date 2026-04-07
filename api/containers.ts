@@ -5,6 +5,7 @@ export type RequestContainerResponse = {
   message: string;
   sandboxId: string | null;
   url: string;
+  demoRepoReady?: boolean;
 };
 
 export type HeartbeatResponse = {

@@ -95,6 +95,10 @@ export default function ContainerSetupScreen() {
       const result = await requestContainer(token);
       if (cancelled) return;
       if (result.ok) {
+        // For new users, log whether the demo repo was cloned successfully
+        if (result.data.demoRepoReady !== undefined) {
+          console.log(`[container-setup] demo repo ready: ${result.data.demoRepoReady}`);
+        }
         provisionDone.current = true;
         finishAndRedirect();
       } else {
