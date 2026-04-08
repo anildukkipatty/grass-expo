@@ -9,6 +9,7 @@ import {
   BottomSheetView,
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
+import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -498,15 +499,11 @@ function AuthSheet({
           <>
             <Text style={styles.fieldLabel}>EMAIL</Text>
             <View style={styles.inputRow}>
-              <Image
-                source={require("@/assets/images/home-screen/email-placeholder-icon.png")}
-                style={styles.inputIconImage}
-                contentFit="contain"
-              />
+              <Feather name="mail" size={16} color="#8fc19b" style={styles.inputIconImage} />
               <BottomSheetTextInput
                 style={styles.input}
                 placeholder="name@email.com"
-                placeholderTextColor="#59B26E"
+                placeholderTextColor="#8fc19b"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -556,18 +553,25 @@ function AuthSheet({
         >
           <LinearGradient
             style={[styles.ctaButton, loading && { opacity: 0.7 }]}
-            colors={["#00FF26", "#E0FF47"]}
-            locations={[0.2806, 1]}
-            start={{ x: 0.828, y: 0.123 }}
-            end={{ x: 0.172, y: 0.878 }}
+            colors={["#00FF40", "#9DFF47"]}
+            locations={[0.055, 0.9685]}
+            start={{ x: 1, y: 0.444 }}
+            end={{ x: 0, y: 0.556 }}
           >
             <View style={styles.ctaButtonInsetHighlight} pointerEvents="none" />
             {loading ? (
               <ActivityIndicator color="#0a1a00" />
             ) : (
-              <Text style={styles.ctaButtonText}>
-                {step === "email" ? "Get started →" : "Verify OTP →"}
-              </Text>
+              <View style={styles.ctaButtonContent}>
+                <Text style={styles.ctaButtonText}>
+                  {step === "email" ? "Get started" : "Verify OTP"}
+                </Text>
+                <Image
+                  source={require("@/assets/images/home-screen/tabler-arrow-up.svg")}
+                  style={styles.ctaButtonArrow}
+                  contentFit="contain"
+                />
+              </View>
             )}
           </LinearGradient>
         </TouchableOpacity>
@@ -635,10 +639,10 @@ export default function WelcomeScreen() {
             >
               <LinearGradient
                 style={styles.button}
-                colors={["#00FF26", "#E0FF47"]}
-                locations={[0.2806, 1]}
-                start={{ x: 0.828, y: 0.123 }}
-                end={{ x: 0.172, y: 0.878 }}
+                colors={["#00FF40", "#9DFF47"]}
+                locations={[0.055, 0.9685]}
+                start={{ x: 1, y: 0.509 }}
+                end={{ x: 0, y: 0.491 }}
               >
                 <View
                   style={styles.buttonInsetHighlight}
@@ -733,8 +737,8 @@ const styles = StyleSheet.create({
   },
   button: {
     borderRadius: 63,
-    borderWidth: 2,
-    borderColor: "#00CC1E",
+    borderWidth: 1,
+    borderColor: "#6CD72A",
     paddingVertical: 18,
     alignItems: "center",
     justifyContent: "center",
@@ -752,9 +756,9 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "#000",
-    fontFamily: NationalPark.bold,
+    fontFamily: NationalPark.semiBold,
     fontSize: 20,
-    fontWeight: 700,
+    fontWeight: 600,
   },
 
   // --- Sheet ---
@@ -775,16 +779,16 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   sheetTitle: {
-    color: "#00330C",
-    fontFamily: NationalPark.bold,
+    color: "#006217",
+    fontFamily: NationalPark.semiBold,
     fontSize: 36,
     fontWeight: 600,
     letterSpacing: -1,
     marginBottom: 5,
   },
   sheetSubtitle: {
-    color: "#59B26E",
-    fontFamily: NationalPark.regular,
+    color: "#78c089",
+    fontFamily: NationalPark.medium,
     fontSize: 16,
     fontWeight: 500,
     marginBottom: 30,
@@ -802,9 +806,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#ffffff",
-    borderRadius: 14,
+    borderRadius: 80,
     borderWidth: 1,
-    borderColor: "#D1E8BC",
+    borderColor: "#c3e6cc",
     paddingHorizontal: 14,
     height: 52,
   },
@@ -819,8 +823,8 @@ const styles = StyleSheet.create({
     borderRadius: 80,
     borderColor: "#A1E5B2",
     backgroundColor: "#FFF",
-    color: "#00330C",
-    fontFamily: NationalPark.bold,
+    color: "#8FC19B",
+    fontFamily: NationalPark.regular,
   },
   ctaButtonShadow: {
     marginTop: 28,
@@ -833,12 +837,21 @@ const styles = StyleSheet.create({
   },
   ctaButton: {
     borderRadius: 63,
-    borderWidth: 2,
-    borderColor: "#00CC1E",
+    borderWidth: 1,
+    borderColor: "#6CD72A",
     paddingVertical: 17,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
+  },
+  ctaButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  ctaButtonArrow: {
+    width: 20,
+    height: 20,
   },
   ctaButtonInsetHighlight: {
     position: "absolute",
