@@ -194,7 +194,7 @@ function PermCard({
 
         <TouchableOpacity style={card.approveOuter} onPress={handleApprove} activeOpacity={0.85}>
           <LinearGradient
-            colors={["#00FF40", "#E0FF47"]}
+            colors={["#00FF26"]}
             start={{ x: 0.72, y: 1 }}
             end={{ x: 0.28, y: 0 }}
             style={card.btnGradient}

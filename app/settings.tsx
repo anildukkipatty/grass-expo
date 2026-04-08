@@ -1,6 +1,7 @@
-import InviteFriendsBackgroundSvg from "@/assets/images/settings/invite-friends-background.svg";
-import InviteFriendsSvg from "@/assets/images/settings/invite-friends.svg";
-import MachineIcon from "@/assets/images/settings/machine-icon.svg";
+// import InviteFriendsBackgroundSvg from "@/assets/images/settings/invite-friends-background.svg";
+// import InviteFriendsSvg from "@/assets/images/settings/invite-friends.svg";
+// import MachineIcon from "@/assets/images/settings/machine-icon.svg";
+import BackIcon from "@/assets/images/settings/back-arrow.svg";
 import ProfileIconSvg from "@/assets/images/settings/profile-icon.svg";
 import { clearAuth, getUser } from "@/store/auth-store";
 import { BlurView } from "expo-blur";
@@ -8,7 +9,6 @@ import { useRouter } from "expo-router";
 import React from "react";
 import {
   Alert,
-  Image,
   Linking,
   ScrollView,
   StyleSheet,
@@ -47,7 +47,7 @@ export default function SettingsScreen() {
     const to = "deleteacc@codeongrass.com";
     const subject = encodeURIComponent("Account Deletion Request");
     const body = encodeURIComponent(
-      `Hi Grass team,\n\nI would like to request the deletion of my account.\n\nAccount email: ${email}\n\nPlease confirm once the account has been removed.\n\nThank you.`
+      `Hi Grass team,\n\nI would like to request the deletion of my account.\n\nAccount email: ${email}\n\nPlease confirm once the account has been removed.\n\nThank you.`,
     );
     Linking.openURL(`mailto:${to}?subject=${subject}&body=${body}`);
   };
@@ -166,7 +166,10 @@ export default function SettingsScreen() {
             <Text style={styles.signOutText}>Sign out</Text>
           </TouchableOpacity>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.dangerRow} onPress={handleDeleteAccount}>
+          <TouchableOpacity
+            style={styles.dangerRow}
+            onPress={handleDeleteAccount}
+          >
             <Text style={styles.deleteText}>Delete account</Text>
           </TouchableOpacity>
         </View>
@@ -186,11 +189,12 @@ export default function SettingsScreen() {
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Image
+            {/* <Image
               source={require("@/assets/images/settings/back-arrow.png")}
               style={styles.backIcon}
               tintColor="#000"
-            />
+            /> */}
+            <BackIcon />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Settings &amp; Profile</Text>
         </View>

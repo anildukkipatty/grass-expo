@@ -15,18 +15,20 @@ import {
   githubOauthStatus,
   githubVerifyVmAuth,
 } from "@/api/github";
-import { getToken } from "@/store/auth-store";
-import { cloneRepoStore, getEntry } from "@/store/connection-store";
-import { saveUrl } from "@/store/url-store";
 import AddRepoSvg from "@/assets/images/get-more/add-repo.svg";
 import AppleSvg from "@/assets/images/get-more/apple.svg";
+import BackArrow from "@/assets/images/get-more/back-arrow.svg";
 import BulbSvg from "@/assets/images/get-more/bulb.svg";
 import ClaudeSvg from "@/assets/images/get-more/claude.svg";
+import CopyIcon from "@/assets/images/get-more/copy-icon.svg";
 import GithubSvg from "@/assets/images/get-more/github.svg";
 import LinuxSvg from "@/assets/images/get-more/linux.svg";
 import MicrosoftSvg from "@/assets/images/get-more/microsoft.svg";
 import OpencodeLightSvg from "@/assets/images/get-more/opencode-logo-light.svg";
 import OpencodeSvg from "@/assets/images/get-more/opencode.svg";
+import { getToken } from "@/store/auth-store";
+import { cloneRepoStore, getEntry } from "@/store/connection-store";
+import { saveUrl } from "@/store/url-store";
 import { Ionicons } from "@expo/vector-icons";
 import {
   BottomSheetBackdrop,
@@ -51,10 +53,14 @@ import {
   Alert,
   AppState,
   Clipboard,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { Easing } from "react-native-reanimated";
@@ -401,7 +407,10 @@ export function GetMoreSheet({
             if (res.ok && res.data.success) {
               setOpencodeConnected(false);
               setOpencodeCode("");
-              Alert.alert("Disconnected", "OpenCode Zen has been disconnected.");
+              Alert.alert(
+                "Disconnected",
+                "OpenCode Zen has been disconnected.",
+              );
             } else {
               Alert.alert("Error", res.ok ? res.data.message : res.error);
             }
@@ -733,11 +742,12 @@ export function GetMoreSheet({
           onPress={() => setCurrentView("home")}
           activeOpacity={0.7}
         >
-          <Image
+          {/* <Image
             source={require("@/assets/images/get-more/back-arrow.png")}
             style={styles.backIcon}
             contentFit="contain"
-          />
+          /> */}
+          <BackArrow />
         </TouchableOpacity>
 
         <Text style={styles.title}>{"Connect your\nown agent"}</Text>
@@ -803,8 +813,9 @@ export function GetMoreSheet({
             <TouchableOpacity
               style={[
                 styles.disconnectBtn,
-                (activeTab === "claude" ? disconnecting : opencodeDisconnecting) &&
-                  styles.disconnectBtnDisabled,
+                (activeTab === "claude"
+                  ? disconnecting
+                  : opencodeDisconnecting) && styles.disconnectBtnDisabled,
               ]}
               onPress={
                 activeTab === "claude"
@@ -812,9 +823,13 @@ export function GetMoreSheet({
                   : handleDisconnectOpencode
               }
               activeOpacity={0.8}
-              disabled={activeTab === "claude" ? disconnecting : opencodeDisconnecting}
+              disabled={
+                activeTab === "claude" ? disconnecting : opencodeDisconnecting
+              }
             >
-              {(activeTab === "claude" ? disconnecting : opencodeDisconnecting) ? (
+              {(
+                activeTab === "claude" ? disconnecting : opencodeDisconnecting
+              ) ? (
                 <ActivityIndicator size="small" color="#E05050" />
               ) : (
                 <Text style={styles.disconnectBtnText}>Disconnect</Text>
@@ -838,14 +853,17 @@ export function GetMoreSheet({
           </>
         ) : (
           <>
+            {/* <View style={{ display: "flex", flexDirection: "column" }}> */}
             <Text style={styles.agentName}>
               {activeTab === "claude" ? "Claude Code" : "Opencode"}
             </Text>
+
             <Text style={styles.agentSubtitle}>
               {activeTab === "claude"
                 ? "Open the link, log in, paste the code."
                 : "Open the link, create/copy API key, paste it below."}
             </Text>
+            {/* </View> */}
 
             <View style={styles.urlRow}>
               <Text
@@ -866,11 +884,12 @@ export function GetMoreSheet({
                   end={{ x: 0.87, y: 1 }}
                   style={styles.copyBtn}
                 >
-                  <Image
+                  {/* <Image
                     source={require("@/assets/images/get-more/copy-icon.png")}
                     style={styles.copyIcon}
                     contentFit="contain"
-                  />
+                  /> */}
+                  <CopyIcon />
                   <Text style={styles.copyText}>COPY</Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -882,7 +901,7 @@ export function GetMoreSheet({
               style={styles.browserBtnWrap}
             >
               <LinearGradient
-                colors={["#5CC830", "#3AAD14"]}
+                colors={["#00FF26", "#00FF26"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.browserBtn}
@@ -894,7 +913,7 @@ export function GetMoreSheet({
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>
-                {activeTab === "claude" ? "OR PASTE CODE" : "OR PASTE KEY"}
+                {activeTab === "claude" ? "AND PASTE CODE" : "AND PASTE KEY"}
               </Text>
               <View style={styles.dividerLine} />
             </View>
@@ -990,11 +1009,12 @@ export function GetMoreSheet({
           onPress={() => setCurrentView("home")}
           activeOpacity={0.7}
         >
-          <Image
+          {/* <Image
             source={require("@/assets/images/get-more/back-arrow.png")}
             style={styles.backIcon}
             contentFit="contain"
-          />
+          /> */}
+          <BackArrow />
         </TouchableOpacity>
 
         <Text style={styles.title}>{"Connect\nyour laptop"}</Text>
@@ -1022,11 +1042,12 @@ export function GetMoreSheet({
               end={{ x: 0.87, y: 1 }}
               style={styles.copyBtn}
             >
-              <Image
+              {/* <Image
                 source={require("@/assets/images/get-more/copy-icon.png")}
                 style={styles.copyIcon}
                 contentFit="contain"
-              />
+              /> */}
+              <CopyIcon />
               <Text style={styles.copyText}>COPY</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -1053,24 +1074,34 @@ export function GetMoreSheet({
               />
             </View>
           ) : cameraPermission?.granted ? (
-            <View style={styles.qrPausedState}>
+            <View style={[styles.qrPausedState, styles.qrImageContainer]}>
               <Ionicons name="pause-circle-outline" size={32} color="#7AAA58" />
               <Text style={styles.qrPermissionText}>
                 Scanner paused after detection
               </Text>
             </View>
           ) : (
-            <View style={styles.qrPermissionState}>
+            <View style={[styles.qrPermissionState, styles.qrImageContainer]}>
               <Ionicons name="camera-outline" size={32} color="#7AAA58" />
               <Text style={styles.qrPermissionText}>
                 Allow camera access to scan the QR code
               </Text>
               <TouchableOpacity
                 style={styles.qrPermissionBtn}
-                onPress={() => requestCameraPermission()}
+                onPress={() => {
+                  if (cameraPermission?.canAskAgain === false) {
+                    void Linking.openSettings();
+                  } else {
+                    void requestCameraPermission();
+                  }
+                }}
                 activeOpacity={0.8}
               >
-                <Text style={styles.qrPermissionBtnText}>Enable Camera</Text>
+                <Text style={styles.qrPermissionBtnText}>
+                  {cameraPermission?.canAskAgain === false
+                    ? "Enable Camera"
+                    : "Enable Camera"}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1107,11 +1138,12 @@ export function GetMoreSheet({
           onPress={() => setCurrentView("home")}
           activeOpacity={0.7}
         >
-          <Image
+          {/* <Image
             source={require("@/assets/images/get-more/back-arrow.png")}
             style={styles.backIcon}
             contentFit="contain"
-          />
+          /> */}
+          <BackArrow />
         </TouchableOpacity>
 
         <Text style={styles.title}>{"Add a\nrepository"}</Text>
@@ -1198,27 +1230,38 @@ export function GetMoreSheet({
       animationConfigs={animationConfigs}
       backdropComponent={renderBackdrop}
       onDismiss={onClose}
-      keyboardBehavior="interactive"
-      keyboardBlurBehavior="restore"
       backgroundStyle={styles.sheetBackground}
       handleIndicatorStyle={styles.dragHandle}
     >
-      <BottomSheetScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
       >
-        <LinearGradient
-          colors={["#FFFFFF", "#CCFFD9"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        {currentView === "home" && renderHomeView()}
-        {currentView === "connect-agent" && renderConnectAgentView()}
-        {currentView === "connect-laptop" && renderConnectLaptopView()}
-        {currentView === "add-repository" && renderAddRepositoryView()}
-      </BottomSheetScrollView>
+        <BottomSheetScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <TouchableWithoutFeedback
+            onPress={Keyboard.dismiss}
+            accessible={false}
+          >
+            <View style={{ flex: 1 }}>
+              <LinearGradient
+                colors={["#FFFFFF", "#CCFFD9"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              {currentView === "home" && renderHomeView()}
+              {currentView === "connect-agent" && renderConnectAgentView()}
+              {currentView === "connect-laptop" && renderConnectLaptopView()}
+              {currentView === "add-repository" && renderAddRepositoryView()}
+            </View>
+          </TouchableWithoutFeedback>
+        </BottomSheetScrollView>
+      </KeyboardAvoidingView>
     </BottomSheetModal>
   );
 }
@@ -1255,6 +1298,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 600,
     color: "#004410",
+    marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
@@ -1462,7 +1506,7 @@ const styles = StyleSheet.create({
     height: 14,
   },
   copyText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
     color: "#504D22",
   },
@@ -1520,12 +1564,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
     color: "#004410",
-    marginBottom: 2,
+    marginBottom: 0,
   },
   agentSubtitle: {
     fontSize: 16,
     color: "#76AA83",
     fontWeight: 500,
+    marginTop: 0,
   },
   browserBtnWrap: {
     borderRadius: 63,
@@ -1546,6 +1591,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    marginBottom: 10,
+    marginTop: 10,
   },
   dividerLine: {
     flex: 1,
@@ -1585,7 +1632,7 @@ const styles = StyleSheet.create({
     fontWeight: "400",
   },
   verifyBtn: {
-    height: 52,
+    height: 58,
     backgroundColor: "#B8B8B8",
     borderRadius: 63,
     paddingVertical: 16,
@@ -1606,7 +1653,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
   verifyTextActive: {
-    color: "#ffffff",
+    color: "#004D13",
   },
 
   // ── Connect laptop view ───────────────────────────────────────
@@ -1614,6 +1661,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    marginTop: 20,
   },
   stepBadge: {
     width: 26,
@@ -1639,7 +1687,7 @@ const styles = StyleSheet.create({
     color: "#004410",
   },
   qrImageContainer: {
-    borderRadius: 18,
+    borderRadius: 10,
     overflow: "hidden",
   },
   qrCamera: {

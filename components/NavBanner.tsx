@@ -1,6 +1,7 @@
-import { extractHost, useNavbar } from "@/contexts/navbar-context";
 import GetMoreCardSvg from "@/assets/images/navbar-screens/get-more-card.svg";
 import UserIconSvg from "@/assets/images/navbar-screens/user-icon.svg";
+import { NationalPark } from "@/constants/theme";
+import { extractHost, useNavbar } from "@/contexts/navbar-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
   BottomSheetBackdrop,
@@ -279,18 +280,21 @@ export function NavBanner() {
         {/* Image always rendered at max height — never resizes, no repaint */}
         <ExpoImage
           source={require("@/assets/images/navbar-screens/banner-image.png")}
-          style={[StyleSheet.absoluteFill, { height: MAX_BANNER_HEIGHT + insets.top }]}
+          style={[
+            StyleSheet.absoluteFill,
+            { height: MAX_BANNER_HEIGHT + insets.top },
+          ]}
           contentFit="cover"
           contentPosition="top center"
         />
         <View style={{ flex: 1 }}>
-          <LinearGradient
+          {/* <LinearGradient
             colors={["#000000", "rgba(0,0,0,0)"]}
             locations={[0, 0.5741]}
             start={{ x: 0, y: 1 }}
             end={{ x: 0, y: 0 }}
             style={StyleSheet.absoluteFill}
-          />
+          /> */}
 
           {/* Top bar */}
           {isPerms ? (
@@ -350,7 +354,7 @@ export function NavBanner() {
             </TouchableOpacity>
           )}
 
-          <View style={{ flex: 1 }} />
+          {/* <View style={{ flex: 1 }} /> */}
 
           <VmTabBar
             activeVmTab={activeVmTab}
@@ -377,18 +381,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   permissionsTitle: {
+    fontFamily: NationalPark.bold,
     fontSize: 24,
     fontWeight: "700",
-    color: "#004410",
+    // color: "#004410",
+    color: "#fff",
     letterSpacing: -0.5,
   },
   reposTitle: {
+    fontFamily: NationalPark.bold,
     fontSize: 24,
     fontWeight: "700",
-    color: "#004410",
+    // color: "#004410",
+    color: "#fff",
   },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  grassTitle: { fontSize: 24, fontWeight: "700", color: "#004410" },
+  grassTitle: {
+    fontFamily: NationalPark.bold,
+    fontSize: 24,
+    // fontWeight: 700,
+    // color: "#004410",
+    color: "#fff",
+  },
   betaBadge: {
     borderRadius: 30,
     borderWidth: 1,
@@ -415,6 +429,7 @@ const styles = StyleSheet.create({
   getMoreCard: {
     marginHorizontal: 14,
     marginTop: 10,
+    marginBottom: 30,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#ACDFB6",

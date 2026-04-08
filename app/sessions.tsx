@@ -1,17 +1,21 @@
-import { NationalPark } from '@/constants/theme';
-import { Session, useServer } from '@/hooks/use-server';
-import { getEntry, getRepoDetailsStore, listSessionsStore } from '@/store/connection-store';
-import { setSessionLabel } from '@/store/session-label-store';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { NationalPark } from "@/constants/theme";
+import { Session, useServer } from "@/hooks/use-server";
 import {
-  ActivityIndicator, Animated,
+  getEntry,
+  getRepoDetailsStore,
+  listSessionsStore,
+} from "@/store/connection-store";
+import { setSessionLabel } from "@/store/session-label-store";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
   FlatList,
   Image,
-  Platform,
   RefreshControl,
   SafeAreaView,
   StyleSheet,
@@ -19,39 +23,39 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 
-const BG = '#f5f5f7';
-const CARD_BG = '#ffffff';
-const CARD_BORDER = '#ebebeb';
-const TEXT = '#000000';
-const SUBTEXT = '#c1c1c1';
-const SEARCH_BG = '#ececec';
-const SEARCH_BORDER = '#c8c8c8';
-const SEARCH_TEXT = '#757575';
-const BRANCH_BG = '#efeeee';
-const BRANCH_TEXT = '#8e8e8e';
-const DIFF_BTN_BG = '#e5e5e5';
-const DIFF_BTN_BORDER = '#cecece';
-const HEADER_BLUR_BG = 'rgba(255,255,255,0.7)';
-const HEADER_BORDER = '#d3d3d3';
-const NEW_BTN_GREEN = '#00cc33';
-const NEW_BTN_GLOW = 'rgba(0,255,38,0.3)';
+const BG = "#f5f5f7";
+const CARD_BG = "#ffffff";
+const CARD_BORDER = "#ebebeb";
+const TEXT = "#000000";
+const SUBTEXT = "#c1c1c1";
+const SEARCH_BG = "#ececec";
+const SEARCH_BORDER = "#c8c8c8";
+const SEARCH_TEXT = "#757575";
+const BRANCH_BG = "#efeeee";
+const BRANCH_TEXT = "#8e8e8e";
+const DIFF_BTN_BG = "#e5e5e5";
+const DIFF_BTN_BORDER = "#cecece";
+const HEADER_BLUR_BG = "rgba(255,255,255,0.7)";
+const HEADER_BORDER = "#d3d3d3";
+const NEW_BTN_GREEN = "#00cc33";
+const NEW_BTN_GLOW = "rgba(0,255,38,0.3)";
 
 const cardShadow = {
-  shadowColor: '#000',
+  shadowColor: "#000",
   shadowOffset: { width: 0, height: 2 },
   shadowOpacity: 0.1,
   shadowRadius: 5,
   elevation: 3,
 };
 
-const AGENT_FILTERS = ['Opencode', 'Claude Code'] as const;
-type AgentFilter = typeof AGENT_FILTERS[number];
+const AGENT_FILTERS = ["Opencode", "Claude Code"] as const;
+type AgentFilter = (typeof AGENT_FILTERS)[number];
 
 const AGENT_FILTER_IDS: Record<AgentFilter, string> = {
-  'Opencode': 'opencode',
-  'Claude Code': 'claude-code',
+  Opencode: "opencode",
+  "Claude Code": "claude-code",
 };
 
 const styles = StyleSheet.create({
@@ -65,8 +69,8 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 10,
     gap: 12,
@@ -74,8 +78,8 @@ const styles = StyleSheet.create({
   backBtn: {
     minWidth: 36,
     minHeight: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   repoIcon: {
     width: 36,
@@ -84,19 +88,19 @@ const styles = StyleSheet.create({
   },
   repoMeta: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   repoName: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT,
     letterSpacing: -0.2,
   },
   branchPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     backgroundColor: BRANCH_BG,
     borderRadius: 20,
@@ -108,7 +112,7 @@ const styles = StyleSheet.create({
     color: BRANCH_TEXT,
   },
   agentPillRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 20,
     gap: 8,
     paddingTop: 4,
@@ -118,18 +122,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 63,
     borderWidth: 1,
-    borderColor: '#bababa',
+    borderColor: "#bababa",
   },
   agentPillActive: {
     backgroundColor: TEXT,
     borderColor: TEXT,
   },
   agentPillText: {
-    fontSize: 16,
+    fontSize: 14,
     color: TEXT,
   },
   agentPillTextActive: {
-    color: '#ffffff',
+    color: "#ffffff",
   },
   searchSection: {
     backgroundColor: HEADER_BLUR_BG,
@@ -140,8 +144,8 @@ const styles = StyleSheet.create({
   },
   searchWrap: {
     height: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   searchBar: {
@@ -153,23 +157,23 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     paddingLeft: 16,
     paddingRight: 36,
-    fontSize: 16,
+    fontSize: 14,
     color: TEXT,
   },
   searchInputWrap: {
     flex: 1,
     height: 40,
-    position: 'relative',
+    position: "relative",
   },
   searchIcon: {
-    position: 'absolute',
+    position: "absolute",
     right: 14,
     top: 12,
   },
   center: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 14,
     backgroundColor: BG,
   },
@@ -188,16 +192,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: CARD_BORDER,
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     ...cardShadow,
   },
   sessionContent: {
     flex: 1,
   },
   sessionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: "600",
     color: TEXT,
     letterSpacing: -0.1,
   },
@@ -213,8 +217,8 @@ const styles = StyleSheet.create({
     backgroundColor: DIFF_BTN_BG,
     borderWidth: 1,
     borderColor: DIFF_BTN_BORDER,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: 12,
     flexShrink: 0,
   },
@@ -224,31 +228,31 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: -0.2,
     color: TEXT,
   },
   newBtnWrap: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 80,
     right: 20,
   },
   newBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 63,
     borderWidth: 1,
-    borderColor: '#00CC33',
+    borderColor: "#00CC33",
     // outer glow
-    shadowColor: '#00FF26',
+    shadowColor: "#00FF26",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   newBtnGradient: {
     ...StyleSheet.absoluteFillObject,
@@ -268,10 +272,10 @@ const styles = StyleSheet.create({
 });
 
 function timeAgo(isoString?: string): string {
-  if (!isoString) return '';
+  if (!isoString) return "";
   const diff = Date.now() - new Date(isoString).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
+  if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
@@ -279,7 +283,13 @@ function timeAgo(isoString?: string): string {
   return `${days}d ago`;
 }
 
-function SessionItem({ item, onPress }: { item: Session; onPress: () => void }) {
+function SessionItem({
+  item,
+  onPress,
+}: {
+  item: Session;
+  onPress: () => void;
+}) {
   const scale = useRef(new Animated.Value(1)).current;
 
   return (
@@ -291,18 +301,28 @@ function SessionItem({ item, onPress }: { item: Session; onPress: () => void }) 
           onPress();
         }}
         onPressIn={() =>
-          Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
+          Animated.spring(scale, {
+            toValue: 0.97,
+            useNativeDriver: true,
+            speed: 50,
+            bounciness: 2,
+          }).start()
         }
         onPressOut={() =>
-          Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()
+          Animated.spring(scale, {
+            toValue: 1,
+            useNativeDriver: true,
+            speed: 30,
+            bounciness: 4,
+          }).start()
         }
         activeOpacity={1}
       >
         <View style={styles.sessionContent}>
           <Text style={styles.sessionTitle} numberOfLines={1}>
-            {(item.label || item.preview || 'Session').replace(/\n/g, ' ')}
+            {(item.label || item.preview || "Session").replace(/\n/g, " ")}
           </Text>
-          {(item.updatedAt || item.createdAt) ? (
+          {item.updatedAt || item.createdAt ? (
             <Text style={styles.sessionTime}>
               {timeAgo(item.updatedAt || item.createdAt)}
             </Text>
@@ -322,26 +342,38 @@ export default function Sessions() {
     agent?: string;
   }>();
   const newBtnScale = useRef(new Animated.Value(1)).current;
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [branch, setBranch] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<AgentFilter | null>(
-    agent ? (AGENT_FILTERS.find(f => f.toLowerCase().replace(/[\s-]/g, '') === agent.toLowerCase().replace(/[\s-]/g, '')) ?? null) : null
+    agent
+      ? (AGENT_FILTERS.find(
+          (f) =>
+            f.toLowerCase().replace(/[\s-]/g, "") ===
+            agent.toLowerCase().replace(/[\s-]/g, ""),
+        ) ?? null)
+      : null,
   );
 
   const ws = useServer(serverUrl ?? null);
 
-  useFocusEffect(useCallback(() => {
-    if (!serverUrl) return;
-    setFetching(true);
-    listSessionsStore(serverUrl, repoPath, agent).then(() => setFetching(false));
-    if (repoPath) {
-      getRepoDetailsStore(serverUrl, repoPath).then(() => {
-        setBranch(getEntry(serverUrl)?.repoDetails.get(repoPath)?.branch ?? null);
-      });
-    }
-  }, [serverUrl, repoPath, agent]));
+  useFocusEffect(
+    useCallback(() => {
+      if (!serverUrl) return;
+      setFetching(true);
+      listSessionsStore(serverUrl, repoPath, agent).then(() =>
+        setFetching(false),
+      );
+      if (repoPath) {
+        getRepoDetailsStore(serverUrl, repoPath).then(() => {
+          setBranch(
+            getEntry(serverUrl)?.repoDetails.get(repoPath)?.branch ?? null,
+          );
+        });
+      }
+    }, [serverUrl, repoPath, agent]),
+  );
 
   const sessions = useMemo(() => {
     const sorted = [...ws.sessionsList].sort((a, b) => {
@@ -351,8 +383,10 @@ export default function Sessions() {
     });
     if (!query.trim()) return sorted;
     const q = query.toLowerCase();
-    return sorted.filter(s =>
-      (s.label || s.preview || '').toLowerCase().includes(q) || s.id.toLowerCase().includes(q)
+    return sorted.filter(
+      (s) =>
+        (s.label || s.preview || "").toLowerCase().includes(q) ||
+        s.id.toLowerCase().includes(q),
     );
   }, [ws.sessionsList, query]);
 
@@ -365,7 +399,7 @@ export default function Sessions() {
     if (repoName) params.repoName = repoName;
     if (repoPath) params.repoPath = repoPath;
     if (agent) params.agent = agent;
-    router.push({ pathname: '/chat', params });
+    router.push({ pathname: "/chat", params });
   }
 
   async function handleRefresh() {
@@ -385,25 +419,32 @@ export default function Sessions() {
           <View style={styles.headerRow}>
             <TouchableOpacity
               style={styles.backBtn}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.back();
+              }}
               hitSlop={8}
             >
               <Ionicons name="chevron-back" size={22} color={TEXT} />
             </TouchableOpacity>
             <View style={styles.repoMeta}>
               <Text style={styles.repoName} numberOfLines={1}>
-                {repoName ?? 'Sessions'}
+                {repoName ?? "Sessions"}
               </Text>
               <View style={styles.branchPill}>
-                <Ionicons name="git-merge-outline" size={14} color={BRANCH_TEXT} />
-                <Text style={styles.branchText}>{branch ?? '…'}</Text>
+                <Ionicons
+                  name="git-merge-outline"
+                  size={14}
+                  color={BRANCH_TEXT}
+                />
+                <Text style={styles.branchText}>{branch ?? "…"}</Text>
               </View>
             </View>
           </View>
 
           {/* Agent filter pills */}
           <View style={styles.agentPillRow}>
-            {AGENT_FILTERS.map(f => {
+            {AGENT_FILTERS.map((f) => {
               const isActive = activeFilter === f;
               return (
                 <TouchableOpacity
@@ -411,15 +452,22 @@ export default function Sessions() {
                   style={[styles.agentPill, isActive && styles.agentPillActive]}
                   onPress={() => {
                     const newAgent = isActive ? undefined : AGENT_FILTER_IDS[f];
-                    const params: Record<string, string> = { serverUrl: serverUrl! };
+                    const params: Record<string, string> = {
+                      serverUrl: serverUrl!,
+                    };
                     if (repoPath) params.repoPath = repoPath;
                     if (repoName) params.repoName = repoName;
                     if (newAgent) params.agent = newAgent;
-                    router.replace({ pathname: '/sessions', params });
+                    router.replace({ pathname: "/sessions", params });
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.agentPillText, isActive && styles.agentPillTextActive]}>
+                  <Text
+                    style={[
+                      styles.agentPillText,
+                      isActive && styles.agentPillTextActive,
+                    ]}
+                  >
                     {f}
                   </Text>
                 </TouchableOpacity>
@@ -431,37 +479,40 @@ export default function Sessions() {
 
       {/* Search */}
       <View style={styles.searchSection}>
-      <View style={styles.searchWrap}>
-        <View style={styles.searchInputWrap}>
-          <TextInput
-            style={styles.searchBar}
-            placeholder="Search chats"
-            placeholderTextColor={SEARCH_TEXT}
-            value={query}
-            onChangeText={setQuery}
-            clearButtonMode="while-editing"
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-          {!query ? (
-            <View style={styles.searchIcon}>
-              <Ionicons name="search" size={16} color={SEARCH_TEXT} />
-            </View>
-          ) : null}
+        <View style={styles.searchWrap}>
+          <View style={styles.searchInputWrap}>
+            <TextInput
+              style={styles.searchBar}
+              placeholder="Search chats"
+              placeholderTextColor={SEARCH_TEXT}
+              value={query}
+              onChangeText={setQuery}
+              clearButtonMode="while-editing"
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {!query ? (
+              <View style={styles.searchIcon}>
+                <Ionicons name="search" size={16} color={SEARCH_TEXT} />
+              </View>
+            ) : null}
+          </View>
+          <TouchableOpacity
+            style={styles.diffIconBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push({
+                pathname: "/diffs",
+                params: { serverUrl: serverUrl!, repoPath: repoPath ?? "" },
+              });
+            }}
+          >
+            <Image
+              source={require("@/assets/images/diff-logo.png")}
+              style={{ width: 20, height: 20, opacity: 0.6 }}
+            />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.diffIconBtn}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push({ pathname: '/diffs', params: { serverUrl: serverUrl!, repoPath: repoPath ?? '' } });
-          }}
-        >
-          <Image
-            source={require('@/assets/images/diff-logo.png')}
-            style={{ width: 20, height: 20, opacity: 0.6 }}
-          />
-        </TouchableOpacity>
-      </View>
       </View>
 
       {/* List */}
@@ -472,18 +523,23 @@ export default function Sessions() {
         </View>
       ) : sessions.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="chatbubbles-outline" size={44} color={SUBTEXT} style={styles.emptyIcon} />
+          <Ionicons
+            name="chatbubbles-outline"
+            size={44}
+            color={SUBTEXT}
+            style={styles.emptyIcon}
+          />
           <Text style={styles.emptyTitle}>
-            {query.trim() ? 'No matching sessions' : 'No chats yet'}
+            {query.trim() ? "No matching sessions" : "No chats yet"}
           </Text>
           <Text style={styles.statusText}>
-            {query.trim() ? 'Try a different search' : 'Start a new chat'}
+            {query.trim() ? "Try a different search" : "Start a new chat"}
           </Text>
         </View>
       ) : (
         <FlatList
           data={sessions}
-          keyExtractor={item => item.id}
+          keyExtractor={(item) => item.id}
           style={{ backgroundColor: BG }}
           contentContainerStyle={styles.list}
           refreshControl={
@@ -495,7 +551,10 @@ export default function Sessions() {
             />
           }
           renderItem={({ item }) => (
-            <SessionItem item={item} onPress={() => openChat(item.id, item.label || item.preview)} />
+            <SessionItem
+              item={item}
+              onPress={() => openChat(item.id, item.label || item.preview)}
+            />
           )}
         />
       )}
@@ -510,22 +569,32 @@ export default function Sessions() {
               openChat();
             }}
             onPressIn={() =>
-              Animated.spring(newBtnScale, { toValue: 0.94, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
+              Animated.spring(newBtnScale, {
+                toValue: 0.94,
+                useNativeDriver: true,
+                speed: 50,
+                bounciness: 2,
+              }).start()
             }
             onPressOut={() =>
-              Animated.spring(newBtnScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start()
+              Animated.spring(newBtnScale, {
+                toValue: 1,
+                useNativeDriver: true,
+                speed: 30,
+                bounciness: 4,
+              }).start()
             }
             activeOpacity={1}
           >
             <LinearGradient
-              colors={['#00FF40', '#00FF40', '#E0FF47']}
+              colors={["#00FF26"]}
               locations={[0, 0.7, 1]}
               start={{ x: 1, y: 0 }}
               end={{ x: 0, y: 1 }}
               style={styles.newBtnGradient}
             />
             <LinearGradient
-              colors={['transparent', 'rgba(255,255,255,0.4)']}
+              colors={["transparent", "rgba(255,255,255,0.4)"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 0, y: 1 }}
               style={styles.newBtnInnerShadow}
