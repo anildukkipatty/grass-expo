@@ -26,23 +26,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── VmTabBar ─────────────────────────────────────────────────────────────────
 
-function VmTabBar({
-  activeVmTab,
-  onTabPress,
-  vmUrls,
-  vmUrlStatuses,
-  onAddPress,
-  onRemoveVm,
-  primaryVmUrl,
-}: {
-  activeVmTab: number;
-  onTabPress: (idx: number) => void;
-  vmUrls: string[];
-  vmUrlStatuses: Map<string, boolean>;
-  onAddPress: () => void;
-  onRemoveVm: (idx: number) => void;
-  primaryVmUrl?: string;
-}) {
+export function VmTabBar() {
+  const {
+    activeVmTab,
+    setActiveVmTab,
+    vmUrls,
+    vmUrlStatuses,
+    primaryVmUrl,
+    handleRemoveUserVm,
+    setGetMoreVisible,
+  } = useNavbar();
+
   return (
     <View style={styles.tabsBar}>
       <ScrollView
@@ -62,7 +56,7 @@ function VmTabBar({
             <View key={url} style={styles.tabPillWrap}>
               <TouchableOpacity
                 style={[styles.tabPill, isActive && styles.tabPillActive]}
-                onPress={() => onTabPress(idx)}
+                onPress={() => setActiveVmTab(idx)}
                 activeOpacity={0.75}
               >
                 <View
@@ -89,7 +83,7 @@ function VmTabBar({
               {isUserVm ? (
                 <TouchableOpacity
                   style={styles.userVmCloseBtn}
-                  onPress={() => onRemoveVm(idx)}
+                  onPress={() => handleRemoveUserVm(idx)}
                   hitSlop={8}
                   activeOpacity={0.7}
                 >
@@ -101,7 +95,7 @@ function VmTabBar({
         })}
       </ScrollView>
       <TouchableOpacity
-        onPress={onAddPress}
+        onPress={() => setGetMoreVisible(true)}
         activeOpacity={0.7}
         hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
         style={{ paddingHorizontal: 8, paddingVertical: 6 }}
@@ -241,15 +235,7 @@ export function AgentPickerSheet({
 // ─── NavBanner ────────────────────────────────────────────────────────────────
 
 export function NavBanner() {
-  const {
-    vmUrls,
-    activeVmTab,
-    setActiveVmTab,
-    vmUrlStatuses,
-    primaryVmUrl,
-    handleRemoveUserVm,
-    setGetMoreVisible,
-  } = useNavbar();
+  const { setGetMoreVisible } = useNavbar();
 
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
@@ -257,7 +243,7 @@ export function NavBanner() {
 
   const isPerms = pathname.includes("/perms");
   const isRepos = pathname.includes("/repos");
-  const bannerHeight = isPerms || isRepos ? 160 : 270;
+  const bannerHeight = isPerms || isRepos ? 160 : 220;
 
   // Always render the image at max height so it never repaints on tab switch.
   // The clipping view shrinks to the actual bannerHeight to hide the excess.
@@ -353,18 +339,6 @@ export function NavBanner() {
               </View>
             </TouchableOpacity>
           )}
-
-          {/* <View style={{ flex: 1 }} /> */}
-
-          <VmTabBar
-            activeVmTab={activeVmTab}
-            onTabPress={setActiveVmTab}
-            vmUrls={vmUrls}
-            vmUrlStatuses={vmUrlStatuses}
-            onAddPress={() => setGetMoreVisible(true)}
-            onRemoveVm={handleRemoveUserVm}
-            primaryVmUrl={primaryVmUrl}
-          />
         </View>
       </View>
     </>
@@ -454,32 +428,32 @@ const styles = StyleSheet.create({
   getMoreIcon: { width: 52, height: 52 },
   getMoreTextWrap: { flex: 1 },
   getMoreTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1C1C1E",
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
     marginBottom: 3,
   },
-  getMoreSub: { fontSize: 12, color: "#3C3C43", lineHeight: 17 },
+  getMoreSub: { fontSize: 14, color: "#868686", fontWeight: "500" },
   tabsBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 14,
     paddingTop: 12,
-    paddingBottom: 40,
+    paddingBottom: 12,
   },
   tabPillsOuter: {
     flexGrow: 0,
     flexShrink: 1,
-    backgroundColor: "rgba(255,255,255,0.78)",
-    borderRadius: 50,
-    borderWidth: 0.5,
-    borderColor: "rgba(255,255,255,0.6)",
+    backgroundColor: "#DBDBDB",
+    borderRadius: 60,
+    borderWidth: 1,
+    borderColor: "#D1D1D1",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowRadius: 3,
+    elevation: 2,
   },
   tabPillsGroup: {
     flexDirection: "row",
@@ -488,9 +462,9 @@ const styles = StyleSheet.create({
   tabPill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 13,
-    paddingVertical: 7,
-    borderRadius: 50,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 60,
     gap: 6,
   },
   tabPillWrap: { flexDirection: "row", alignItems: "center" },
@@ -507,10 +481,10 @@ const styles = StyleSheet.create({
   vmDotStopped: { backgroundColor: "#FF3B30", borderColor: "#8B0000" },
   vmDotUnknown: { backgroundColor: "#9ca3af", borderColor: "#6b7280" },
   tabPillText: {
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: "500",
     color: "#3C3C43",
-    maxWidth: 140,
+    // maxWidth: 140,
   },
   userVmTabText: { maxWidth: 105 },
   userVmCloseBtn: {
@@ -524,13 +498,10 @@ const styles = StyleSheet.create({
   },
   tabPillTextActive: { color: "#1C1C1E", fontWeight: "600" },
   tabAddText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "500",
-    color: "#FFFFFF",
+    color: "#000",
     paddingHorizontal: 4,
-    textShadowColor: "rgba(0,0,0,0.45)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
 
   // Agent picker sheet

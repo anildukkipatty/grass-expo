@@ -1,5 +1,5 @@
 import CloneFromGithub from "@/assets/images/navbar-screens/git-icon.svg";
-import { NavBanner } from "@/components/NavBanner";
+import { NavBanner, VmTabBar } from "@/components/NavBanner";
 import { StickyBannerLayout } from "@/components/StickyBannerLayout";
 import { SwipeableRepoCard, repoStyles } from "@/components/SwipeableRepoCard";
 import { useNavbar } from "@/contexts/navbar-context";
@@ -22,12 +22,13 @@ export default function ReposTab() {
   const tabBarHeight = bottom + 110;
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F2F2F7" }}>
+    <View style={{ flex: 1, backgroundColor: "#F5F5F7" }}>
       <NavBanner />
       <StickyBannerLayout
         bannerHeight={BANNER_HEIGHT}
         contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
       >
+        <VmTabBar />
         {/* Action buttons */}
         <View style={repoStyles.actionRow}>
           <TouchableOpacity

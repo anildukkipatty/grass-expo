@@ -1,10 +1,5 @@
-import React, { useRef, ReactNode } from "react";
-import {
-  Animated,
-  StyleSheet,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import React, { ReactNode, useRef } from "react";
+import { Animated, StyleSheet, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface Props {
@@ -30,9 +25,9 @@ export function StickyBannerLayout({
   const { height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
-  // Sheet starts 10px above the bottom of the banner so the rounded corners
-  // overlap the image edge rather than butting up against it
-  const sheetStartY = bannerHeight + insets.top - 20;
+  // Sheet starts 40px above the bottom of the banner so the rounded corners
+  // (borderRadius: 40) stay fully within the image area with no background bleed
+  const sheetStartY = bannerHeight + insets.top - 40;
 
   // The highest the sheet can travel — top edge stops at 20% of screen
   const sheetMinY = screenHeight * 0.2;
@@ -54,7 +49,7 @@ export function StickyBannerLayout({
   // Sheet corner radius softens as it slides up
   const borderRadius = scrollY.interpolate({
     inputRange: [0, maxTravel * 0.4],
-    outputRange: [24, 12],
+    outputRange: [40, 24],
     extrapolate: "clamp",
   });
 
@@ -74,20 +69,17 @@ export function StickyBannerLayout({
       ]}
     >
       {/* Drag handle */}
-      <View style={styles.handle} />
+      {/* <View style={styles.handle} /> */}
 
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
+          { useNativeDriver: true },
         )}
         // Extra top inset so the first item clears the handle
-        contentContainerStyle={[
-          { paddingTop: 8 },
-          contentContainerStyle,
-        ]}
+        contentContainerStyle={[{ paddingTop: 8 }, contentContainerStyle]}
       >
         {children}
       </Animated.ScrollView>
@@ -100,20 +92,22 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    backgroundColor: "#F2F2F7",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    backgroundColor: "#F5F5F7",
+    borderWidth: 1,
+    borderColor: "#B1B1B1",
+    shadowColor: "#146A3D",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
     elevation: 8,
   },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "rgba(0,0,0,0.18)",
-    alignSelf: "center",
-    marginTop: 8,
-    marginBottom: 4,
-  },
+  // handle: {
+  //   width: 36,
+  //   height: 4,
+  //   borderRadius: 2,
+  //   backgroundColor: "rgba(0,0,0,0.18)",
+  //   alignSelf: "center",
+  //   marginTop: 8,
+  //   marginBottom: 4,
+  // },
 });

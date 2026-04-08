@@ -1,4 +1,4 @@
-import { NavBanner } from "@/components/NavBanner";
+import { NavBanner, VmTabBar } from "@/components/NavBanner";
 import { StickyBannerLayout } from "@/components/StickyBannerLayout";
 import { useNavbar } from "@/contexts/navbar-context";
 import {
@@ -239,12 +239,13 @@ export default function PermsTab() {
   }, [selectedVmUrl]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F2F2F7" }}>
+    <View style={{ flex: 1, backgroundColor: "#F5F5F7" }}>
       <NavBanner />
       <StickyBannerLayout
         bannerHeight={BANNER_HEIGHT}
         contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
       >
+        <VmTabBar />
         {perms.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No pending permissions</Text>

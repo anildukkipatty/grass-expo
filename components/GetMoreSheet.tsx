@@ -26,6 +26,7 @@ import LinuxSvg from "@/assets/images/get-more/linux.svg";
 import MicrosoftSvg from "@/assets/images/get-more/microsoft.svg";
 import OpencodeLightSvg from "@/assets/images/get-more/opencode-logo-light.svg";
 import OpencodeSvg from "@/assets/images/get-more/opencode.svg";
+import { NationalPark } from "@/constants/theme";
 import { getToken } from "@/store/auth-store";
 import { cloneRepoStore, getEntry } from "@/store/connection-store";
 import { saveUrl } from "@/store/url-store";
@@ -1296,7 +1297,7 @@ const styles = StyleSheet.create({
   // ── Header ────────────────────────────────────────────────────
   title: {
     fontSize: 32,
-    fontWeight: 600,
+    fontFamily: NationalPark.semiBold,
     color: "#004410",
     marginBottom: 10,
   },
@@ -1304,7 +1305,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#76AA83",
     marginBottom: 4,
-    fontWeight: 500,
+    fontFamily: NationalPark.medium,
   },
 
   // ── Full-width cards ─────────────────────────────────────────
@@ -1328,7 +1329,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 20,
-    fontWeight: 600,
+    fontFamily: NationalPark.semiBold,
     color: "#000",
     lineHeight: 24,
   },
@@ -1344,7 +1345,7 @@ const styles = StyleSheet.create({
   hintText: {
     fontSize: 14,
     color: "#76AA83",
-    fontWeight: "500",
+    fontFamily: NationalPark.medium,
   },
   cardRightCol: {
     flex: 1,
@@ -1384,7 +1385,7 @@ const styles = StyleSheet.create({
   },
   cardNote: {
     fontSize: 10,
-    fontWeight: 500,
+    fontFamily: NationalPark.medium,
     color: "#B2B2B2",
     textAlign: "right",
     lineHeight: 12,
@@ -1427,14 +1428,14 @@ const styles = StyleSheet.create({
   },
   halfCardTitle: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#000",
     marginTop: 4,
   },
   halfCardSubtitle: {
     fontSize: 14,
     color: "#59B26E",
-    fontWeight: 500,
+    fontFamily: NationalPark.medium,
   },
 
   // ── Coming badge ─────────────────────────────────────────────
@@ -1449,7 +1450,7 @@ const styles = StyleSheet.create({
   },
   comingBadgeText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#874400",
     letterSpacing: 0.1,
   },
@@ -1485,7 +1486,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#004D13",
     fontFamily: "DM Mono",
-    fontWeight: 400,
   },
   copyBtnWrap: {
     borderRadius: 10,
@@ -1507,7 +1507,7 @@ const styles = StyleSheet.create({
   },
   copyText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#504D22",
   },
   // ── Connect agent view ────────────────────────────────────────
@@ -1554,7 +1554,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#2c2c2c",
   },
   tabTextActive: {
@@ -1562,14 +1562,14 @@ const styles = StyleSheet.create({
   },
   agentName: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#004410",
     marginBottom: 0,
   },
   agentSubtitle: {
     fontSize: 16,
     color: "#76AA83",
-    fontWeight: 500,
+    fontFamily: NationalPark.medium,
     marginTop: 0,
   },
   browserBtnWrap: {
@@ -1584,7 +1584,7 @@ const styles = StyleSheet.create({
   },
   browserBtnText: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#004D13",
   },
   dividerRow: {
@@ -1601,13 +1601,13 @@ const styles = StyleSheet.create({
   },
   dividerText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#588B64",
     letterSpacing: 1,
   },
   codeLabel: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#004410",
     lineHeight: 32,
   },
@@ -1620,7 +1620,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
 
     fontSize: 24,
-    fontWeight: "400",
+    fontFamily: NationalPark.regular,
     color: "#B6B8B6",
     letterSpacing: 4,
   },
@@ -1629,7 +1629,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#004D13",
     fontFamily: "DM Mono",
-    fontWeight: "400",
   },
   verifyBtn: {
     height: 58,
@@ -1648,7 +1647,7 @@ const styles = StyleSheet.create({
   },
   verifyText: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#7D7D7D",
     letterSpacing: 0.1,
   },
@@ -1673,17 +1672,17 @@ const styles = StyleSheet.create({
   },
   stepBadgeText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#ffffff",
   },
   stepLabel: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#004410",
   },
   laptopStepLabel: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#004410",
   },
   qrImageContainer: {
@@ -1717,6 +1716,7 @@ const styles = StyleSheet.create({
     color: "#E5E7EB",
     textAlign: "center",
     lineHeight: 18,
+    fontFamily: NationalPark.regular,
   },
   qrPermissionBtn: {
     marginTop: 4,
@@ -1728,11 +1728,11 @@ const styles = StyleSheet.create({
   qrPermissionBtnText: {
     color: "#ffffff",
     fontSize: 13,
-    fontWeight: "700",
+    fontFamily: NationalPark.bold,
   },
   qrCaption: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#588B64",
     letterSpacing: 1,
     textAlign: "center",
@@ -1750,7 +1750,7 @@ const styles = StyleSheet.create({
   scanAgainBtnText: {
     color: "#ffffff",
     fontSize: 12,
-    fontWeight: "700",
+    fontFamily: NationalPark.bold,
   },
 
   // ── Connected / disconnect ─────────────────────────────────────
@@ -1767,7 +1767,7 @@ const styles = StyleSheet.create({
   },
   connectedBadgeText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#1A5200",
   },
   disconnectBtn: {
@@ -1782,7 +1782,7 @@ const styles = StyleSheet.create({
   },
   disconnectBtnText: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#E05050",
   },
   disconnectBtnDisabled: {
@@ -1797,7 +1797,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#588B64",
     textAlign: "center",
-    fontWeight: "500",
+    fontFamily: NationalPark.medium,
   },
 
   // ── Add repository view ───────────────────────────────────────
@@ -1805,10 +1805,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#4B6B30",
     lineHeight: 22,
+    fontFamily: NationalPark.regular,
   },
   repoLabel: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: NationalPark.bold,
     color: "#0D2600",
   },
   repoInput: {
@@ -1820,7 +1821,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     paddingHorizontal: 16,
     fontSize: 16,
-    fontWeight: "400",
+    fontFamily: NationalPark.regular,
     color: "#004D13",
   },
 });
