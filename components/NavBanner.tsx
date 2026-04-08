@@ -258,6 +258,10 @@ export function NavBanner() {
   const isRepos = pathname.includes("/repos");
   const bannerHeight = isPerms || isRepos ? 160 : 270;
 
+  // Always render the image at max height so it never repaints on tab switch.
+  // The clipping view shrinks to the actual bannerHeight to hide the excess.
+  const MAX_BANNER_HEIGHT = 270;
+
   return (
     <>
       {/* ─── BANNER — position:absolute so the sheet slides over it ─── */}
@@ -272,9 +276,10 @@ export function NavBanner() {
           zIndex: 0,
         }}
       >
+        {/* Image always rendered at max height — never resizes, no repaint */}
         <ExpoImage
           source={require("@/assets/images/navbar-screens/banner-image.png")}
-          style={StyleSheet.absoluteFill}
+          style={[StyleSheet.absoluteFill, { height: MAX_BANNER_HEIGHT + insets.top }]}
           contentFit="cover"
           contentPosition="top center"
         />

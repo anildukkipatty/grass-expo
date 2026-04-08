@@ -83,14 +83,18 @@ function SetupLoadingModal({
     });
     progressTimer.start();
 
-    const finishAndRedirect = (path: "/push-commit" | "/(tabs)/home") => {
+    const finishAndRedirect = (path: "/push-commit" | "/(tabs)/home", serverUrl?: string) => {
       Animated.timing(progressAnim, {
         toValue: 1,
         duration: 400,
         useNativeDriver: false,
       }).start(() => {
         if (!cancelled) {
-          router.replace(path);
+          if (path === "/push-commit" && serverUrl) {
+            router.replace({ pathname: "/push-commit", params: { serverUrl } });
+          } else {
+            router.replace(path);
+          }
         }
       });
     };
@@ -105,7 +109,7 @@ function SetupLoadingModal({
         if (cancelled) return;
         if (result.ok) {
           if (result.data.url) await saveVmUrl(result.data.url);
-          finishAndRedirect("/push-commit");
+          finishAndRedirect("/push-commit", result.data.url ?? undefined);
         } else {
           progressTimer.stop();
           setError(result.error);

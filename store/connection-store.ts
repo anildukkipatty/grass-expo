@@ -105,6 +105,7 @@ interface PermissionsSSEEntry {
   abortController: AbortController | null;
   permissions: GlobalPermissionItem[];
   listeners: Set<() => void>;
+  resolvedUrl: string | null;
 }
 
 const _permissionsSSE = new Map<string, PermissionsSSEEntry>();
@@ -120,12 +121,13 @@ async function openPermissionsSSE(serverUrl: string) {
   const realUrl = _connections.get(key)?.baseUrl ?? resolveServerUrl(serverUrl);
   let entry = _permissionsSSE.get(key);
   if (!entry) {
-    entry = { abortController: null, permissions: [], listeners: new Set() };
+    entry = { abortController: null, permissions: [], listeners: new Set(), resolvedUrl: null };
     _permissionsSSE.set(key, entry);
   }
 
   if (entry.abortController) return;
 
+  entry.resolvedUrl = realUrl;
   const controller = new AbortController();
   entry.abortController = controller;
 
@@ -183,7 +185,7 @@ export function subscribeToPermissions(serverUrl: string, fn: () => void): () =>
   const key = resolveServerKey(serverUrl);
   let entry = _permissionsSSE.get(key);
   if (!entry) {
-    entry = { abortController: null, permissions: [], listeners: new Set() };
+    entry = { abortController: null, permissions: [], listeners: new Set(), resolvedUrl: null };
     _permissionsSSE.set(key, entry);
   }
   entry.listeners.add(fn);
@@ -201,8 +203,8 @@ export function getPermissions(serverUrl: string): GlobalPermissionItem[] {
 
 export async function respondGlobalPermission(serverUrl: string, sessionId: string, toolUseID: string, approved: boolean) {
   const key = resolveServerKey(serverUrl);
-  const realUrl = _connections.get(key)?.baseUrl ?? resolveServerUrl(serverUrl);
   const entry = _permissionsSSE.get(key);
+  const realUrl = entry?.resolvedUrl ?? _connections.get(key)?.baseUrl ?? resolveServerUrl(serverUrl);
   if (entry) {
     entry.permissions = entry.permissions.filter(p => p.toolUseID !== toolUseID);
     notifyPermissionsListeners(key);
@@ -213,7 +215,9 @@ export async function respondGlobalPermission(serverUrl: string, sessionId: stri
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ toolUseID, approved }),
     });
-  } catch { /* ignore */ }
+  } catch (err) {
+    console.warn('[respondGlobalPermission] failed to send response:', { sessionId, toolUseID, approved, err });
+  }
 }
 
 function notifyListeners(url: string) {
@@ -808,15 +812,41 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
       if (repoPath) params.set('repoPath', repoPath);
       const qs = params.toString();
       const res = await fetch(`${entry.baseUrl}/sessions/${id}/history${qs ? '?' + qs : ''}`);
-      const json = await res.json() as { messages?: Array<{ role: string; content: string }> };
+      type HistoryContentBlock = { type: 'text'; text: string } | { type: 'tool_use'; tool_name: string; tool_input: string };
+      type HistoryMessage = { role: string; content: string | HistoryContentBlock[] };
+      const json = await res.json() as { messages?: HistoryMessage[] };
+      console.log('[history]', JSON.stringify(json.messages?.slice(0, 3), null, 2));
       if (_connections.has(key)) {
         const msgs = json.messages ?? [];
-        entry.messages = msgs.map(m => ({
-          role: m.role as Message['role'],
-          content: m.content,
-          complete: true,
-          msgId: nextMsgId(entry),
-        }));
+        const expanded: Message[] = [];
+        for (const m of msgs) {
+          if (Array.isArray(m.content)) {
+            for (const block of m.content) {
+              if (block.type === 'text' && block.text.trim()) {
+                expanded.push({ role: m.role as Message['role'], content: block.text, complete: true, msgId: nextMsgId(entry) });
+              } else if (block.type === 'tool_use') {
+                let displayInput = block.tool_input;
+                // opencode sends raw JSON — try to extract a human-readable string
+                try {
+                  const parsed = JSON.parse(block.tool_input);
+                  if (parsed && typeof parsed === 'object') {
+                    const val = Object.values(parsed)[0];
+                    if (typeof val === 'string') displayInput = val;
+                  }
+                } catch { /* already a plain string */ }
+                expanded.push({ role: 'tool', content: `${block.tool_name}: ${displayInput}`, complete: true, msgId: nextMsgId(entry) });
+              }
+            }
+          } else {
+            expanded.push({
+              role: m.role as Message['role'],
+              content: m.content as string,
+              complete: true,
+              msgId: nextMsgId(entry),
+            });
+          }
+        }
+        entry.messages = expanded;
         notifyListeners(key);
       }
     } catch { /* ignore */ }

@@ -4,10 +4,12 @@ import {
   closeConnection,
   getConnectedUrls,
   getEntry,
+  getPermissions,
   getRepoDetailsStore,
   listReposStore,
   openConnection,
   openConnectionWithKey,
+  subscribeToPermissions,
 } from "@/store/connection-store";
 import {
   GRASS_VM_KEY,
@@ -27,8 +29,10 @@ import {
 import { useRouter } from "expo-router";
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import { Alert } from "react-native";
@@ -93,8 +97,7 @@ interface NavbarContextValue {
   selectedServerKey: string | undefined;
 
   // Permissions
-  permissions: PermissionCardData[];
-  setPermissions: React.Dispatch<React.SetStateAction<PermissionCardData[]>>;
+  permsCount: number;
 
   // Repos
   repos: RepoItem[];
@@ -143,7 +146,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const [activeVmTab, setActiveVmTab] = useState(0);
-  const [permissions, setPermissions] = useState<PermissionCardData[]>([]);
+  const [permsCount, setPermsCount] = useState(0);
   const [repos, setRepos] = useState<RepoItem[]>([]);
   const [reposLoading, setReposLoading] = useState(false);
   const [getMoreVisible, setGetMoreVisible] = useState(false);
@@ -179,6 +182,17 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       getThreadsForServer(key).then(setThreads);
     });
   }, [selectedServerKey]);
+
+  // Subscribe to global permissions SSE to drive the perms tab badge count
+  useEffect(() => {
+    if (!selectedVmUrl) {
+      setPermsCount(0);
+      return;
+    }
+    const sync = () => setPermsCount(getPermissions(selectedVmUrl).length);
+    sync();
+    return subscribeToPermissions(selectedVmUrl, sync);
+  }, [selectedVmUrl]);
 
   // Load VM URLs when primaryVmUrl changes
   useEffect(() => {
@@ -354,7 +368,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     };
   }, [vmRunning, selectedVmUrl]);
 
-  async function handleRemoveUserVm(idx: number) {
+  const handleRemoveUserVm = useCallback(async (idx: number) => {
     if (idx <= 0 || idx >= vmUrls.length) return;
     const targetUrl = vmUrls[idx];
     await removeUrl(targetUrl);
@@ -363,9 +377,9 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     if (activeVmTab === idx || activeVmTab >= updated.length) {
       setActiveVmTab(0);
     }
-  }
+  }, [vmUrls, primaryVmUrl, activeVmTab]);
 
-  function handleSelectAgent(agentId: string) {
+  const handleSelectAgent = useCallback((agentId: string) => {
     if (!pendingRepo || !selectedServerKey) return;
     const repo = pendingRepo;
     setPendingRepo(null);
@@ -378,9 +392,9 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         agent: agentId,
       },
     });
-  }
+  }, [pendingRepo, selectedServerKey, router]);
 
-  function handleLogout() {
+  const handleLogout = useCallback(() => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -398,9 +412,9 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         },
       },
     ]);
-  }
+  }, [router]);
 
-  const value: NavbarContextValue = {
+  const value = useMemo<NavbarContextValue>(() => ({
     vmUrls,
     setVmUrls,
     primaryVmUrl,
@@ -409,8 +423,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     setActiveVmTab,
     selectedVmUrl,
     selectedServerKey,
-    permissions,
-    setPermissions,
+    permsCount,
     repos,
     setRepos,
     reposLoading,
@@ -427,7 +440,12 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     handleRemoveUserVm,
     handleSelectAgent,
     handleLogout,
-  };
+  }), [
+    vmUrls, primaryVmUrl, activeVmTab, selectedVmUrl, selectedServerKey,
+    permsCount, repos, reposLoading, threads, pendingRepo,
+    getMoreVisible, sheetInitialView, vmRunning, vmUrlStatuses,
+    handleRemoveUserVm, handleSelectAgent, handleLogout,
+  ]);
 
   return (
     <NavbarContext.Provider value={value}>{children}</NavbarContext.Provider>
