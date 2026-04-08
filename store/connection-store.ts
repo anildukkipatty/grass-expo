@@ -285,13 +285,24 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
   }
 
   if (event === 'system') {
-    // Record the SDK session ID for display, but don't overwrite currentSessionId
-    // (which holds the grass UUID used for abort/permission endpoints).
     const d = parsed.data as Record<string, unknown> | undefined;
     const sessionIdVal = (d?.session_id ?? parsed.session_id) as string | undefined;
     if (sessionIdVal && !entry.sessionId) {
       entry.sessionId = sessionIdVal;
-      notifyListeners(serverUrl);
+      // Rekey the session on the server: migrate grassId → real SDK session ID
+      // so that abort/permission/status/history endpoints use the canonical ID.
+      const grassId = entry.currentSessionId;
+      if (grassId && grassId !== sessionIdVal) {
+        entry.currentSessionId = sessionIdVal;
+        notifyListeners(serverUrl);
+        fetch(`${entry.baseUrl}/sessions/${grassId}/rekey`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newId: sessionIdVal }),
+        }).catch(() => { /* ignore rekey errors */ });
+      } else {
+        notifyListeners(serverUrl);
+      }
     }
     return;
   }

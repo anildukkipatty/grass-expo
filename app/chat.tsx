@@ -20,7 +20,6 @@ import {
 } from "@/store/session-label-store";
 import { useTheme } from "@/store/theme-store";
 import { upsertThread } from "@/store/thread-store";
-import { deriveSessionTitle } from "@/utils/derive-session-title";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -193,6 +192,8 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const firstUserMessage = useRef<string | null>(null);
+
   const send = useCallback(() => {
     const text = inputTextRef.current.trim();
     if (!text || ws.streaming) return;
@@ -211,12 +212,16 @@ export default function Chat() {
         bounciness: 4,
       }),
     ]).start();
+    if (!hasSent.current) {
+      firstUserMessage.current = text;
+    }
     hasSent.current = true;
     ws.send(text, selectedModelKey, agentMode);
-    // If sessionId already exists (returning to an existing thread), update timestamp now
-    if (ws.sessionId && serverUrl) {
+    // If grassId already exists (returning to an existing thread), update timestamp now
+    if (ws.grassId && serverUrl) {
       upsertThread({
-        id: ws.sessionId,
+        grassId: ws.grassId,
+        sdkSessionId: ws.sessionId ?? undefined,
         title: sessionLabel ?? repoName ?? "Chat",
         repo: repoName ?? "",
         repoPath: repoPath ?? "",
@@ -255,62 +260,48 @@ export default function Chat() {
     outputRange: ["0deg", "90deg"],
   });
 
-  // Derive a meaningful title from conversation content once the first exchange
-  // completes.  Mirrors the CLI preview logic: "User msg — Assistant msg" (≤80 chars).
-  const titleDerived = useRef(false);
+  // Save thread to storage once we have the title and all expected IDs.
+  //
+  // Title: derived from the first user message (truncated to 80 chars).
+  // IDs:
+  //   - opencode or resuming an existing thread: save as soon as grassId arrives.
+  //   - claude-code new thread: wait for both grassId AND sdkSessionId (they may differ).
+  //     A "new thread" means no initialSessionId was passed in as a route param.
+  const threadSaved = useRef(false);
+  const isNewThread = !initialSessionId;
+  const isClaudeCode = agent === 'claude-code' || !agent;
+
   useEffect(() => {
-    // Only derive once, only after user has sent, streaming finished, and we still
-    // have no server-provided label.
-    if (
-      titleDerived.current ||
-      !hasSent.current ||
-      ws.streaming ||
-      sessionLabel
-    )
-      return;
-    if (!ws.sessionId || !serverUrl) return;
+    if (threadSaved.current) return;
+    if (!hasSent.current || !serverUrl) return;
+    if (!ws.grassId) return;
 
-    const derived = deriveSessionTitle(ws.messages);
-    if (!derived) return;
+    // For new claude-code threads, wait for the SDK session ID too
+    if (isNewThread && isClaudeCode && !ws.sessionId) return;
 
-    titleDerived.current = true;
-    setSessionLabelState(derived);
-    setSessionLabel(derived);
+    const userText = firstUserMessage.current;
+    if (!userText) return;
 
+    const title = userText.length > 80 ? userText.slice(0, 80) + '...' : userText;
+
+    // Set the label in store so the header reflects it immediately
+    if (!sessionLabel) {
+      setSessionLabelState(title);
+      setSessionLabel(title);
+    }
+
+    threadSaved.current = true;
     upsertThread({
-      id: ws.sessionId,
-      title: derived,
+      grassId: ws.grassId,
+      sdkSessionId: ws.sessionId ?? undefined,
+      title: sessionLabel ?? title,
       repo: repoName ?? "",
       repoPath: repoPath ?? "",
       tool: agent ?? "",
       serverUrl: serverUrl,
       time: new Date().toISOString(),
     });
-  }, [
-    ws.streaming,
-    ws.messages,
-    ws.sessionId,
-    sessionLabel,
-    serverUrl,
-    repoName,
-    repoPath,
-    agent,
-  ]);
-
-  // Save/update thread in storage whenever sessionId is known and user has sent a message
-  useEffect(() => {
-    if (!hasSent.current || !ws.sessionId || !serverUrl) return;
-    const title = sessionLabel ?? repoName ?? "Chat";
-    upsertThread({
-      id: ws.sessionId,
-      title,
-      repo: repoName ?? "",
-      repoPath: repoPath ?? "",
-      tool: agent ?? "",
-      serverUrl: serverUrl,
-      time: new Date().toISOString(),
-    });
-  }, [ws.sessionId, sessionLabel]);
+  }, [ws.grassId, ws.sessionId, serverUrl, sessionLabel]);
 
   // Header derived values
   const branch = repoPath ? ws.repoDetails.get(repoPath)?.branch : null;
