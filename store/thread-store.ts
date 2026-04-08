@@ -61,6 +61,12 @@ export async function upsertThread(thread: Thread): Promise<void> {
   await persist();
 }
 
+export async function clearAllThreads(): Promise<void> {
+  _map = {};
+  notify();
+  await AsyncStorage.removeItem(STORAGE_KEY);
+}
+
 export function subscribeThreads(fn: () => void): () => void {
   _listeners.push(fn);
   return () => { _listeners = _listeners.filter(f => f !== fn); };

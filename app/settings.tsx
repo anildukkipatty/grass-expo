@@ -5,6 +5,7 @@ import BackIcon from "@/assets/images/settings/back-arrow.svg";
 import ProfileIconSvg from "@/assets/images/settings/profile-icon.svg";
 import { clearAuth, getUser } from "@/store/auth-store";
 import { closeConnection, getConnectedUrls } from "@/store/connection-store";
+import { clearAllThreads } from "@/store/thread-store";
 import { clearUrls } from "@/store/url-store";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
@@ -52,6 +53,24 @@ export default function SettingsScreen() {
       `Hi Grass team,\n\nI would like to request the deletion of my account.\n\nAccount email: ${email}\n\nPlease confirm once the account has been removed.\n\nThank you.`,
     );
     Linking.openURL(`mailto:${to}?subject=${subject}&body=${body}`);
+  };
+
+  const handleClearLocalStorage = () => {
+    Alert.alert(
+      "Clear Local Storage",
+      "This will remove all recent threads for all servers. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            await clearAllThreads();
+            Alert.alert("Done", "Recent threads cleared.");
+          },
+        },
+      ]
+    );
   };
 
   const handleLogout = () => {
@@ -167,6 +186,10 @@ export default function SettingsScreen() {
         {/* Danger Zone */}
         <Text style={styles.sectionLabel}>DANGER ZONE</Text>
         <View style={styles.card}>
+          <TouchableOpacity style={styles.dangerRow} onPress={handleClearLocalStorage}>
+            <Text style={styles.clearStorageText}>Clear local storage</Text>
+          </TouchableOpacity>
+          <View style={styles.divider} />
           <TouchableOpacity style={styles.dangerRow} onPress={handleLogout}>
             <Text style={styles.signOutText}>Sign out</Text>
           </TouchableOpacity>
@@ -429,6 +452,11 @@ const styles = StyleSheet.create({
   dangerRow: {
     paddingHorizontal: 16,
     paddingVertical: 16,
+  },
+  clearStorageText: {
+    fontSize: 15,
+    color: "#E50000",
+    fontWeight: "500",
   },
   signOutText: {
     fontSize: 15,
