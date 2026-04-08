@@ -10,11 +10,13 @@ import {
   opencodeStatus,
 } from "@/api/opencode";
 import {
+  githubListRepos,
   githubOauthDisconnect,
   githubOauthStart,
   githubOauthStatus,
-  githubVerifyVmAuth,
+  type GithubRepo,
 } from "@/api/github";
+import { useNavbar } from "@/contexts/navbar-context";
 import { getToken } from "@/store/auth-store";
 import { cloneRepoStore, getEntry } from "@/store/connection-store";
 import { saveUrl } from "@/store/url-store";
@@ -59,7 +61,7 @@ import {
 } from "react-native";
 import { Easing } from "react-native-reanimated";
 
-type SheetView = "home" | "connect-agent" | "connect-laptop" | "add-repository";
+type SheetView = "home" | "connect-agent" | "connect-laptop" | "add-repository" | "github-repos";
 type AgentTab = "claude" | "opencode";
 
 const OPENCODE_AUTH_URL = "opencode.ai/zen";
@@ -81,6 +83,7 @@ export function GetMoreSheet({
   serverUrl,
   onRepoAdded,
 }: Props) {
+  const { repos: vmRepos } = useNavbar();
   const [currentView, setCurrentView] = useState<SheetView>(initialView);
   const [activeTab, setActiveTab] = useState<AgentTab>("claude");
   const [claudeCode, setClaudeCode] = useState("");
@@ -102,10 +105,12 @@ export function GetMoreSheet({
   const [opencodeDisconnecting, setOpencodeDisconnecting] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubConnected, setGithubConnected] = useState(false);
-  const [githubVmConfigured, setGithubVmConfigured] = useState(false);
   const [githubLogin, setGithubLogin] = useState<string | null>(null);
   const [githubFlowActive, setGithubFlowActive] = useState(false);
   const [githubDisconnecting, setGithubDisconnecting] = useState(false);
+  const [githubRepos, setGithubRepos] = useState<GithubRepo[]>([]);
+  const [githubReposLoading, setGithubReposLoading] = useState(false);
+  const [cloningRepoId, setCloningRepoId] = useState<string | number | null>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [scannedQr, setScannedQr] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
@@ -134,6 +139,15 @@ export function GetMoreSheet({
     activeTab === "claude"
       ? (claudeAuthUrl ?? "Loading...")
       : OPENCODE_AUTH_URL;
+  const vmRepoNameSet = useMemo(
+    () =>
+      new Set(
+        vmRepos
+          .map((repo) => String(repo.name || "").trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    [vmRepos],
+  );
 
   useEffect(() => {
     if (visible) {
@@ -151,11 +165,10 @@ export function GetMoreSheet({
     (async () => {
       const token = await getToken();
       if (!token) return;
-      const [claudeRes, opencodeRes, githubStatusRes, githubVerifyRes] = await Promise.all([
+      const [claudeRes, opencodeRes, githubStatusRes] = await Promise.all([
         claudeStatus(token),
         opencodeStatus(token),
         githubOauthStatus(token),
-        githubVerifyVmAuth(token),
       ]);
       if (claudeRes.ok) {
         setClaudeConnected(claudeRes.data.connected);
@@ -167,11 +180,14 @@ export function GetMoreSheet({
         setGithubConnected(Boolean(githubStatusRes.data.connected));
         setGithubLogin(githubStatusRes.data.githubLogin ?? null);
       }
-      if (githubVerifyRes.ok) {
-        setGithubVmConfigured(Boolean(githubVerifyRes.data.vmConfigured));
-      }
     })();
   }, [visible]);
+
+  useEffect(() => {
+    if (visible && currentView === "github-repos") {
+      loadGithubRepos();
+    }
+  }, [visible, currentView]);
 
   useEffect(() => {
     if (!visible || !githubFlowActive) return;
@@ -180,22 +196,16 @@ export function GetMoreSheet({
       void (async () => {
         const token = await getToken();
         if (!token) return;
-        const [statusRes, verifyRes] = await Promise.all([
-          githubOauthStatus(token),
-          githubVerifyVmAuth(token),
-        ]);
+        const statusRes = await githubOauthStatus(token);
         if (statusRes.ok) {
           const connected = Boolean(statusRes.data.connected);
           setGithubConnected(connected);
           setGithubLogin(statusRes.data.githubLogin ?? null);
           if (connected) {
-            if (verifyRes.ok) {
-              setGithubVmConfigured(Boolean(verifyRes.data.vmConfigured));
-            }
             setGithubFlowActive(false);
             Alert.alert(
               "GitHub connected",
-              "GitHub OAuth is complete. Git access is now configured for your VM."
+              "GitHub OAuth is complete. Git access is now configured for your VM.",
             );
           }
         }
@@ -401,7 +411,10 @@ export function GetMoreSheet({
             if (res.ok && res.data.success) {
               setOpencodeConnected(false);
               setOpencodeCode("");
-              Alert.alert("Disconnected", "OpenCode Zen has been disconnected.");
+              Alert.alert(
+                "Disconnected",
+                "OpenCode Zen has been disconnected.",
+              );
             } else {
               Alert.alert("Error", res.ok ? res.data.message : res.error);
             }
@@ -412,6 +425,7 @@ export function GetMoreSheet({
   }
 
   async function handleConfigureGitAccess() {
+    if (githubConnected || githubLoading) return;
     const token = await getToken();
     if (!token) {
       Alert.alert("Error", "Not logged in.");
@@ -420,13 +434,37 @@ export function GetMoreSheet({
     setGithubLoading(true);
     const redirectUri = Linking.createURL("github-oauth-callback");
     const res = await githubOauthStart(token, redirectUri);
-    setGithubLoading(false);
     if (!res.ok) {
+      setGithubLoading(false);
       Alert.alert("GitHub OAuth failed", res.error);
       return;
     }
     setGithubFlowActive(true);
-    await WebBrowser.openAuthSessionAsync(res.data.url, redirectUri);
+    const result = await WebBrowser.openAuthSessionAsync(
+      res.data.url,
+      redirectUri,
+    );
+    if (result.type === "success") {
+      const statusRes = await githubOauthStatus(token);
+      console.log("[github-oauth] status response:", statusRes);
+      if (statusRes.ok && statusRes.data.connected) {
+        setGithubConnected(true);
+        setGithubLogin(statusRes.data.githubLogin ?? null);
+        setGithubFlowActive(false);
+        Alert.alert(
+          "GitHub OAuth completed",
+          "Git access is now configured for your VM.",
+        );
+      } else {
+        Alert.alert(
+          "GitHub OAuth failed",
+          statusRes.ok
+            ? "GitHub is not connected yet. Please complete OAuth and try again."
+            : statusRes.error,
+        );
+      }
+    }
+    setGithubLoading(false);
   }
 
   function handleDisconnectGithub() {
@@ -447,7 +485,6 @@ export function GetMoreSheet({
             if (res.ok) {
               setGithubConnected(false);
               setGithubLogin(null);
-              setGithubVmConfigured(false);
               Alert.alert("Disconnected", "GitHub has been disconnected.");
             } else {
               Alert.alert("Error", res.error);
@@ -709,12 +746,18 @@ export function GetMoreSheet({
             </Text>
             {githubConnected ? (
               <TouchableOpacity
-                style={[styles.disconnectBtn, { height: 32, marginTop: 6 }, githubDisconnecting && styles.disconnectBtnDisabled]}
+                style={[
+                  styles.disconnectBtn,
+                  { height: 32, marginTop: 6 },
+                  githubDisconnecting && styles.disconnectBtnDisabled,
+                ]}
                 onPress={handleDisconnectGithub}
                 disabled={githubDisconnecting}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.disconnectBtnText, { fontSize: 13 }]}>Disconnect</Text>
+                <Text style={[styles.disconnectBtnText, { fontSize: 13 }]}>
+                  Disconnect
+                </Text>
               </TouchableOpacity>
             ) : null}
           </TouchableOpacity>
@@ -803,8 +846,9 @@ export function GetMoreSheet({
             <TouchableOpacity
               style={[
                 styles.disconnectBtn,
-                (activeTab === "claude" ? disconnecting : opencodeDisconnecting) &&
-                  styles.disconnectBtnDisabled,
+                (activeTab === "claude"
+                  ? disconnecting
+                  : opencodeDisconnecting) && styles.disconnectBtnDisabled,
               ]}
               onPress={
                 activeTab === "claude"
@@ -812,9 +856,13 @@ export function GetMoreSheet({
                   : handleDisconnectOpencode
               }
               activeOpacity={0.8}
-              disabled={activeTab === "claude" ? disconnecting : opencodeDisconnecting}
+              disabled={
+                activeTab === "claude" ? disconnecting : opencodeDisconnecting
+              }
             >
-              {(activeTab === "claude" ? disconnecting : opencodeDisconnecting) ? (
+              {(
+                activeTab === "claude" ? disconnecting : opencodeDisconnecting
+              ) ? (
                 <ActivityIndicator size="small" color="#E05050" />
               ) : (
                 <Text style={styles.disconnectBtnText}>Disconnect</Text>
@@ -1097,6 +1145,146 @@ export function GetMoreSheet({
     );
   }
 
+  // ── GitHub repos view ──────────────────────────────────────────────────────────
+
+  async function loadGithubRepos() {
+    const token = await getToken();
+    if (!token) return;
+    setGithubReposLoading(true);
+    const res = await githubListRepos(token);
+    setGithubReposLoading(false);
+    if (res.ok) {
+      setGithubRepos(res.data.repos);
+    } else {
+      Alert.alert("Error", res.error);
+    }
+  }
+
+  async function handleCloneGithubRepo(repo: GithubRepo) {
+    const alreadyOnVm =
+      Boolean(repo.alreadyOnVm) ||
+      vmRepoNameSet.has(String(repo.name || "").trim().toLowerCase());
+    if (cloningRepoId || alreadyOnVm) return;
+    if (!serverUrl) {
+      Alert.alert(
+        "No server",
+        "No server connected. Please connect a server first.",
+      );
+      return;
+    }
+    setCloningRepoId(repo.id);
+    const gitUrl = `https://github.com/${repo.fullName}.git`;
+    await cloneRepoStore(serverUrl, gitUrl);
+    const entry = getEntry(serverUrl);
+    setCloningRepoId(null);
+    if (entry?.cloneStatus.error) {
+      Alert.alert("Clone failed", entry.cloneStatus.error);
+    } else {
+      onRepoAdded?.();
+      onClose();
+    }
+  }
+
+  function renderGithubReposView() {
+    return (
+      <View style={styles.content}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => setCurrentView("home")}
+          activeOpacity={0.7}
+        >
+          <Image
+            source={require("@/assets/images/get-more/back-arrow.png")}
+            style={styles.backIcon}
+            contentFit="contain"
+          />
+        </TouchableOpacity>
+
+        <Text style={styles.title}>{"Clone from\nGitHub"}</Text>
+        <Text style={styles.agentSubtitle}>
+          Select a repository to clone into your workspace.
+        </Text>
+
+        {githubReposLoading ? (
+          <ActivityIndicator
+            size="large"
+            color="#1A5200"
+            style={{ marginTop: 32 }}
+          />
+        ) : githubRepos.length === 0 ? (
+          <Text
+            style={{
+              textAlign: "center",
+              color: "#8E8E93",
+              marginTop: 32,
+              fontSize: 14,
+            }}
+          >
+            No repositories found.
+          </Text>
+        ) : (
+          <View style={{ marginTop: 16, gap: 10 }}>
+            {githubRepos.map((repo) => {
+              const alreadyOnVm =
+                Boolean(repo.alreadyOnVm) ||
+                vmRepoNameSet.has(String(repo.name || "").trim().toLowerCase());
+              return (
+                <TouchableOpacity
+                  key={repo.id}
+                  style={{
+                    backgroundColor: "#fff",
+                    borderRadius: 14,
+                    padding: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    opacity: alreadyOnVm ? 0.6 : 1,
+                  }}
+                  activeOpacity={0.7}
+                  disabled={cloningRepoId !== null || alreadyOnVm}
+                  onPress={() => handleCloneGithubRepo(repo)}
+                >
+                  <View style={{ flex: 1, marginRight: 12 }}>
+                    <Text
+                      style={{ fontSize: 15, fontWeight: "600", color: "#1C1C1E" }}
+                      numberOfLines={1}
+                    >
+                      {repo.name}
+                    </Text>
+                    <Text
+                      style={{ fontSize: 12, color: "#8E8E93", marginTop: 2 }}
+                      numberOfLines={1}
+                    >
+                      {repo.fullName}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    {repo.private && (
+                      <Ionicons name="lock-closed" size={13} color="#8E8E93" />
+                    )}
+                    {cloningRepoId === repo.id ? (
+                      <ActivityIndicator size="small" color="#1A5200" />
+                    ) : (
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: "600",
+                          color: alreadyOnVm ? "#8E8E93" : "#1A5200",
+                        }}
+                      >
+                        {alreadyOnVm ? "Already added" : "Clone"}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+      </View>
+    );
+  }
+
   // ── Add repository view ───────────────────────────────────────────────────────
 
   function renderAddRepositoryView() {
@@ -1218,6 +1406,7 @@ export function GetMoreSheet({
         {currentView === "connect-agent" && renderConnectAgentView()}
         {currentView === "connect-laptop" && renderConnectLaptopView()}
         {currentView === "add-repository" && renderAddRepositoryView()}
+        {currentView === "github-repos" && renderGithubReposView()}
       </BottomSheetScrollView>
     </BottomSheetModal>
   );

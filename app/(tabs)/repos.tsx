@@ -44,11 +44,10 @@ export default function ReposTab() {
             style={repoStyles.actionBtn}
             activeOpacity={0.72}
             onPress={() => {
-              setSheetInitialView("add-repository");
+              setSheetInitialView("github-repos");
               setGetMoreVisible(true);
             }}
           >
-            {/* <Ionicons name="logo-github" size={14} color="#1C1C1E" /> */}
             <CloneFromGithub />
             <Text style={repoStyles.actionBtnText}>Clone from Github</Text>
           </TouchableOpacity>

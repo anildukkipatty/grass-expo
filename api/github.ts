@@ -24,6 +24,7 @@ export type GithubRepo = {
   fullName: string;
   private: boolean;
   htmlUrl: string;
+  alreadyOnVm: boolean;
 };
 
 export type GithubReposResponse = {

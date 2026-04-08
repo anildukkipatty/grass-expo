@@ -115,9 +115,9 @@ interface NavbarContextValue {
   // GetMore sheet
   getMoreVisible: boolean;
   setGetMoreVisible: React.Dispatch<React.SetStateAction<boolean>>;
-  sheetInitialView: "home" | "connect-agent" | "connect-laptop" | "add-repository";
+  sheetInitialView: "home" | "connect-agent" | "connect-laptop" | "add-repository" | "github-repos";
   setSheetInitialView: React.Dispatch<
-    React.SetStateAction<"home" | "connect-agent" | "connect-laptop" | "add-repository">
+    React.SetStateAction<"home" | "connect-agent" | "connect-laptop" | "add-repository" | "github-repos">
   >;
 
   // VM state
@@ -151,7 +151,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   const [reposLoading, setReposLoading] = useState(false);
   const [getMoreVisible, setGetMoreVisible] = useState(false);
   const [sheetInitialView, setSheetInitialView] = useState<
-    "home" | "connect-agent" | "connect-laptop" | "add-repository"
+    "home" | "connect-agent" | "connect-laptop" | "add-repository" | "github-repos"
   >("home");
   const [vmRunning, setVmRunning] = useState(true);
   const [vmUrls, setVmUrls] = useState<string[]>([]);
