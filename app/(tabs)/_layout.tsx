@@ -3,6 +3,7 @@ import { AgentPickerSheet } from "@/components/NavBanner";
 import { NavbarProvider, orderVmUrls, useNavbar } from "@/contexts/navbar-context";
 import { getEntry, getRepoDetailsStore, listReposStore } from "@/store/connection-store";
 import { getUrls, resolveServerKey } from "@/store/url-store";
+import { useRouter } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 
 // ─── TabsLayoutInner ──────────────────────────────────────────────────────────
@@ -23,6 +24,7 @@ function TabsLayoutInner() {
     setPendingRepo,
     handleSelectAgent,
   } = useNavbar();
+  const router = useRouter();
   const permsCount = permissions.length;
 
   return (
@@ -105,6 +107,7 @@ function TabsLayoutInner() {
             }))
           );
           setReposLoading(false);
+          router.navigate("/(tabs)/repos");
         }}
       />
     </>

@@ -9,6 +9,12 @@ import {
   opencodeDisconnect,
   opencodeStatus,
 } from "@/api/opencode";
+import {
+  githubOauthDisconnect,
+  githubOauthStart,
+  githubOauthStatus,
+  githubVerifyVmAuth,
+} from "@/api/github";
 import { getToken } from "@/store/auth-store";
 import { cloneRepoStore, getEntry } from "@/store/connection-store";
 import { saveUrl } from "@/store/url-store";
@@ -32,6 +38,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 import React, {
   useCallback,
   useEffect,
@@ -42,6 +49,7 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Clipboard,
   StyleSheet,
   Text,
@@ -92,6 +100,12 @@ export function GetMoreSheet({
   const [verifying, setVerifying] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [opencodeDisconnecting, setOpencodeDisconnecting] = useState(false);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubConnected, setGithubConnected] = useState(false);
+  const [githubVmConfigured, setGithubVmConfigured] = useState(false);
+  const [githubLogin, setGithubLogin] = useState<string | null>(null);
+  const [githubFlowActive, setGithubFlowActive] = useState(false);
+  const [githubDisconnecting, setGithubDisconnecting] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [scannedQr, setScannedQr] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
@@ -137,9 +151,11 @@ export function GetMoreSheet({
     (async () => {
       const token = await getToken();
       if (!token) return;
-      const [claudeRes, opencodeRes] = await Promise.all([
+      const [claudeRes, opencodeRes, githubStatusRes, githubVerifyRes] = await Promise.all([
         claudeStatus(token),
         opencodeStatus(token),
+        githubOauthStatus(token),
+        githubVerifyVmAuth(token),
       ]);
       if (claudeRes.ok) {
         setClaudeConnected(claudeRes.data.connected);
@@ -147,8 +163,49 @@ export function GetMoreSheet({
       if (opencodeRes.ok) {
         setOpencodeConnected(opencodeRes.data.connected);
       }
+      if (githubStatusRes.ok) {
+        setGithubConnected(Boolean(githubStatusRes.data.connected));
+        setGithubLogin(githubStatusRes.data.githubLogin ?? null);
+      }
+      if (githubVerifyRes.ok) {
+        setGithubVmConfigured(Boolean(githubVerifyRes.data.vmConfigured));
+      }
     })();
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible || !githubFlowActive) return;
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active") return;
+      void (async () => {
+        const token = await getToken();
+        if (!token) return;
+        const [statusRes, verifyRes] = await Promise.all([
+          githubOauthStatus(token),
+          githubVerifyVmAuth(token),
+        ]);
+        if (statusRes.ok) {
+          const connected = Boolean(statusRes.data.connected);
+          setGithubConnected(connected);
+          setGithubLogin(statusRes.data.githubLogin ?? null);
+          if (connected) {
+            if (verifyRes.ok) {
+              setGithubVmConfigured(Boolean(verifyRes.data.vmConfigured));
+            }
+            setGithubFlowActive(false);
+            Alert.alert(
+              "GitHub connected",
+              "GitHub OAuth is complete. Git access is now configured for your VM."
+            );
+          }
+        }
+      })();
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [visible, githubFlowActive]);
 
   // Start Claude auth flow when navigating to connect-agent with claude tab
   useEffect(() => {
@@ -347,6 +404,53 @@ export function GetMoreSheet({
               Alert.alert("Disconnected", "OpenCode Zen has been disconnected.");
             } else {
               Alert.alert("Error", res.ok ? res.data.message : res.error);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleConfigureGitAccess() {
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Error", "Not logged in.");
+      return;
+    }
+    setGithubLoading(true);
+    const redirectUri = Linking.createURL("github-oauth-callback");
+    const res = await githubOauthStart(token, redirectUri);
+    setGithubLoading(false);
+    if (!res.ok) {
+      Alert.alert("GitHub OAuth failed", res.error);
+      return;
+    }
+    setGithubFlowActive(true);
+    await WebBrowser.openAuthSessionAsync(res.data.url, redirectUri);
+  }
+
+  function handleDisconnectGithub() {
+    Alert.alert(
+      "Disconnect GitHub",
+      `Are you sure you want to disconnect @${githubLogin || "github"}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: async () => {
+            const token = await getToken();
+            if (!token) return;
+            setGithubDisconnecting(true);
+            const res = await githubOauthDisconnect(token);
+            setGithubDisconnecting(false);
+            if (res.ok) {
+              setGithubConnected(false);
+              setGithubLogin(null);
+              setGithubVmConfigured(false);
+              Alert.alert("Disconnected", "GitHub has been disconnected.");
+            } else {
+              Alert.alert("Error", res.error);
             }
           },
         },
@@ -583,19 +687,36 @@ export function GetMoreSheet({
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.halfCard} activeOpacity={0.88}>
+          <TouchableOpacity
+            style={styles.halfCard}
+            activeOpacity={0.88}
+            onPress={githubConnected ? undefined : handleConfigureGitAccess}
+            disabled={githubLoading || githubDisconnecting}
+          >
             <View style={styles.halfCardHeader}>
               <View style={styles.iconCircle}>
                 <GithubSvg width={19} height={19} />
               </View>
-              <View style={styles.comingBadge}>
-                <Text style={styles.comingBadgeText}>Coming in v2</Text>
-              </View>
+              {githubLoading || githubDisconnecting ? (
+                <ActivityIndicator size="small" color="#1A5200" />
+              ) : null}
             </View>
             <Text style={styles.halfCardTitle}>{"Configure\nGit Access"}</Text>
             <Text style={styles.halfCardSubtitle}>
-              {"SSH key or\nGitHub OAuth"}
+              {githubConnected
+                ? `Connected as @${githubLogin || "github"}`
+                : "GitHub OAuth (HTTPS)"}
             </Text>
+            {githubConnected ? (
+              <TouchableOpacity
+                style={[styles.disconnectBtn, { height: 32, marginTop: 6 }, githubDisconnecting && styles.disconnectBtnDisabled]}
+                onPress={handleDisconnectGithub}
+                disabled={githubDisconnecting}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.disconnectBtnText, { fontSize: 13 }]}>Disconnect</Text>
+              </TouchableOpacity>
+            ) : null}
           </TouchableOpacity>
         </View>
       </View>
