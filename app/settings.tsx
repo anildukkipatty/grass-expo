@@ -4,6 +4,8 @@
 import BackIcon from "@/assets/images/settings/back-arrow.svg";
 import ProfileIconSvg from "@/assets/images/settings/profile-icon.svg";
 import { clearAuth, getUser } from "@/store/auth-store";
+import { closeConnection, getConnectedUrls } from "@/store/connection-store";
+import { clearUrls } from "@/store/url-store";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
 import React from "react";
@@ -59,6 +61,9 @@ export default function SettingsScreen() {
         text: "Logout",
         style: "destructive",
         onPress: async () => {
+          const connectedUrls = getConnectedUrls();
+          connectedUrls.forEach((url) => closeConnection(url));
+          await clearUrls();
           await clearAuth();
           router.dismissAll();
           router.replace("/welcome");
