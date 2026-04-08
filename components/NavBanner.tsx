@@ -49,7 +49,7 @@ function VmTabBar({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.tabPillsGroup}
-        style={{ flexShrink: 1 }}
+        style={styles.tabPillsOuter}
       >
         {vmUrls.map((url, idx) => {
           const isActive = activeVmTab === idx;
@@ -463,48 +463,58 @@ const styles = StyleSheet.create({
   tabsBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 14,
-    paddingTop: 14,
+    paddingTop: 12,
     paddingBottom: 40,
+  },
+  tabPillsOuter: {
+    flexGrow: 0,
+    flexShrink: 1,
+    backgroundColor: "rgba(255,255,255,0.78)",
+    borderRadius: 50,
+    borderWidth: 0.5,
+    borderColor: "rgba(255,255,255,0.6)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 6,
+    elevation: 3,
   },
   tabPillsGroup: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.82)",
-    borderRadius: 22,
-    padding: 3,
-    flexGrow: 0,
+    padding: 4,
   },
   tabPill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 19,
-    gap: 5,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 50,
+    gap: 6,
   },
-  tabPillWrap: { flexDirection: "row", alignItems: "center", marginRight: 2 },
+  tabPillWrap: { flexDirection: "row", alignItems: "center" },
   tabPillActive: {
     backgroundColor: "#FFFFFF",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.10,
     shadowRadius: 3,
     elevation: 2,
   },
   vmDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1 },
-  vmDotActive: { backgroundColor: "#00FF33", borderColor: "#004D13" },
+  vmDotActive: { backgroundColor: "#2ECC40", borderColor: "#1a7a28" },
   vmDotStopped: { backgroundColor: "#FF3B30", borderColor: "#8B0000" },
   vmDotUnknown: { backgroundColor: "#9ca3af", borderColor: "#6b7280" },
   tabPillText: {
     fontSize: 13,
     fontWeight: "500",
-    color: "#6C6C70",
+    color: "#3C3C43",
     maxWidth: 140,
   },
   userVmTabText: { maxWidth: 105 },
   userVmCloseBtn: {
-    marginLeft: 3,
+    marginLeft: 4,
     width: 16,
     height: 16,
     borderRadius: 8,
@@ -514,13 +524,13 @@ const styles = StyleSheet.create({
   },
   tabPillTextActive: { color: "#1C1C1E", fontWeight: "600" },
   tabAddText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "500",
     color: "#FFFFFF",
     paddingHorizontal: 4,
-    textShadowColor: "rgba(0,0,0,0.4)",
+    textShadowColor: "rgba(0,0,0,0.45)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
 
   // Agent picker sheet
