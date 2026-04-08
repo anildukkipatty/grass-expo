@@ -20,9 +20,8 @@ export default function HomeTab() {
   const { bottom } = useSafeAreaInsets();
   const tabBarHeight = bottom + 110;
   const router = useRouter();
-
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: "#F2F2F7" }}>
       <NavBanner />
       <StickyBannerLayout
         bannerHeight={BANNER_HEIGHT}

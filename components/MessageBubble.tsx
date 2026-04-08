@@ -12,32 +12,73 @@ interface Props {
   theme: 'light' | 'dark';
 }
 
-const TOOL_ICONS: Record<string, string> = {
-  // File operations
-  Read: '👓',
-  Write: '✏️',
-  Edit: '📝',
-  MultiEdit: '📝',
-  // Shell
-  Bash: '⚡',
-  // Search
-  Grep: '🔍',
-  Glob: '🗂️',
-  // Web
-  WebFetch: '🌐',
-  WebSearch: '🔎',
-  // Notebook
-  NotebookRead: '📒',
-  NotebookEdit: '📒',
-  // Task / agent
-  Task: '🤖',
-  TodoRead: '📋',
-  TodoWrite: '📋',
-  // Git / diff
-  Diff: '🔀',
-  // LS / directory
-  LS: '📁',
-};
+// Normalize tool name: lowercase, strip underscores/spaces (handles both PascalCase and snake_case)
+function toolIcon(toolName: string): string {
+  const key = toolName.toLowerCase().replace(/[_\s]/g, '');
+  switch (key) {
+    // File read
+    case 'read':
+    case 'readfile':
+    case 'notebookread':
+      return '📖';
+    // File write / create
+    case 'write':
+    case 'writefile':
+      return '✏️';
+    // File edit / patch
+    case 'edit':
+    case 'editfile':
+    case 'multiedit':
+    case 'patch':
+      return '📝';
+    // Shell / terminal
+    case 'bash':
+    case 'shell':
+    case 'terminal':
+    case 'execute':
+      return '⚡';
+    // Content search
+    case 'grep':
+    case 'search':
+      return '🔍';
+    // File/path search
+    case 'glob':
+    case 'ls':
+    case 'listdir':
+    case 'listfiles':
+      return '🗂️';
+    // Web fetch
+    case 'webfetch':
+    case 'fetch':
+    case 'http':
+      return '🌐';
+    // Web search
+    case 'websearch':
+      return '🔎';
+    // Notebook
+    case 'notebookedit':
+      return '📒';
+    // Task / subagent
+    case 'task':
+    case 'agent':
+    case 'subagent':
+      return '🤖';
+    // Todo
+    case 'todoread':
+    case 'todowrite':
+      return '📋';
+    // Git / diff
+    case 'diff':
+    case 'gitdiff':
+      return '🔀';
+    // MCP / plugin tools
+    case 'mcptool':
+    case 'mcp':
+      return '🔌';
+    default:
+      return '🔧';
+  }
+}
 
 function makeFenceRules(theme: 'light' | 'dark') {
   return {
@@ -72,7 +113,7 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
   // Tool call row
   if (role === 'tool') {
     const toolName = content.split(': ')[0];
-    const icon = TOOL_ICONS[toolName] ?? '🔧';
+    const icon = toolIcon(toolName);
     return (
       <Animated.View
         style={[styles.toolRow, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}

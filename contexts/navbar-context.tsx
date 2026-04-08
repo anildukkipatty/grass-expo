@@ -29,8 +29,10 @@ import {
 import { useRouter } from "expo-router";
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import { Alert } from "react-native";
@@ -366,7 +368,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     };
   }, [vmRunning, selectedVmUrl]);
 
-  async function handleRemoveUserVm(idx: number) {
+  const handleRemoveUserVm = useCallback(async (idx: number) => {
     if (idx <= 0 || idx >= vmUrls.length) return;
     const targetUrl = vmUrls[idx];
     await removeUrl(targetUrl);
@@ -375,9 +377,9 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     if (activeVmTab === idx || activeVmTab >= updated.length) {
       setActiveVmTab(0);
     }
-  }
+  }, [vmUrls, primaryVmUrl, activeVmTab]);
 
-  function handleSelectAgent(agentId: string) {
+  const handleSelectAgent = useCallback((agentId: string) => {
     if (!pendingRepo || !selectedServerKey) return;
     const repo = pendingRepo;
     setPendingRepo(null);
@@ -390,9 +392,9 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         agent: agentId,
       },
     });
-  }
+  }, [pendingRepo, selectedServerKey, router]);
 
-  function handleLogout() {
+  const handleLogout = useCallback(() => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -410,9 +412,9 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         },
       },
     ]);
-  }
+  }, [router]);
 
-  const value: NavbarContextValue = {
+  const value = useMemo<NavbarContextValue>(() => ({
     vmUrls,
     setVmUrls,
     primaryVmUrl,
@@ -438,7 +440,12 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     handleRemoveUserVm,
     handleSelectAgent,
     handleLogout,
-  };
+  }), [
+    vmUrls, primaryVmUrl, activeVmTab, selectedVmUrl, selectedServerKey,
+    permsCount, repos, reposLoading, threads, pendingRepo,
+    getMoreVisible, sheetInitialView, vmRunning, vmUrlStatuses,
+    handleRemoveUserVm, handleSelectAgent, handleLogout,
+  ]);
 
   return (
     <NavbarContext.Provider value={value}>{children}</NavbarContext.Provider>

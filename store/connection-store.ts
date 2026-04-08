@@ -812,15 +812,41 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
       if (repoPath) params.set('repoPath', repoPath);
       const qs = params.toString();
       const res = await fetch(`${entry.baseUrl}/sessions/${id}/history${qs ? '?' + qs : ''}`);
-      const json = await res.json() as { messages?: Array<{ role: string; content: string }> };
+      type HistoryContentBlock = { type: 'text'; text: string } | { type: 'tool_use'; tool_name: string; tool_input: string };
+      type HistoryMessage = { role: string; content: string | HistoryContentBlock[] };
+      const json = await res.json() as { messages?: HistoryMessage[] };
+      console.log('[history]', JSON.stringify(json.messages?.slice(0, 3), null, 2));
       if (_connections.has(key)) {
         const msgs = json.messages ?? [];
-        entry.messages = msgs.map(m => ({
-          role: m.role as Message['role'],
-          content: m.content,
-          complete: true,
-          msgId: nextMsgId(entry),
-        }));
+        const expanded: Message[] = [];
+        for (const m of msgs) {
+          if (Array.isArray(m.content)) {
+            for (const block of m.content) {
+              if (block.type === 'text' && block.text.trim()) {
+                expanded.push({ role: m.role as Message['role'], content: block.text, complete: true, msgId: nextMsgId(entry) });
+              } else if (block.type === 'tool_use') {
+                let displayInput = block.tool_input;
+                // opencode sends raw JSON — try to extract a human-readable string
+                try {
+                  const parsed = JSON.parse(block.tool_input);
+                  if (parsed && typeof parsed === 'object') {
+                    const val = Object.values(parsed)[0];
+                    if (typeof val === 'string') displayInput = val;
+                  }
+                } catch { /* already a plain string */ }
+                expanded.push({ role: 'tool', content: `${block.tool_name}: ${displayInput}`, complete: true, msgId: nextMsgId(entry) });
+              }
+            }
+          } else {
+            expanded.push({
+              role: m.role as Message['role'],
+              content: m.content as string,
+              complete: true,
+              msgId: nextMsgId(entry),
+            });
+          }
+        }
+        entry.messages = expanded;
         notifyListeners(key);
       }
     } catch { /* ignore */ }

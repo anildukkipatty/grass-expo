@@ -239,7 +239,7 @@ export default function PermsTab() {
   }, [selectedVmUrl]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: "#F2F2F7" }}>
       <NavBanner />
       <StickyBannerLayout
         bannerHeight={BANNER_HEIGHT}

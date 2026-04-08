@@ -60,6 +60,7 @@ export default function SettingsScreen() {
         style: "destructive",
         onPress: async () => {
           await clearAuth();
+          router.dismissAll();
           router.replace("/welcome");
         },
       },
