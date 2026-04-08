@@ -1439,6 +1439,7 @@ export function GetMoreSheet({
               {currentView === "connect-agent" && renderConnectAgentView()}
               {currentView === "connect-laptop" && renderConnectLaptopView()}
               {currentView === "add-repository" && renderAddRepositoryView()}
+              {currentView === "github-repos" && renderGithubReposView()}
             </View>
           </TouchableWithoutFeedback>
         </BottomSheetScrollView>

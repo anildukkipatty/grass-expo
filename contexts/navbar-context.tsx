@@ -125,6 +125,7 @@ interface NavbarContextValue {
   vmUrlStatuses: Map<string, boolean>;
 
   // Actions
+  refreshRepos: () => Promise<void>;
   handleRemoveUserVm: (idx: number) => Promise<void>;
   handleSelectAgent: (agentId: string) => void;
   handleLogout: () => void;
@@ -368,6 +369,32 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     };
   }, [vmRunning, selectedVmUrl]);
 
+  const refreshRepos = useCallback(async () => {
+    if (!selectedVmUrl) return;
+    setReposLoading(true);
+    const key = resolveServerKey(selectedVmUrl);
+    const realUrl = resolveServerUrl(selectedVmUrl);
+    openConnectionWithKey(key, realUrl);
+    await listReposStore(key);
+    const entry = getEntry(key);
+    const repoList = entry?.repos ?? [];
+    await Promise.all(repoList.map((r) => getRepoDetailsStore(key, r.path)));
+    const updatedEntry = getEntry(key);
+    const details = updatedEntry?.repoDetails ?? new Map();
+    setRepos(
+      repoList.map((r, i) => ({
+        id: String(i),
+        name: r.name,
+        path: r.path,
+        branch: details.get(r.path)?.branch ?? "main",
+        action: "Open Code",
+        badge: details.get(r.path)?.dominantLanguage ?? (r.isGit ? "Git" : "Folder"),
+        badgeType: "gray" as const,
+      }))
+    );
+    setReposLoading(false);
+  }, [selectedVmUrl]);
+
   const handleRemoveUserVm = useCallback(async (idx: number) => {
     if (idx <= 0 || idx >= vmUrls.length) return;
     const targetUrl = vmUrls[idx];
@@ -437,6 +464,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     setSheetInitialView,
     vmRunning,
     vmUrlStatuses,
+    refreshRepos,
     handleRemoveUserVm,
     handleSelectAgent,
     handleLogout,
@@ -444,7 +472,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     vmUrls, primaryVmUrl, activeVmTab, selectedVmUrl, selectedServerKey,
     permsCount, repos, reposLoading, threads, pendingRepo,
     getMoreVisible, sheetInitialView, vmRunning, vmUrlStatuses,
-    handleRemoveUserVm, handleSelectAgent, handleLogout,
+    refreshRepos, handleRemoveUserVm, handleSelectAgent, handleLogout,
   ]);
 
   return (

@@ -3,7 +3,8 @@ import { NavBanner, VmTabBar } from "@/components/NavBanner";
 import { StickyBannerLayout } from "@/components/StickyBannerLayout";
 import { SwipeableRepoCard, repoStyles } from "@/components/SwipeableRepoCard";
 import { useNavbar } from "@/contexts/navbar-context";
-import React from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -14,10 +15,17 @@ export default function ReposTab() {
     repos,
     setRepos,
     reposLoading,
+    refreshRepos,
     setPendingRepo,
     setGetMoreVisible,
     setSheetInitialView,
   } = useNavbar();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshRepos();
+    }, [refreshRepos]),
+  );
   const { bottom } = useSafeAreaInsets();
   const tabBarHeight = bottom + 110;
 
