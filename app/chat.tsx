@@ -1,44 +1,82 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { MessageBubble } from "@/components/MessageBubble";
+import { PermissionCard } from "@/components/PermissionCard";
+import { AgentTypingskeleton } from "@/components/SkeletonLoader";
+import { GrassColors } from "@/constants/theme";
+import { useServer } from "@/hooks/use-server";
+import modelsJson from "@/models.json";
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Animated, Keyboard, Image,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { BlurView } from 'expo-blur';
-import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { useServer } from '@/hooks/use-server';
-import { closeSSEStream, getEntry, getPermissions, respondGlobalPermission, subscribeToConnection, subscribeToPermissions, GlobalPermissionItem } from '@/store/connection-store';
-import { PermissionCard } from '@/components/PermissionCard';
-import { getSessionLabel, setSessionLabel, subscribeSessionLabel } from '@/store/session-label-store';
-import { upsertThread } from '@/store/thread-store';
-import { deriveSessionTitle } from '@/utils/derive-session-title';
-import { useTheme } from '@/store/theme-store';
-import { GrassColors } from '@/constants/theme';
-import { MessageBubble } from '@/components/MessageBubble';
-import { AgentTypingskeleton } from '@/components/SkeletonLoader';
-import modelsJson from '@/models.json';
+  closeSSEStream,
+  getEntry,
+  getPermissions,
+  GlobalPermissionItem,
+  respondGlobalPermission,
+  subscribeToConnection,
+  subscribeToPermissions,
+} from "@/store/connection-store";
+import {
+  getSessionLabel,
+  setSessionLabel,
+  subscribeSessionLabel,
+} from "@/store/session-label-store";
+import { useTheme } from "@/store/theme-store";
+import { upsertThread } from "@/store/thread-store";
+import { deriveSessionTitle } from "@/utils/derive-session-title";
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+} from "@gorhom/bottom-sheet";
+import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  FlatList,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-const MODELS_BY_AGENT: Record<string, Record<string, string>> = modelsJson as any;
+const MODELS_BY_AGENT: Record<
+  string,
+  Record<string, string>
+> = modelsJson as any;
 const DEFAULTS: Record<string, string> = {
-  'claude-code': 'claude-sonnet-4-6',
-  'opencode': 'opencode/big-pickle',
+  "claude-code": "claude-sonnet-4-6",
+  opencode: "opencode/big-pickle",
 };
 
-function getModelsForAgent(agent: string | undefined): { key: string; label: string }[] {
-  const agentKey = agent === 'opencode' ? 'opencode' : 'claude-code';
-  const map = MODELS_BY_AGENT[agentKey] ?? MODELS_BY_AGENT['claude-code'];
+function getModelsForAgent(
+  agent: string | undefined,
+): { key: string; label: string }[] {
+  const agentKey = agent === "opencode" ? "opencode" : "claude-code";
+  const map = MODELS_BY_AGENT[agentKey] ?? MODELS_BY_AGENT["claude-code"];
   return Object.entries(map).map(([key, label]) => ({ key, label }));
 }
 
 function getDefaultModel(agent: string | undefined): string {
-  const agentKey = agent === 'opencode' ? 'opencode' : 'claude-code';
-  return DEFAULTS[agentKey] ?? 'claude-sonnet-4-6';
+  const agentKey = agent === "opencode" ? "opencode" : "claude-code";
+  return DEFAULTS[agentKey] ?? "claude-sonnet-4-6";
 }
 
 export default function Chat() {
   const router = useRouter();
-  const { serverUrl, sessionId: initialSessionId, repoName, repoPath, agent, initialOnboarding } = useLocalSearchParams<{
+  const {
+    serverUrl,
+    sessionId: initialSessionId,
+    repoName,
+    repoPath,
+    agent,
+    initialOnboarding,
+  } = useLocalSearchParams<{
     serverUrl: string;
     sessionId?: string;
     repoName?: string;
@@ -46,25 +84,33 @@ export default function Chat() {
     agent?: string;
     initialOnboarding?: string;
   }>();
-  const showOnboarding = initialOnboarding === 'true';
+  const showOnboarding = initialOnboarding === "true";
   const [theme, setTheme] = useTheme();
-  const [inputText, setInputText] = useState('');
-  const inputTextRef = useRef('');
+  const [inputText, setInputText] = useState("");
+  const inputTextRef = useRef("");
   const flatListRef = useRef<FlatList>(null);
   const sessionInitialized = useRef(false);
   const hasSent = useRef(false);
 
-  const [agentMode, setAgentMode] = useState<'plan' | 'build'>('build');
+  const [agentMode, setAgentMode] = useState<"plan" | "build">("build");
 
   const defaultModel = getDefaultModel(agent);
   const [selectedModelKey, setSelectedModelKey] = useState(defaultModel);
   const modelList = getModelsForAgent(agent);
-  const selectedModelLabel = modelList.find(m => m.key === selectedModelKey)?.label ?? selectedModelKey;
+  const selectedModelLabel =
+    modelList.find((m) => m.key === selectedModelKey)?.label ??
+    selectedModelKey;
   const modelSheetRef = useRef<BottomSheetModal>(null);
-  const modelSnapPoints = ['75%'];
+  const modelSnapPoints = ["75%"];
   const renderModelBackdrop = useCallback(
-    (props: any) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />,
-    []
+    (props: any) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+      />
+    ),
+    [],
   );
   const c = GrassColors[theme];
   const sendScale = useRef(new Animated.Value(1)).current;
@@ -73,44 +119,60 @@ export default function Chat() {
 
   const ws = useServer(serverUrl ?? null);
 
-  const [sessionLabel, setSessionLabelState] = useState<string | null>(getSessionLabel);
+  const [sessionLabel, setSessionLabelState] = useState<string | null>(
+    getSessionLabel,
+  );
   useEffect(() => subscribeSessionLabel(setSessionLabelState), []);
 
   // Pending permission for this session
-  const [pendingPermission, setPendingPermission] = useState<GlobalPermissionItem | null>(null);
+  const [pendingPermission, setPendingPermission] =
+    useState<GlobalPermissionItem | null>(null);
   useEffect(() => {
     if (!serverUrl) return;
     const update = () => {
       const entry = getEntry(serverUrl);
       const grassId = entry?.currentSessionId ?? null;
       const sdkId = entry?.sessionId ?? null;
-      const match = (grassId || sdkId)
-        ? getPermissions(serverUrl).find(p =>
-            (grassId && p.sessionId === grassId) ||
-            (sdkId && p.sdkSessionId === sdkId)
-          ) ?? null
-        : null;
+      const match =
+        grassId || sdkId
+          ? (getPermissions(serverUrl).find(
+              (p) =>
+                (grassId && p.sessionId === grassId) ||
+                (sdkId && p.sdkSessionId === sdkId),
+            ) ?? null)
+          : null;
       setPendingPermission(match);
     };
     update();
     const unsubPerms = subscribeToPermissions(serverUrl, update);
     const unsubConn = subscribeToConnection(serverUrl, update);
-    return () => { unsubPerms(); unsubConn(); };
+    return () => {
+      unsubPerms();
+      unsubConn();
+    };
   }, [serverUrl]);
 
   // Cross-fade send/stop with rotation
   useEffect(() => {
     if (ws.streaming && !prevStreaming.current) {
-      Animated.timing(sendRotation, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+      Animated.timing(sendRotation, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
     } else if (!ws.streaming && prevStreaming.current) {
-      Animated.timing(sendRotation, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+      Animated.timing(sendRotation, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
     }
     prevStreaming.current = ws.streaming;
   }, [ws.streaming, sendRotation]);
 
   // Scroll to bottom when keyboard opens
   useEffect(() => {
-    const sub = Keyboard.addListener('keyboardDidShow', () => {
+    const sub = Keyboard.addListener("keyboardDidShow", () => {
       if (ws.messages.length > 0) {
         flatListRef.current?.scrollToOffset({ offset: 999999, animated: true });
       }
@@ -125,8 +187,10 @@ export default function Chat() {
       sessionInitialized.current = true;
       ws.initSession(initialSessionId ?? null, agent ?? null, repoPath ?? null);
     }
-    return () => { if (serverUrl) closeSSEStream(serverUrl); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      if (serverUrl) closeSSEStream(serverUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const send = useCallback(() => {
@@ -134,8 +198,18 @@ export default function Chat() {
     if (!text || ws.streaming) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Animated.sequence([
-      Animated.spring(sendScale, { toValue: 1.2, useNativeDriver: true, speed: 50, bounciness: 12 }),
-      Animated.spring(sendScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }),
+      Animated.spring(sendScale, {
+        toValue: 1.2,
+        useNativeDriver: true,
+        speed: 50,
+        bounciness: 12,
+      }),
+      Animated.spring(sendScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        speed: 30,
+        bounciness: 4,
+      }),
     ]).start();
     hasSent.current = true;
     ws.send(text, selectedModelKey, agentMode);
@@ -143,29 +217,42 @@ export default function Chat() {
     if (ws.sessionId && serverUrl) {
       upsertThread({
         id: ws.sessionId,
-        title: sessionLabel ?? repoName ?? 'Chat',
-        repo: repoName ?? '',
-        repoPath: repoPath ?? '',
-        tool: agent ?? '',
+        title: sessionLabel ?? repoName ?? "Chat",
+        repo: repoName ?? "",
+        repoPath: repoPath ?? "",
+        tool: agent ?? "",
         serverUrl: serverUrl,
         time: new Date().toISOString(),
       });
     }
-    inputTextRef.current = '';
-    setInputText('');
-    setTimeout(() => setInputText(''), 100);
-  }, [ws, sendScale, sessionLabel, repoName, repoPath, agent, serverUrl, selectedModelKey, agentMode]);
+    inputTextRef.current = "";
+    setInputText("");
+    setTimeout(() => setInputText(""), 100);
+  }, [
+    ws,
+    sendScale,
+    sessionLabel,
+    repoName,
+    repoPath,
+    agent,
+    serverUrl,
+    selectedModelKey,
+    agentMode,
+  ]);
 
   const goDiffs = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push({ pathname: '/diffs', params: { serverUrl: serverUrl!, repoPath: repoPath ?? '' } });
+    router.push({
+      pathname: "/diffs",
+      params: { serverUrl: serverUrl!, repoPath: repoPath ?? "" },
+    });
   }, [router, serverUrl, repoPath]);
 
   const canSend = !!inputText.trim() && !ws.streaming;
 
   const spinRotate = sendRotation.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', '90deg'],
+    outputRange: ["0deg", "90deg"],
   });
 
   // Derive a meaningful title from conversation content once the first exchange
@@ -174,7 +261,13 @@ export default function Chat() {
   useEffect(() => {
     // Only derive once, only after user has sent, streaming finished, and we still
     // have no server-provided label.
-    if (titleDerived.current || !hasSent.current || ws.streaming || sessionLabel) return;
+    if (
+      titleDerived.current ||
+      !hasSent.current ||
+      ws.streaming ||
+      sessionLabel
+    )
+      return;
     if (!ws.sessionId || !serverUrl) return;
 
     const derived = deriveSessionTitle(ws.messages);
@@ -187,24 +280,33 @@ export default function Chat() {
     upsertThread({
       id: ws.sessionId,
       title: derived,
-      repo: repoName ?? '',
-      repoPath: repoPath ?? '',
-      tool: agent ?? '',
+      repo: repoName ?? "",
+      repoPath: repoPath ?? "",
+      tool: agent ?? "",
       serverUrl: serverUrl,
       time: new Date().toISOString(),
     });
-  }, [ws.streaming, ws.messages, ws.sessionId, sessionLabel, serverUrl, repoName, repoPath, agent]);
+  }, [
+    ws.streaming,
+    ws.messages,
+    ws.sessionId,
+    sessionLabel,
+    serverUrl,
+    repoName,
+    repoPath,
+    agent,
+  ]);
 
   // Save/update thread in storage whenever sessionId is known and user has sent a message
   useEffect(() => {
     if (!hasSent.current || !ws.sessionId || !serverUrl) return;
-    const title = sessionLabel ?? repoName ?? 'Chat';
+    const title = sessionLabel ?? repoName ?? "Chat";
     upsertThread({
       id: ws.sessionId,
       title,
-      repo: repoName ?? '',
-      repoPath: repoPath ?? '',
-      tool: agent ?? '',
+      repo: repoName ?? "",
+      repoPath: repoPath ?? "",
+      tool: agent ?? "",
       serverUrl: serverUrl,
       time: new Date().toISOString(),
     });
@@ -212,18 +314,25 @@ export default function Chat() {
 
   // Header derived values
   const branch = repoPath ? ws.repoDetails.get(repoPath)?.branch : null;
-  const sessionTitle = sessionLabel ?? repoName ?? 'Chat';
+  const sessionTitle = sessionLabel ?? repoName ?? "Chat";
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
       {/* Header with blur */}
       <View style={[styles.headerWrap, { borderBottomColor: c.border }]}>
-        <BlurView intensity={80} tint={theme === 'dark' ? 'dark' : 'light'} style={styles.header}>
+        <BlurView
+          intensity={80}
+          tint={theme === "dark" ? "dark" : "light"}
+          style={styles.header}
+        >
           {/* Two-column: back btn (left, vertically centered) + meta+title (right) */}
           <View style={styles.headerRow}>
             <TouchableOpacity
               style={styles.backBtn}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.back();
+              }}
               hitSlop={8}
             >
               <Text style={[styles.backBtnText, { color: c.text }]}>‹</Text>
@@ -231,28 +340,50 @@ export default function Chat() {
 
             <View style={styles.headerMeta}>
               <View style={styles.headerRepoLine}>
-                <Text style={[styles.headerRepoText, { color: c.badgeText }]} numberOfLines={1}>
-                  {repoName ?? '—'}
+                <Text
+                  style={[styles.headerRepoText, { color: c.badgeText }]}
+                  numberOfLines={1}
+                >
+                  {repoName ?? "—"}
                 </Text>
                 {branch ? (
                   <>
-                    <Text style={[styles.headerRepoDot, { color: c.badgeText }]}>{' • '}</Text>
+                    <Text
+                      style={[styles.headerRepoDot, { color: c.badgeText }]}
+                    >
+                      {" • "}
+                    </Text>
                     <Image
-                      source={require('@/assets/images/chat-screens/git-branch.png')}
+                      source={require("@/assets/images/chat-screens/git-branch.png")}
                       style={[styles.branchIcon, { tintColor: c.badgeText }]}
                     />
-                    <Text style={[styles.headerRepoText, { color: c.badgeText }]} numberOfLines={1}>
+                    <Text
+                      style={[styles.headerRepoText, { color: c.badgeText }]}
+                      numberOfLines={1}
+                    >
                       {branch}
                     </Text>
                   </>
                 ) : null}
               </View>
-              <Text style={[styles.headerTitle, { color: c.text }]} numberOfLines={1}>{sessionTitle}</Text>
+              <Text
+                style={[styles.headerTitle, { color: c.text }]}
+                numberOfLines={1}
+              >
+                {sessionTitle}
+              </Text>
             </View>
 
             <View style={styles.headerActions}>
-              <TouchableOpacity style={styles.headerIconBtn} onPress={goDiffs} hitSlop={8}>
-                <Image source={require('@/assets/images/diff-logo.png')} style={styles.diffIcon} />
+              <TouchableOpacity
+                style={styles.headerIconBtn}
+                onPress={goDiffs}
+                hitSlop={8}
+              >
+                <Image
+                  source={require("@/assets/images/diff-logo.png")}
+                  style={styles.diffIcon}
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -267,11 +398,10 @@ export default function Chat() {
         </View>
       </View> */}
 
-
       {/* Messages */}
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={0}
       >
         <FlatList
@@ -281,7 +411,10 @@ export default function Chat() {
           contentContainerStyle={styles.messageList}
           onContentSizeChange={() => {
             if (ws.messages.length > 0) {
-              flatListRef.current?.scrollToOffset({ offset: 999999, animated: false });
+              flatListRef.current?.scrollToOffset({
+                offset: 999999,
+                animated: false,
+              });
             }
           }}
           ListFooterComponent={
@@ -290,12 +423,32 @@ export default function Chat() {
                 <PermissionCard
                   item={pendingPermission}
                   theme={theme}
-                  onAllow={() => respondGlobalPermission(serverUrl, pendingPermission.sessionId, pendingPermission.toolUseID, true)}
-                  onDeny={() => respondGlobalPermission(serverUrl, pendingPermission.sessionId, pendingPermission.toolUseID, false)}
+                  onAllow={() =>
+                    respondGlobalPermission(
+                      serverUrl,
+                      pendingPermission.sessionId,
+                      pendingPermission.toolUseID,
+                      true,
+                    )
+                  }
+                  onDeny={() =>
+                    respondGlobalPermission(
+                      serverUrl,
+                      pendingPermission.sessionId,
+                      pendingPermission.toolUseID,
+                      false,
+                    )
+                  }
                 />
-                {ws.streaming && ws.messages.some(m => m.role === 'assistant') ? <AgentTypingskeleton theme={theme} /> : null}
+                {ws.streaming &&
+                ws.messages.some((m) => m.role === "assistant") ? (
+                  <AgentTypingskeleton theme={theme} />
+                ) : null}
               </>
-            ) : ws.streaming && ws.messages.some(m => m.role === 'assistant') ? <AgentTypingskeleton theme={theme} /> : null
+            ) : ws.streaming &&
+              ws.messages.some((m) => m.role === "assistant") ? (
+              <AgentTypingskeleton theme={theme} />
+            ) : null
           }
           renderItem={({ item }) => (
             <MessageBubble
@@ -308,8 +461,17 @@ export default function Chat() {
           ListEmptyComponent={
             <View style={styles.emptyChat}>
               {showOnboarding && !hasSent.current ? (
-                <View style={[styles.onboardingBanner, { backgroundColor: c.accentSoft, borderColor: c.accent }]}>
-                  <Text style={[styles.onboardingText, { color: c.accent }]}>{"This is a demo repo to help you get started. 👋\n\nIt's a sample landing page — feel free to ask the agent to change anything.\n\nA good place to experiment! 🚀"}</Text>
+                <View
+                  style={[
+                    styles.onboardingBanner,
+                    { backgroundColor: c.accentSoft, borderColor: c.accent },
+                  ]}
+                >
+                  <Text style={[styles.onboardingText, { color: c.accent }]}>
+                    {
+                      "This is a demo repo to help you get started. 👋\n\nIt's a sample landing page — feel free to ask the agent to change anything.\n\nA good place to experiment! 🚀"
+                    }
+                  </Text>
                 </View>
               ) : (
                 <Text style={[styles.emptyChatText, { color: c.badgeText }]}>
@@ -321,26 +483,38 @@ export default function Chat() {
         />
 
         {/* First-send status bar */}
-        {ws.streaming && !ws.messages.some(m => m.role === 'assistant') && (
-          <View style={[styles.firstSendBar, { backgroundColor: c.accentSoft, borderColor: c.accent }]}>
-            <Text style={[styles.firstSendBarText, { color: c.accent }]}>Sending message to the agent…</Text>
+        {ws.streaming && !ws.messages.some((m) => m.role === "assistant") && (
+          <View
+            style={[
+              styles.firstSendBar,
+              { backgroundColor: c.accentSoft, borderColor: c.accent },
+            ]}
+          >
+            <Text style={[styles.firstSendBarText, { color: c.accent }]}>
+              Sending message to the agent…
+            </Text>
           </View>
         )}
 
         {/* Input area */}
-        <View style={[
-          styles.inputArea,
-          { backgroundColor: c.barBg, borderColor: c.border },
-          Platform.OS === 'ios' && styles.inputAreaShadow,
-          Platform.OS === 'ios' && { shadowColor: c.shadow },
-        ]}>
+        <View
+          style={[
+            styles.inputArea,
+            { backgroundColor: c.barBg, borderColor: c.border },
+            Platform.OS === "ios" && styles.inputAreaShadow,
+            Platform.OS === "ios" && { shadowColor: c.shadow },
+          ]}
+        >
           {/* Text input row */}
           <TextInput
             style={[styles.textInput, { color: c.text }]}
             placeholder="Type here"
             placeholderTextColor={c.badgeText}
             value={inputText}
-            onChangeText={(t) => { inputTextRef.current = t; setInputText(t); }}
+            onChangeText={(t) => {
+              inputTextRef.current = t;
+              setInputText(t);
+            }}
             multiline
             editable={!ws.streaming}
             onSubmitEditing={send}
@@ -360,36 +534,66 @@ export default function Chat() {
             <TouchableOpacity
               style={[styles.pill, { borderColor: c.border }]}
               hitSlop={8}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); modelSheetRef.current?.present(); }}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                modelSheetRef.current?.present();
+              }}
             >
-              <Text style={[styles.pillText, { color: c.text }]}>{selectedModelLabel} <Text style={{ fontSize: 17 }}>▾</Text></Text>
+              <Text style={[styles.pillText, { color: c.text }]}>
+                {selectedModelLabel} <Text style={{ fontSize: 17 }}>▾</Text>
+              </Text>
             </TouchableOpacity>
 
             {/* Plan/Build mode toggle pill */}
             <TouchableOpacity
-              style={[styles.pill, { borderColor: agentMode === 'plan' ? c.accent : c.border }]}
+              style={[
+                styles.pill,
+                { borderColor: agentMode === "plan" ? c.accent : c.border },
+              ]}
               hitSlop={8}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setAgentMode(m => m === 'build' ? 'plan' : 'build');
+                setAgentMode((m) => (m === "build" ? "plan" : "build"));
               }}
             >
-              <Text style={[styles.pillText, { color: agentMode === 'plan' ? c.accent : c.text }]}>
-                {agentMode === 'plan' ? 'Plan' : 'Build'}
+              <Text
+                style={[
+                  styles.pillText,
+                  { color: agentMode === "plan" ? c.accent : c.text },
+                ]}
+              >
+                {agentMode === "plan" ? "Plan" : "Build"}
               </Text>
             </TouchableOpacity>
 
             {/* Send / Stop button */}
-            <Animated.View style={{ transform: [{ scale: sendScale }, { rotate: spinRotate }] }}>
+            <Animated.View
+              style={{
+                transform: [{ scale: sendScale }, { rotate: spinRotate }],
+              }}
+            >
               {ws.streaming ? (
                 <TouchableOpacity
                   style={[styles.sendBtn, styles.abortBtn]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); ws.abort(); }}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    ws.abort();
+                  }}
                   onPressIn={() =>
-                    Animated.spring(sendScale, { toValue: 0.9, useNativeDriver: true, speed: 50, bounciness: 2 }).start()
+                    Animated.spring(sendScale, {
+                      toValue: 0.9,
+                      useNativeDriver: true,
+                      speed: 50,
+                      bounciness: 2,
+                    }).start()
                   }
                   onPressOut={() =>
-                    Animated.spring(sendScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start()
+                    Animated.spring(sendScale, {
+                      toValue: 1,
+                      useNativeDriver: true,
+                      speed: 30,
+                      bounciness: 6,
+                    }).start()
                   }
                   activeOpacity={1}
                 >
@@ -397,18 +601,39 @@ export default function Chat() {
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
-                  style={[styles.sendBtn, { backgroundColor: canSend ? '#088120' : c.border }]}
+                  style={[
+                    styles.sendBtn,
+                    { backgroundColor: canSend ? "#088120" : c.border },
+                  ]}
                   onPress={send}
                   onPressIn={() => {
-                    if (canSend) Animated.spring(sendScale, { toValue: 0.9, useNativeDriver: true, speed: 50, bounciness: 2 }).start();
+                    if (canSend)
+                      Animated.spring(sendScale, {
+                        toValue: 0.9,
+                        useNativeDriver: true,
+                        speed: 50,
+                        bounciness: 2,
+                      }).start();
                   }}
                   onPressOut={() =>
-                    Animated.spring(sendScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start()
+                    Animated.spring(sendScale, {
+                      toValue: 1,
+                      useNativeDriver: true,
+                      speed: 30,
+                      bounciness: 6,
+                    }).start()
                   }
                   disabled={!canSend}
                   activeOpacity={1}
                 >
-                  <Text style={[styles.sendBtnText, !canSend && styles.sendBtnTextDimmed]}>↑</Text>
+                  <Text
+                    style={[
+                      styles.sendBtnText,
+                      !canSend && styles.sendBtnTextDimmed,
+                    ]}
+                  >
+                    ↑
+                  </Text>
                 </TouchableOpacity>
               )}
             </Animated.View>
@@ -425,7 +650,9 @@ export default function Chat() {
         backgroundStyle={{ backgroundColor: c.barBg }}
         handleIndicatorStyle={{ backgroundColor: c.badgeText }}
       >
-        <Text style={[styles.modelSheetTitle, { color: c.badgeText }]}>Select model</Text>
+        <Text style={[styles.modelSheetTitle, { color: c.badgeText }]}>
+          Select model
+        </Text>
         <BottomSheetScrollView contentContainerStyle={styles.modelSheetContent}>
           {modelList.map((m) => (
             <TouchableOpacity
@@ -441,9 +668,13 @@ export default function Chat() {
                 modelSheetRef.current?.dismiss();
               }}
             >
-              <Text style={[styles.modelRowText, { color: c.text }]}>{m.label}</Text>
+              <Text style={[styles.modelRowText, { color: c.text }]}>
+                {m.label}
+              </Text>
               {m.key === selectedModelKey && (
-                <Text style={[styles.modelRowCheck, { color: c.accent }]}>✓</Text>
+                <Text style={[styles.modelRowCheck, { color: c.accent }]}>
+                  ✓
+                </Text>
               )}
             </TouchableOpacity>
           ))}
@@ -468,8 +699,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   backBtn: {
@@ -477,10 +708,10 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#CECECE',
-    backgroundColor: '#E5E5E5',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#CECECE",
+    backgroundColor: "#E5E5E5",
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
   },
   backBtnText: {
@@ -493,17 +724,17 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   headerRepoLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'nowrap',
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "nowrap",
   },
   headerRepoText: {
     fontSize: 13,
-    fontFamily: 'ui-monospace',
+    fontFamily: "ui-monospace",
   },
   headerRepoDot: {
     fontSize: 13,
-    fontFamily: 'ui-monospace',
+    fontFamily: "ui-monospace",
   },
   branchIcon: {
     width: 13,
@@ -511,7 +742,7 @@ const styles = StyleSheet.create({
     marginRight: 3,
   },
   headerActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 4,
   },
   headerIconBtn: {
@@ -519,26 +750,26 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#CECECE',
-    backgroundColor: '#E5E5E5',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#CECECE",
+    backgroundColor: "#E5E5E5",
+    alignItems: "center",
+    justifyContent: "center",
   },
   diffIcon: {
     width: 18,
     height: 18,
-    resizeMode: 'contain',
+    resizeMode: "contain",
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: -0.3,
   },
 
   // Context bar (static placeholder)
   contextBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 7,
     borderBottomWidth: 1,
@@ -546,18 +777,18 @@ const styles = StyleSheet.create({
   },
   contextLabel: {
     fontSize: 12,
-    fontFamily: 'ui-monospace',
+    fontFamily: "ui-monospace",
   },
   contextTrack: {
     flex: 1,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#e2e2e8',
-    overflow: 'hidden',
+    backgroundColor: "#e2e2e8",
+    overflow: "hidden",
   },
   contextFill: {
-    width: '19%',
-    height: '100%',
+    width: "19%",
+    height: "100%",
     borderRadius: 2,
   },
 
@@ -569,11 +800,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    alignItems: 'center',
+    alignItems: "center",
   },
   firstSendBarText: {
     fontSize: 13,
-    fontFamily: 'ui-monospace',
+    fontFamily: "ui-monospace",
   },
 
   // Messages
@@ -583,8 +814,8 @@ const styles = StyleSheet.create({
   },
   emptyChat: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingTop: 60,
     paddingHorizontal: 24,
   },
@@ -596,11 +827,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   onboardingText: {
     fontSize: 15,
-    textAlign: 'center',
+    textAlign: "center",
   },
 
   // Input area
@@ -627,19 +858,19 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   toolbarBtn: {
     width: 32,
     height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   toolbarPlusText: {
     fontSize: 31,
-    fontWeight: '500',
+    fontWeight: "500",
     lineHeight: 36,
   },
   pill: {
@@ -649,11 +880,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   pillText: {
-    fontFamily: 'NationalPark-Medium',
+    fontFamily: "NationalPark-Medium",
     fontSize: 14,
     letterSpacing: 0,
     includeFontPadding: false,
-    textAlignVertical: 'center',
+    textAlignVertical: "center",
   },
   toolbarSpacer: {
     flex: 1,
@@ -662,17 +893,17 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
   },
   abortBtn: {
-    backgroundColor: '#ef4444',
+    backgroundColor: "#ef4444",
   },
   sendBtnText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   sendBtnTextDimmed: {
     opacity: 0.4,
@@ -684,8 +915,8 @@ const styles = StyleSheet.create({
   },
   modelSheetTitle: {
     fontSize: 13,
-    fontFamily: 'ui-monospace',
-    textTransform: 'uppercase',
+    fontFamily: "ui-monospace",
+    textTransform: "uppercase",
     letterSpacing: 0.5,
     paddingHorizontal: 20,
     paddingTop: 12,
@@ -693,9 +924,9 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   modelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -705,6 +936,6 @@ const styles = StyleSheet.create({
   },
   modelRowCheck: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });

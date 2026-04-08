@@ -1,5 +1,5 @@
 import { PermissionModal } from "@/components/PermissionModal";
-import { GrassColors, NationalPark } from "@/constants/theme";
+import { GrassColors, NationalPark, DMMono } from "@/constants/theme";
 import {
   getConnectedUrls,
   getEntry,
@@ -15,16 +15,20 @@ import { Stack, usePathname, useLocalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { Text } from "react-native";
+import { Text, TextInput } from "react-native";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 SplashScreen.preventAutoHideAsync();
 
-// Apply National Park as the default font for all Text components
+// Apply National Park as the default font for all Text and TextInput components
 const DefaultText = Text as any;
 if (DefaultText.defaultProps == null) DefaultText.defaultProps = {};
 DefaultText.defaultProps.style = { fontFamily: NationalPark.regular };
+
+const DefaultTextInput = TextInput as any;
+if (DefaultTextInput.defaultProps == null) DefaultTextInput.defaultProps = {};
+DefaultTextInput.defaultProps.style = { fontFamily: NationalPark.regular };
 
 // Tracks which server URLs currently have active connections so we can open
 // a permissions SSE for each one.
@@ -131,6 +135,9 @@ export default function RootLayout() {
     [NationalPark.semiBold]: require("../assets/fonts/National_Park/static/NationalPark-SemiBold.ttf"),
     [NationalPark.bold]: require("../assets/fonts/National_Park/static/NationalPark-Bold.ttf"),
     [NationalPark.extraBold]: require("../assets/fonts/National_Park/static/NationalPark-ExtraBold.ttf"),
+    [DMMono.light]: require("@expo-google-fonts/dm-mono/300Light/DMMono_300Light.ttf"),
+    [DMMono.regular]: require("@expo-google-fonts/dm-mono/400Regular/DMMono_400Regular.ttf"),
+    [DMMono.medium]: require("@expo-google-fonts/dm-mono/500Medium/DMMono_500Medium.ttf"),
   });
 
   useEffect(() => {

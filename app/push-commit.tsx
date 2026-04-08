@@ -119,7 +119,7 @@ export default function PushCommitScreen() {
             })}
           >
             <LinearGradient
-              colors={["#00FF40", "#E0FF47"]}
+              colors={["#00FF26"]}
               locations={[0.2806, 1]}
               start={{ x: 0.17, y: 0.12 }}
               end={{ x: 0.83, y: 0.88 }}

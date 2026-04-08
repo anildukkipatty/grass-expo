@@ -66,6 +66,12 @@ export const Colors = {
   },
 };
 
+export const DMMono = {
+  light:   'DMMono_300Light',
+  regular: 'DMMono_400Regular',
+  medium:  'DMMono_500Medium',
+} as const;
+
 export const NationalPark = {
   extraLight: 'NationalPark-ExtraLight',
   light:      'NationalPark-Light',

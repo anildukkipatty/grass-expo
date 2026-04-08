@@ -1,5 +1,6 @@
 import { requestOtp, verifyOtp } from "@/api/auth";
 import { heartbeat, requestContainer } from "@/api/containers";
+import EmailPlaceHolderIcon from "@/assets/images/home-screen/email-place-holder-icon.svg";
 import { NationalPark } from "@/constants/theme";
 import { getToken, saveAuth } from "@/store/auth-store";
 import { saveVmUrl } from "@/store/url-store";
@@ -20,6 +21,7 @@ import {
   Dimensions,
   FlatList,
   Keyboard,
+  Linking,
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -83,7 +85,10 @@ function SetupLoadingModal({
     });
     progressTimer.start();
 
-    const finishAndRedirect = (path: "/push-commit" | "/(tabs)/home", serverUrl?: string) => {
+    const finishAndRedirect = (
+      path: "/push-commit" | "/(tabs)/home",
+      serverUrl?: string,
+    ) => {
       Animated.timing(progressAnim, {
         toValue: 1,
         duration: 400,
@@ -487,13 +492,15 @@ function AuthSheet({
           <>
             <Text style={styles.fieldLabel}>EMAIL</Text>
             <View style={styles.inputRow}>
-              <Image
+              {/* <Image
                 source={require("@/assets/images/home-screen/email-placeholder-icon.png")}
                 style={styles.inputIconImage}
                 contentFit="contain"
-              />
+              /> */}
+
+              <EmailPlaceHolderIcon style={styles.inputIconImage} />
               <BottomSheetTextInput
-                style={styles.input}
+                style={[styles.input, !email && styles.inputPlaceholder]}
                 placeholder="name@email.com"
                 placeholderTextColor="#59B26E"
                 keyboardType="email-address"
@@ -511,7 +518,7 @@ function AuthSheet({
             <Text style={styles.fieldLabel}>OTP CODE</Text>
             <View style={styles.inputRow}>
               <BottomSheetTextInput
-                style={styles.input}
+                style={[styles.input, !otp && styles.inputPlaceholder]}
                 placeholder="Enter 6-digit code"
                 placeholderTextColor="#59B26E"
                 keyboardType="number-pad"
@@ -545,7 +552,7 @@ function AuthSheet({
         >
           <LinearGradient
             style={[styles.ctaButton, loading && { opacity: 0.7 }]}
-            colors={["#00FF26", "#E0FF47"]}
+            colors={["#00FF26"]}
             locations={[0.2806, 1]}
             start={{ x: 0.828, y: 0.123 }}
             end={{ x: 0.172, y: 0.878 }}
@@ -563,9 +570,19 @@ function AuthSheet({
 
         <Text style={styles.legal}>
           By continuing, you agree to our{"\n"}
-          <Text style={styles.legalLink}>Terms of Service</Text>
+          <Text
+            style={styles.legalLink}
+            onPress={() => Linking.openURL("https://codeongrass.com/terms")}
+          >
+            Terms of Service
+          </Text>
           <Text style={styles.legal}> and </Text>
-          <Text style={styles.legalLink}>Privacy Policy.</Text>
+          <Text
+            style={styles.legalLink}
+            onPress={() => Linking.openURL("http://codeongrass.com/privacy")}
+          >
+            Privacy Policy.
+          </Text>
         </Text>
       </BottomSheetView>
     </BottomSheetModal>
@@ -625,7 +642,7 @@ export default function WelcomeScreen() {
             >
               <LinearGradient
                 style={styles.button}
-                colors={["#00FF26", "#E0FF47"]}
+                colors={["#00FF26"]}
                 locations={[0.2806, 1]}
                 start={{ x: 0.828, y: 0.123 }}
                 end={{ x: 0.172, y: 0.878 }}
@@ -811,6 +828,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     color: "#00330C",
     fontFamily: NationalPark.bold,
+  },
+  inputPlaceholder: {
+    fontFamily: NationalPark.regular,
   },
   ctaButtonShadow: {
     marginTop: 28,

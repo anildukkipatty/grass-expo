@@ -96,12 +96,15 @@ export function SwipeableRepoCard({
           >
             <View style={repoStyles.cardLeft}>
               <Text style={repoStyles.repoName}>{item.name}</Text>
-              <Text style={repoStyles.repoBranch}>
+              <View style={repoStyles.repoBranch}>
                 <BranchNameIcon />
-                {item.branch}
-                {"  ·  "}
-                {item.action}
-              </Text>
+
+                <Text>
+                  {item.branch}
+                  {"  ·  "}
+                  {item.action}
+                </Text>
+              </View>
             </View>
             <View
               style={[
@@ -149,7 +152,7 @@ export const repoStyles = StyleSheet.create({
     elevation: 1,
   },
   actionBtnText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "500",
     color: "#1C1C1E",
   },
@@ -196,6 +199,9 @@ export const repoStyles = StyleSheet.create({
   repoBranch: {
     fontSize: 12,
     color: "#8E8E93",
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
   },
   repoBadge: {
     borderRadius: 20,

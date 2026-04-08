@@ -17,18 +17,21 @@ import {
   type GithubRepo,
 } from "@/api/github";
 import { useNavbar } from "@/contexts/navbar-context";
-import { getToken } from "@/store/auth-store";
-import { cloneRepoStore, getEntry } from "@/store/connection-store";
-import { saveUrl } from "@/store/url-store";
 import AddRepoSvg from "@/assets/images/get-more/add-repo.svg";
 import AppleSvg from "@/assets/images/get-more/apple.svg";
+import BackArrow from "@/assets/images/get-more/back-arrow.svg";
 import BulbSvg from "@/assets/images/get-more/bulb.svg";
 import ClaudeSvg from "@/assets/images/get-more/claude.svg";
+import CopyIcon from "@/assets/images/get-more/copy-icon.svg";
 import GithubSvg from "@/assets/images/get-more/github.svg";
 import LinuxSvg from "@/assets/images/get-more/linux.svg";
 import MicrosoftSvg from "@/assets/images/get-more/microsoft.svg";
 import OpencodeLightSvg from "@/assets/images/get-more/opencode-logo-light.svg";
 import OpencodeSvg from "@/assets/images/get-more/opencode.svg";
+import { NationalPark } from "@/constants/theme";
+import { getToken } from "@/store/auth-store";
+import { cloneRepoStore, getEntry } from "@/store/connection-store";
+import { saveUrl } from "@/store/url-store";
 import { Ionicons } from "@expo/vector-icons";
 import {
   BottomSheetBackdrop,
@@ -53,10 +56,14 @@ import {
   Alert,
   AppState,
   Clipboard,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { Easing } from "react-native-reanimated";
@@ -776,11 +783,12 @@ export function GetMoreSheet({
           onPress={() => setCurrentView("home")}
           activeOpacity={0.7}
         >
-          <Image
+          {/* <Image
             source={require("@/assets/images/get-more/back-arrow.png")}
             style={styles.backIcon}
             contentFit="contain"
-          />
+          /> */}
+          <BackArrow />
         </TouchableOpacity>
 
         <Text style={styles.title}>{"Connect your\nown agent"}</Text>
@@ -886,14 +894,17 @@ export function GetMoreSheet({
           </>
         ) : (
           <>
+            {/* <View style={{ display: "flex", flexDirection: "column" }}> */}
             <Text style={styles.agentName}>
               {activeTab === "claude" ? "Claude Code" : "Opencode"}
             </Text>
+
             <Text style={styles.agentSubtitle}>
               {activeTab === "claude"
                 ? "Open the link, log in, paste the code."
                 : "Open the link, create/copy API key, paste it below."}
             </Text>
+            {/* </View> */}
 
             <View style={styles.urlRow}>
               <Text
@@ -914,11 +925,12 @@ export function GetMoreSheet({
                   end={{ x: 0.87, y: 1 }}
                   style={styles.copyBtn}
                 >
-                  <Image
+                  {/* <Image
                     source={require("@/assets/images/get-more/copy-icon.png")}
                     style={styles.copyIcon}
                     contentFit="contain"
-                  />
+                  /> */}
+                  <CopyIcon />
                   <Text style={styles.copyText}>COPY</Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -930,7 +942,7 @@ export function GetMoreSheet({
               style={styles.browserBtnWrap}
             >
               <LinearGradient
-                colors={["#5CC830", "#3AAD14"]}
+                colors={["#00FF26", "#00FF26"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.browserBtn}
@@ -942,7 +954,7 @@ export function GetMoreSheet({
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>
-                {activeTab === "claude" ? "OR PASTE CODE" : "OR PASTE KEY"}
+                {activeTab === "claude" ? "AND PASTE CODE" : "AND PASTE KEY"}
               </Text>
               <View style={styles.dividerLine} />
             </View>
@@ -1038,11 +1050,12 @@ export function GetMoreSheet({
           onPress={() => setCurrentView("home")}
           activeOpacity={0.7}
         >
-          <Image
+          {/* <Image
             source={require("@/assets/images/get-more/back-arrow.png")}
             style={styles.backIcon}
             contentFit="contain"
-          />
+          /> */}
+          <BackArrow />
         </TouchableOpacity>
 
         <Text style={styles.title}>{"Connect\nyour laptop"}</Text>
@@ -1070,11 +1083,12 @@ export function GetMoreSheet({
               end={{ x: 0.87, y: 1 }}
               style={styles.copyBtn}
             >
-              <Image
+              {/* <Image
                 source={require("@/assets/images/get-more/copy-icon.png")}
                 style={styles.copyIcon}
                 contentFit="contain"
-              />
+              /> */}
+              <CopyIcon />
               <Text style={styles.copyText}>COPY</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -1101,24 +1115,34 @@ export function GetMoreSheet({
               />
             </View>
           ) : cameraPermission?.granted ? (
-            <View style={styles.qrPausedState}>
+            <View style={[styles.qrPausedState, styles.qrImageContainer]}>
               <Ionicons name="pause-circle-outline" size={32} color="#7AAA58" />
               <Text style={styles.qrPermissionText}>
                 Scanner paused after detection
               </Text>
             </View>
           ) : (
-            <View style={styles.qrPermissionState}>
+            <View style={[styles.qrPermissionState, styles.qrImageContainer]}>
               <Ionicons name="camera-outline" size={32} color="#7AAA58" />
               <Text style={styles.qrPermissionText}>
                 Allow camera access to scan the QR code
               </Text>
               <TouchableOpacity
                 style={styles.qrPermissionBtn}
-                onPress={() => requestCameraPermission()}
+                onPress={() => {
+                  if (cameraPermission?.canAskAgain === false) {
+                    void Linking.openSettings();
+                  } else {
+                    void requestCameraPermission();
+                  }
+                }}
                 activeOpacity={0.8}
               >
-                <Text style={styles.qrPermissionBtnText}>Enable Camera</Text>
+                <Text style={styles.qrPermissionBtnText}>
+                  {cameraPermission?.canAskAgain === false
+                    ? "Enable Camera"
+                    : "Enable Camera"}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1295,11 +1319,12 @@ export function GetMoreSheet({
           onPress={() => setCurrentView("home")}
           activeOpacity={0.7}
         >
-          <Image
+          {/* <Image
             source={require("@/assets/images/get-more/back-arrow.png")}
             style={styles.backIcon}
             contentFit="contain"
-          />
+          /> */}
+          <BackArrow />
         </TouchableOpacity>
 
         <Text style={styles.title}>{"Add a\nrepository"}</Text>
@@ -1386,28 +1411,38 @@ export function GetMoreSheet({
       animationConfigs={animationConfigs}
       backdropComponent={renderBackdrop}
       onDismiss={onClose}
-      keyboardBehavior="interactive"
-      keyboardBlurBehavior="restore"
       backgroundStyle={styles.sheetBackground}
       handleIndicatorStyle={styles.dragHandle}
     >
-      <BottomSheetScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
       >
-        <LinearGradient
-          colors={["#FFFFFF", "#CCFFD9"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        {currentView === "home" && renderHomeView()}
-        {currentView === "connect-agent" && renderConnectAgentView()}
-        {currentView === "connect-laptop" && renderConnectLaptopView()}
-        {currentView === "add-repository" && renderAddRepositoryView()}
-        {currentView === "github-repos" && renderGithubReposView()}
-      </BottomSheetScrollView>
+        <BottomSheetScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <TouchableWithoutFeedback
+            onPress={Keyboard.dismiss}
+            accessible={false}
+          >
+            <View style={{ flex: 1 }}>
+              <LinearGradient
+                colors={["#FFFFFF", "#CCFFD9"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              {currentView === "home" && renderHomeView()}
+              {currentView === "connect-agent" && renderConnectAgentView()}
+              {currentView === "connect-laptop" && renderConnectLaptopView()}
+              {currentView === "add-repository" && renderAddRepositoryView()}
+            </View>
+          </TouchableWithoutFeedback>
+        </BottomSheetScrollView>
+      </KeyboardAvoidingView>
     </BottomSheetModal>
   );
 }
@@ -1442,14 +1477,15 @@ const styles = StyleSheet.create({
   // ── Header ────────────────────────────────────────────────────
   title: {
     fontSize: 32,
-    fontWeight: 600,
+    fontFamily: NationalPark.semiBold,
     color: "#004410",
+    marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
     color: "#76AA83",
     marginBottom: 4,
-    fontWeight: 500,
+    fontFamily: NationalPark.medium,
   },
 
   // ── Full-width cards ─────────────────────────────────────────
@@ -1473,7 +1509,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 20,
-    fontWeight: 600,
+    fontFamily: NationalPark.semiBold,
     color: "#000",
     lineHeight: 24,
   },
@@ -1489,7 +1525,7 @@ const styles = StyleSheet.create({
   hintText: {
     fontSize: 14,
     color: "#76AA83",
-    fontWeight: "500",
+    fontFamily: NationalPark.medium,
   },
   cardRightCol: {
     flex: 1,
@@ -1529,7 +1565,7 @@ const styles = StyleSheet.create({
   },
   cardNote: {
     fontSize: 10,
-    fontWeight: 500,
+    fontFamily: NationalPark.medium,
     color: "#B2B2B2",
     textAlign: "right",
     lineHeight: 12,
@@ -1572,14 +1608,14 @@ const styles = StyleSheet.create({
   },
   halfCardTitle: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#000",
     marginTop: 4,
   },
   halfCardSubtitle: {
     fontSize: 14,
     color: "#59B26E",
-    fontWeight: 500,
+    fontFamily: NationalPark.medium,
   },
 
   // ── Coming badge ─────────────────────────────────────────────
@@ -1594,7 +1630,7 @@ const styles = StyleSheet.create({
   },
   comingBadgeText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#874400",
     letterSpacing: 0.1,
   },
@@ -1630,7 +1666,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#004D13",
     fontFamily: "DM Mono",
-    fontWeight: 400,
   },
   copyBtnWrap: {
     borderRadius: 10,
@@ -1651,8 +1686,8 @@ const styles = StyleSheet.create({
     height: 14,
   },
   copyText: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 14,
+    fontFamily: NationalPark.semiBold,
     color: "#504D22",
   },
   // ── Connect agent view ────────────────────────────────────────
@@ -1699,7 +1734,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#2c2c2c",
   },
   tabTextActive: {
@@ -1707,14 +1742,15 @@ const styles = StyleSheet.create({
   },
   agentName: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#004410",
-    marginBottom: 2,
+    marginBottom: 0,
   },
   agentSubtitle: {
     fontSize: 16,
     color: "#76AA83",
-    fontWeight: 500,
+    fontFamily: NationalPark.medium,
+    marginTop: 0,
   },
   browserBtnWrap: {
     borderRadius: 63,
@@ -1728,13 +1764,15 @@ const styles = StyleSheet.create({
   },
   browserBtnText: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#004D13",
   },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    marginBottom: 10,
+    marginTop: 10,
   },
   dividerLine: {
     flex: 1,
@@ -1743,13 +1781,13 @@ const styles = StyleSheet.create({
   },
   dividerText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#588B64",
     letterSpacing: 1,
   },
   codeLabel: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#004410",
     lineHeight: 32,
   },
@@ -1762,7 +1800,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
 
     fontSize: 24,
-    fontWeight: "400",
+    fontFamily: NationalPark.regular,
     color: "#B6B8B6",
     letterSpacing: 4,
   },
@@ -1771,10 +1809,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#004D13",
     fontFamily: "DM Mono",
-    fontWeight: "400",
   },
   verifyBtn: {
-    height: 52,
+    height: 58,
     backgroundColor: "#B8B8B8",
     borderRadius: 63,
     paddingVertical: 16,
@@ -1790,12 +1827,12 @@ const styles = StyleSheet.create({
   },
   verifyText: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#7D7D7D",
     letterSpacing: 0.1,
   },
   verifyTextActive: {
-    color: "#ffffff",
+    color: "#004D13",
   },
 
   // ── Connect laptop view ───────────────────────────────────────
@@ -1803,6 +1840,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    marginTop: 20,
   },
   stepBadge: {
     width: 26,
@@ -1814,21 +1852,21 @@ const styles = StyleSheet.create({
   },
   stepBadgeText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#ffffff",
   },
   stepLabel: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#004410",
   },
   laptopStepLabel: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#004410",
   },
   qrImageContainer: {
-    borderRadius: 18,
+    borderRadius: 10,
     overflow: "hidden",
   },
   qrCamera: {
@@ -1858,6 +1896,7 @@ const styles = StyleSheet.create({
     color: "#E5E7EB",
     textAlign: "center",
     lineHeight: 18,
+    fontFamily: NationalPark.regular,
   },
   qrPermissionBtn: {
     marginTop: 4,
@@ -1869,11 +1908,11 @@ const styles = StyleSheet.create({
   qrPermissionBtnText: {
     color: "#ffffff",
     fontSize: 13,
-    fontWeight: "700",
+    fontFamily: NationalPark.bold,
   },
   qrCaption: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#588B64",
     letterSpacing: 1,
     textAlign: "center",
@@ -1891,7 +1930,7 @@ const styles = StyleSheet.create({
   scanAgainBtnText: {
     color: "#ffffff",
     fontSize: 12,
-    fontWeight: "700",
+    fontFamily: NationalPark.bold,
   },
 
   // ── Connected / disconnect ─────────────────────────────────────
@@ -1908,7 +1947,7 @@ const styles = StyleSheet.create({
   },
   connectedBadgeText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#1A5200",
   },
   disconnectBtn: {
@@ -1923,7 +1962,7 @@ const styles = StyleSheet.create({
   },
   disconnectBtnText: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: NationalPark.semiBold,
     color: "#E05050",
   },
   disconnectBtnDisabled: {
@@ -1938,7 +1977,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#588B64",
     textAlign: "center",
-    fontWeight: "500",
+    fontFamily: NationalPark.medium,
   },
 
   // ── Add repository view ───────────────────────────────────────
@@ -1946,10 +1985,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#4B6B30",
     lineHeight: 22,
+    fontFamily: NationalPark.regular,
   },
   repoLabel: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: NationalPark.bold,
     color: "#0D2600",
   },
   repoInput: {
@@ -1961,7 +2001,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     paddingHorizontal: 16,
     fontSize: 16,
-    fontWeight: "400",
+    fontFamily: NationalPark.regular,
     color: "#004D13",
   },
 });

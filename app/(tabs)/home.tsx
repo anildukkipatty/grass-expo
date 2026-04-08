@@ -1,19 +1,15 @@
-import { NavBanner } from "@/components/NavBanner";
+import { NavBanner, VmTabBar } from "@/components/NavBanner";
 import { StickyBannerLayout } from "@/components/StickyBannerLayout";
+import { NationalPark } from "@/constants/theme";
 import { useNavbar } from "@/contexts/navbar-context";
 import { setSessionLabel } from "@/store/session-label-store";
 import { formatRelativeTime } from "@/store/thread-store";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import React from "react";
-import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const BANNER_HEIGHT = 270;
+const BANNER_HEIGHT = 220;
 
 export default function HomeTab() {
   const { threads } = useNavbar();
@@ -21,12 +17,13 @@ export default function HomeTab() {
   const tabBarHeight = bottom + 110;
   const router = useRouter();
   return (
-    <View style={{ flex: 1, backgroundColor: "#F2F2F7" }}>
+    <View style={{ flex: 1, backgroundColor: "#F5F5F7" }}>
       <NavBanner />
       <StickyBannerLayout
         bannerHeight={BANNER_HEIGHT}
         contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
       >
+        <VmTabBar />
         <Text style={styles.sectionHeader}>RECENT THREADS</Text>
         {threads.length === 0 ? (
           <View style={styles.emptyThreads}>
@@ -78,18 +75,22 @@ export default function HomeTab() {
 
 const styles = StyleSheet.create({
   sectionHeader: {
-    fontSize: 11,
+    fontFamily: NationalPark.semiBold,
+    fontSize: 14,
     fontWeight: "600",
-    color: "#8E8E93",
-    letterSpacing: 0.8,
+    color: "#BEBEBE",
+    letterSpacing: 2,
+    lineHeight: 14.823,
     paddingHorizontal: 14,
     marginBottom: 8,
     marginTop: 2,
   },
   threadCard: {
     backgroundColor: "#FFFFFF",
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
     marginHorizontal: 14,
-    borderRadius: 14,
     padding: 14,
     marginBottom: 8,
     shadowColor: "#000",
