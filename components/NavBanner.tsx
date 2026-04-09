@@ -35,6 +35,8 @@ export function VmTabBar() {
     primaryVmUrl,
     handleRemoveUserVm,
     setGetMoreVisible,
+    grassSandboxBlockedByUsageLimit,
+    requestGrassVmUsageRecheck,
   } = useNavbar();
 
   return (
@@ -59,7 +61,17 @@ export function VmTabBar() {
             <View key={url} style={styles.tabPillWrap}>
               <TouchableOpacity
                 style={[styles.tabPill, isActive && styles.tabPillActive]}
-                onPress={() => setActiveVmTab(idx)}
+                onPress={() => {
+                  const wasAlreadyOnThisTab = activeVmTab === idx;
+                  setActiveVmTab(idx);
+                  if (
+                    grassSandboxBlockedByUsageLimit &&
+                    wasAlreadyOnThisTab &&
+                    isPrimaryVm
+                  ) {
+                    requestGrassVmUsageRecheck();
+                  }
+                }}
                 activeOpacity={0.75}
               >
                 <View

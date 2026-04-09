@@ -26,9 +26,16 @@ import {
   saveVmUrl,
 } from "@/store/url-store";
 import {
+  clearPendingGrassUsageLimitHit,
+  consumePendingGrassUsageLimitHit,
   isGrassSetupNavigationSuppressed,
+  setGrassUsageLimitListener,
   setGrassVmReadyListener,
 } from "@/store/grass-vm-events";
+import {
+  alertSandboxUsageLimitOnce,
+  resetSandboxUsageLimitAlertDebounce,
+} from "@/store/usage-limit-alert";
 import {
   Thread,
   getThreadsForServer,
@@ -134,6 +141,10 @@ interface NavbarContextValue {
   vmUrlStatuses: Map<string, boolean>;
   /** Re-sync backend container state (e.g. when tabs regain focus). */
   refreshGrassVmState: () => Promise<void>;
+  /** True when Grass managed sandbox is blocked by monthly usage (custom VMs still work). */
+  grassSandboxBlockedByUsageLimit: boolean;
+  /** Re-check heartbeat when user taps GrassVM while usage-blocked (credits may have been restored). */
+  requestGrassVmUsageRecheck: () => void;
 
   // Actions
   refreshRepos: () => Promise<void>;
@@ -179,14 +190,26 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   const [threads, setThreads] = useState<Thread[]>([]);
   /** True after the first getUrls() + order completes (avoids treating pre-hydration [] as "no servers"). */
   const [urlsHydrated, setUrlsHydrated] = useState(false);
+  /** Grass managed sandbox blocked by monthly usage — do not send user to container-setup; custom VMs OK. */
+  const [grassSandboxBlockedByUsageLimit, setGrassSandboxBlockedByUsageLimit] = useState(false);
+  const grassSandboxBlockedRef = useRef(grassSandboxBlockedByUsageLimit);
+  grassSandboxBlockedRef.current = grassSandboxBlockedByUsageLimit;
+  const grassLimitRecheckInFlightRef = useRef(false);
 
   const activeVmTabRef = useRef(activeVmTab);
   activeVmTabRef.current = activeVmTab;
+  const vmUrlsRef = useRef(vmUrls);
+  vmUrlsRef.current = vmUrls;
+  const primaryVmUrlRef = useRef(primaryVmUrl);
+  primaryVmUrlRef.current = primaryVmUrl;
 
   const selectedVmUrl = vmUrls[activeVmTab] ?? undefined;
   const selectedServerKey = selectedVmUrl
     ? resolveServerKey(selectedVmUrl)
     : undefined;
+
+  const primaryEdgeHealthBad =
+    !!primaryVmUrl && vmUrlStatuses.get(primaryVmUrl) === false;
 
   // Hydrate primary URL into React state from VM_URL_KEY so tabs label correctly before
   // heartbeat completes (avoids treating index 0 as GrassVM while primaryVmUrl was undefined).
@@ -311,41 +334,173 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setGrassVmReadyListener(() => {
       setVmRunning(true);
+      setGrassSandboxBlockedByUsageLimit(false);
     });
     return () => setGrassVmReadyListener(null);
+  }, []);
+
+  useEffect(() => {
+    setGrassUsageLimitListener(() => {
+      setGrassSandboxBlockedByUsageLimit(true);
+      setVmRunning(false);
+      alertSandboxUsageLimitOnce(
+        "Your Grass sandbox has reached its monthly usage limit. You can keep using other connected machines.",
+      );
+    });
+    return () => setGrassUsageLimitListener(null);
+  }, []);
+
+  useEffect(() => {
+    if (consumePendingGrassUsageLimitHit()) {
+      setGrassSandboxBlockedByUsageLimit(true);
+      setVmRunning(false);
+      alertSandboxUsageLimitOnce(
+        "Your Grass sandbox has reached its monthly usage limit. You can keep using other connected machines.",
+      );
+    }
   }, []);
 
   const refreshGrassVmState = useCallback(async () => {
     const token = await getToken();
     if (!token) return;
     const hb = await heartbeat(token);
+    if (!hb.ok && isSandboxUsageLimitError(hb)) {
+      setGrassSandboxBlockedByUsageLimit(true);
+      setVmRunning(false);
+      return;
+    }
     if (hb.ok && hb.data.container === "running" && hb.data.grass) {
+      setGrassSandboxBlockedByUsageLimit(false);
       setVmRunning(true);
     } else {
+      setGrassSandboxBlockedByUsageLimit(false);
       setVmRunning(false);
     }
   }, []);
 
-  // GrassVM tab selected but VM is down → full-screen setup (spinner + /request via container-setup).
+  /** User tapped GrassVM while usage-limited — re-verify; restore normal flow if credits OK. */
+  const requestGrassVmUsageRecheck = useCallback(() => {
+    if (!grassSandboxBlockedRef.current) return;
+    if (grassLimitRecheckInFlightRef.current) return;
+    grassLimitRecheckInFlightRef.current = true;
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const hb = await heartbeat(token);
+        if (!hb.ok && isSandboxUsageLimitError(hb)) {
+          resetSandboxUsageLimitAlertDebounce();
+          alertSandboxUsageLimitOnce(hb.error);
+          const urls = vmUrlsRef.current;
+          const primary = primaryVmUrlRef.current ?? getCachedPrimaryVmUrl() ?? undefined;
+          if (primary && urls.some((u) => u !== primary)) {
+            const idx = urls.findIndex((u) => u !== primary);
+            if (idx >= 0) setActiveVmTab(idx);
+          }
+          return;
+        }
+
+        setGrassSandboxBlockedByUsageLimit(false);
+
+        if (hb.ok && hb.data.container === "running" && hb.data.grass) {
+          setVmRunning(true);
+          let backendPreviewUrl: string | undefined;
+          const preview = await signedPreviewUrl(token);
+          if (preview.ok) {
+            backendPreviewUrl = preview.data.url;
+          } else if (hb.data.url) {
+            backendPreviewUrl = hb.data.url;
+          }
+          if (backendPreviewUrl) {
+            setPrimaryVmUrl(backendPreviewUrl);
+            setVmUrls((prev) =>
+              orderVmUrls([...new Set([...prev, backendPreviewUrl])], backendPreviewUrl),
+            );
+            await saveVmUrl(backendPreviewUrl);
+          }
+          const urls = await getUrls();
+          setVmUrls(orderVmUrls(urls, backendPreviewUrl));
+          return;
+        }
+
+        setVmRunning(false);
+        router.replace("/container-setup");
+      } finally {
+        grassLimitRecheckInFlightRef.current = false;
+      }
+    })();
+  }, [router]);
+
+  // GrassVM tab selected but VM appears down → confirm with heartbeat before container-setup.
+  // Usage limit (403) blocks Grass only in-app; no setup screen.
   useEffect(() => {
     if (!tabRestored) return;
     if (pathname === "/container-setup") return;
+    if (grassSandboxBlockedByUsageLimit) return;
     if (isGrassSetupNavigationSuppressed()) return;
     if (!primaryVmUrl || selectedVmUrl !== primaryVmUrl) return;
 
-    const edgeDown = vmUrlStatuses.get(primaryVmUrl) === false;
     const backendDown = !vmRunning;
-    if (!edgeDown && !backendDown) return;
+    if (!primaryEdgeHealthBad && !backendDown) return;
 
-    router.replace("/container-setup");
+    let cancelled = false;
+    (async () => {
+      const token = await getToken();
+      if (!token || cancelled) return;
+      const hb = await heartbeat(token);
+      if (cancelled) return;
+      if (!hb.ok && isSandboxUsageLimitError(hb)) {
+        setGrassSandboxBlockedByUsageLimit(true);
+        setVmRunning(false);
+        alertSandboxUsageLimitOnce(hb.error);
+        const urls = vmUrlsRef.current;
+        const primary = primaryVmUrlRef.current ?? getCachedPrimaryVmUrl() ?? undefined;
+        if (primary && urls.some((u) => u !== primary)) {
+          const idx = urls.findIndex((u) => u !== primary);
+          if (idx >= 0) setActiveVmTab(idx);
+        }
+        return;
+      }
+      if (cancelled) return;
+      if (grassSandboxBlockedRef.current) return;
+      router.replace("/container-setup");
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [
     tabRestored,
     pathname,
     primaryVmUrl,
     selectedVmUrl,
     vmRunning,
-    vmUrlStatuses,
+    primaryEdgeHealthBad,
     router,
+    grassSandboxBlockedByUsageLimit,
+  ]);
+
+  // Switching onto GrassVM while usage-limited: background heartbeat (same as re-tap on GrassVM tab).
+  const prevVmTabForLimitRef = useRef(activeVmTab);
+  useEffect(() => {
+    const prevTab = prevVmTabForLimitRef.current;
+    prevVmTabForLimitRef.current = activeVmTab;
+
+    if (!tabRestored || !grassSandboxBlockedByUsageLimit || !primaryVmUrl || vmUrls.length === 0) {
+      return;
+    }
+    const primaryIdx = vmUrls.indexOf(primaryVmUrl);
+    if (primaryIdx < 0) return;
+    if (activeVmTab !== primaryIdx) return;
+    if (prevTab === activeVmTab) return;
+
+    requestGrassVmUsageRecheck();
+  }, [
+    activeVmTab,
+    grassSandboxBlockedByUsageLimit,
+    primaryVmUrl,
+    vmUrls,
+    tabRestored,
+    requestGrassVmUsageRecheck,
   ]);
 
   // Check container health on mount — only wake VM if last active tab was GrassVM
@@ -364,14 +519,23 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
 
       if (!hb.ok && isSandboxUsageLimitError(hb)) {
+        setGrassSandboxBlockedByUsageLimit(true);
         setVmRunning(false);
-        Alert.alert("VM Monthly Usage Limit Reached", hb.error);
+        alertSandboxUsageLimitOnce(hb.error);
+        const urls = vmUrlsRef.current;
+        const primary = primaryVmUrlRef.current ?? getCachedPrimaryVmUrl() ?? undefined;
+        if (primary && urls.some((u) => u !== primary)) {
+          const idx = urls.findIndex((u) => u !== primary);
+          if (idx >= 0) setActiveVmTab(idx);
+        }
       } else if (!hb.ok || hb.data.container !== "running" || !hb.data.grass) {
+        setGrassSandboxBlockedByUsageLimit(false);
         setVmRunning(false);
         if (wasOnGrassVm) {
           router.replace("/container-setup");
         }
       } else {
+        setGrassSandboxBlockedByUsageLimit(false);
         setVmRunning(true);
         let backendPreviewUrl: string | undefined;
         const preview = await signedPreviewUrl(token);
@@ -432,9 +596,12 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [vmUrls, primaryVmUrl, selectedVmUrl]);
 
-  // Fetch repos from the grass server when VM is running
+  // Fetch repos for the selected server. GrassVM needs vmRunning; custom machines work even if Grass is down or usage-limited.
   useEffect(() => {
-    if (!vmRunning) return;
+    const onGrassVm =
+      !!primaryVmUrl && !!selectedVmUrl && selectedVmUrl === primaryVmUrl;
+    if (onGrassVm && !vmRunning) return;
+
     let cancelled = false;
 
     async function fetchRepos() {
@@ -490,10 +657,13 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [vmRunning, selectedVmUrl]);
+  }, [vmRunning, selectedVmUrl, primaryVmUrl]);
 
   const refreshRepos = useCallback(async () => {
     if (!selectedVmUrl) return;
+    const onGrassVm =
+      !!primaryVmUrl && selectedVmUrl === primaryVmUrl;
+    if (onGrassVm && !vmRunning) return;
     setReposLoading(true);
     const key = resolveServerKey(selectedVmUrl);
     const realUrl = resolveServerUrl(selectedVmUrl);
@@ -516,7 +686,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       }))
     );
     setReposLoading(false);
-  }, [selectedVmUrl]);
+  }, [selectedVmUrl, primaryVmUrl, vmRunning]);
 
   const handleRemoveUserVm = useCallback(async (idx: number) => {
     if (idx <= 0 || idx >= vmUrls.length) return;
@@ -557,6 +727,9 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
           setVmUrls([]);
           setPrimaryVmUrl(undefined);
           setActiveVmTab(0);
+          setGrassSandboxBlockedByUsageLimit(false);
+          clearPendingGrassUsageLimitHit();
+          resetSandboxUsageLimitAlertDebounce();
           await clearAuth();
           router.replace("/welcome");
         },
@@ -588,6 +761,8 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     vmRunning,
     vmUrlStatuses,
     refreshGrassVmState,
+    grassSandboxBlockedByUsageLimit,
+    requestGrassVmUsageRecheck,
     refreshRepos,
     handleRemoveUserVm,
     handleSelectAgent,
@@ -597,6 +772,8 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     permsCount, repos, reposLoading, threads, pendingRepo,
     getMoreVisible, sheetInitialView, vmRunning, vmUrlStatuses,
     refreshGrassVmState,
+    grassSandboxBlockedByUsageLimit,
+    requestGrassVmUsageRecheck,
     refreshRepos, handleRemoveUserVm, handleSelectAgent, handleLogout,
   ]);
 

@@ -18,3 +18,33 @@ export function notifyGrassVmReady(): void {
 export function isGrassSetupNavigationSuppressed(): boolean {
   return Date.now() < suppressSetupNavUntil;
 }
+
+/** Fired from container-setup when sandbox usage limit is hit so tabs can block GrassVM-only flows. */
+type GrassUsageLimitListener = () => void;
+
+let grassUsageLimitListener: GrassUsageLimitListener | null = null;
+
+/** Set when notify runs while tabs provider is not mounted (e.g. limit hit on container-setup). */
+let pendingGrassUsageLimitHit = false;
+
+export function setGrassUsageLimitListener(fn: GrassUsageLimitListener | null): void {
+  grassUsageLimitListener = fn;
+}
+
+export function notifyGrassSandboxUsageLimitHit(): void {
+  if (grassUsageLimitListener) {
+    grassUsageLimitListener();
+  } else {
+    pendingGrassUsageLimitHit = true;
+  }
+}
+
+export function consumePendingGrassUsageLimitHit(): boolean {
+  if (!pendingGrassUsageLimitHit) return false;
+  pendingGrassUsageLimitHit = false;
+  return true;
+}
+
+export function clearPendingGrassUsageLimitHit(): void {
+  pendingGrassUsageLimitHit = false;
+}

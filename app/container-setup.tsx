@@ -2,14 +2,13 @@ import { isSandboxUsageLimitError } from "@/api/client";
 import { heartbeat, requestContainer, signedPreviewUrl } from "@/api/containers";
 import { NationalPark } from "@/constants/theme";
 import { getToken } from "@/store/auth-store";
-import { notifyGrassVmReady } from "@/store/grass-vm-events";
+import { notifyGrassSandboxUsageLimitHit, notifyGrassVmReady } from "@/store/grass-vm-events";
 import { saveVmUrl } from "@/store/url-store";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Dimensions,
   FlatList,
@@ -71,8 +70,8 @@ export default function ContainerSetupScreen() {
 
       if (!hb.ok && isSandboxUsageLimitError(hb)) {
         progressTimer.stop();
-        Alert.alert("VM Monthly Usage Limit Reached", hb.error);
-        setError(hb.error);
+        notifyGrassSandboxUsageLimitHit();
+        router.replace("/(tabs)/home");
         return;
       }
 
@@ -97,8 +96,8 @@ export default function ContainerSetupScreen() {
           if (cancelled) return;
           if (!poll.ok && isSandboxUsageLimitError(poll)) {
             progressTimer.stop();
-            Alert.alert("VM Monthly Usage Limit Reached", poll.error);
-            setError(poll.error);
+            notifyGrassSandboxUsageLimitHit();
+            router.replace("/(tabs)/home");
             return;
           }
           if (poll.ok && poll.data.container === "running" && poll.data.grass) {
@@ -132,9 +131,11 @@ export default function ContainerSetupScreen() {
       } else {
         progressTimer.stop();
         if (isSandboxUsageLimitError(result)) {
-          Alert.alert("VM Monthly Usage Limit Reached", result.error);
+          notifyGrassSandboxUsageLimitHit();
+          router.replace("/(tabs)/home");
+        } else {
+          setError(result.error);
         }
-        setError(result.error);
       }
     }
 
