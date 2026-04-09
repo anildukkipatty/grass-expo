@@ -1,3 +1,16 @@
+import { ErrorUtils } from "react-native";
+
+// Catch unhandled JS exceptions before they propagate to native and cause SIGABRT.
+// This fires for both fatal and non-fatal errors; log them so Crashlytics / Metro
+// dev tools can surface the actual message and stack.
+if (ErrorUtils) {
+  const _originalHandler = ErrorUtils.getGlobalHandler();
+  ErrorUtils.setGlobalHandler((error, isFatal) => {
+    console.error(`[GlobalError] fatal=${isFatal}`, error);
+    _originalHandler(error, isFatal);
+  });
+}
+
 import { PermissionModal } from "@/components/PermissionModal";
 import { GrassColors, NationalPark, DMMono } from "@/constants/theme";
 import {

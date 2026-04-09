@@ -1,12 +1,13 @@
 import BranchNameIcon from "@/assets/images/navbar-screens/git-add.svg";
-import React, { useRef, useState } from "react";
+import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Swipeable } from "react-native-gesture-handler";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
+// import { useRef, useState } from "react";
+// import { Swipeable } from "react-native-gesture-handler";
+// import Animated, {
+//   useAnimatedStyle,
+//   useSharedValue,
+//   withTiming,
+// } from "react-native-reanimated";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,47 +25,47 @@ export interface RepoItem {
 
 export function SwipeableRepoCard({
   item,
-  onDelete,
+  // onDelete,
   onPress,
 }: {
   item: RepoItem;
   onDelete: () => void;
   onPress: () => void;
 }) {
-  const swipeableRef = useRef<Swipeable>(null);
-  const isSwiping = useRef(false);
-  const containerHeight = useSharedValue(76);
-  const [deletePhase, setDeletePhase] = useState<"idle" | "deleted">("idle");
+  // const swipeableRef = useRef<Swipeable>(null);
+  // const isSwiping = useRef(false);
+  // const containerHeight = useSharedValue(76);
+  // const [deletePhase, setDeletePhase] = useState<"idle" | "deleted">("idle");
 
-  const wrapStyle = useAnimatedStyle(() => ({
-    height: containerHeight.value,
-    overflow: "hidden" as const,
-  }));
+  // const wrapStyle = useAnimatedStyle(() => ({
+  //   height: containerHeight.value,
+  //   overflow: "hidden" as const,
+  // }));
 
-  const collapse = () => {
-    setDeletePhase("deleted");
-    setTimeout(() => {
-      containerHeight.value = withTiming(0, { duration: 250 });
-      setTimeout(onDelete, 250);
-    }, 400);
-  };
+  // const collapse = () => {
+  //   setDeletePhase("deleted");
+  //   setTimeout(() => {
+  //     containerHeight.value = withTiming(0, { duration: 250 });
+  //     setTimeout(onDelete, 250);
+  //   }, 400);
+  // };
 
-  const handleDeletePress = () => {
-    swipeableRef.current?.close();
-    collapse();
-  };
+  // const handleDeletePress = () => {
+  //   swipeableRef.current?.close();
+  //   collapse();
+  // };
 
-  const renderRightActions = () => (
-    <TouchableOpacity
-      style={repoStyles.deleteAction}
-      onPress={handleDeletePress}
-      activeOpacity={0.85}
-    >
-      <Text style={repoStyles.deleteActionText}>
-        {deletePhase === "deleted" ? "Deleted" : "Delete"}
-      </Text>
-    </TouchableOpacity>
-  );
+  // const renderRightActions = () => (
+  //   <TouchableOpacity
+  //     style={repoStyles.deleteAction}
+  //     onPress={handleDeletePress}
+  //     activeOpacity={0.85}
+  //   >
+  //     <Text style={repoStyles.deleteActionText}>
+  //       {deletePhase === "deleted" ? "Deleted" : "Delete"}
+  //     </Text>
+  //   </TouchableOpacity>
+  // );
 
   const badge =
     item.badgeType === "green"
@@ -72,8 +73,8 @@ export function SwipeableRepoCard({
       : { bg: "#F0F0F0", border: "#C7C7CC", text: "#6C6C70" };
 
   return (
-    <Animated.View style={wrapStyle}>
-      <Swipeable
+    <View>
+      {/* <Swipeable
         ref={swipeableRef}
         renderRightActions={renderRightActions}
         rightThreshold={80}
@@ -85,12 +86,13 @@ export function SwipeableRepoCard({
         onSwipeableClose={() => {
           isSwiping.current = false;
         }}
-      >
+      > */}
         <View style={repoStyles.card}>
           <TouchableOpacity
             style={{ flex: 1, flexDirection: "row", alignItems: "center" }}
             onPress={() => {
-              if (!isSwiping.current) onPress();
+              // if (!isSwiping.current) onPress();
+              onPress();
             }}
             activeOpacity={0.72}
           >
@@ -118,8 +120,8 @@ export function SwipeableRepoCard({
             </View>
           </TouchableOpacity>
         </View>
-      </Swipeable>
-    </Animated.View>
+      {/* </Swipeable> */}
+    </View>
   );
 }
 
