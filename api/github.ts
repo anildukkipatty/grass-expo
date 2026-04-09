@@ -70,7 +70,7 @@ export type GithubVerifyResponse = {
 };
 
 export function githubOauthStart(token: string, redirectUri?: string) {
-  return apiRequest<GithubOAuthStartResponse>("/api/github/oauth/start", {
+  return apiRequest<GithubOAuthStartResponse>("/github/oauth/start", {
     method: "POST",
     token,
     body: redirectUri ? { redirectUri } : undefined,
@@ -78,28 +78,28 @@ export function githubOauthStart(token: string, redirectUri?: string) {
 }
 
 export function githubOauthStatus(token: string) {
-  return apiRequest<GithubOAuthStatusResponse>("/api/github/oauth/status", {
+  return apiRequest<GithubOAuthStatusResponse>("/github/oauth/status", {
     method: "GET",
     token,
   });
 }
 
 export function githubOauthDisconnect(token: string) {
-  return apiRequest<GithubOAuthDisconnectResponse>("/api/github/oauth/disconnect", {
+  return apiRequest<GithubOAuthDisconnectResponse>("/github/oauth/disconnect", {
     method: "POST",
     token,
   });
 }
 
 export function githubVerifyVmAuth(token: string) {
-  return apiRequest<GithubVerifyResponse>("/api/github/verify", {
+  return apiRequest<GithubVerifyResponse>("/github/verify", {
     method: "GET",
     token,
   });
 }
 
 export function githubListRepos(token: string) {
-  return apiRequest<GithubReposResponse>("/api/github/repos", {
+  return apiRequest<GithubReposResponse>("/github/repos", {
     method: "GET",
     token,
   });
@@ -109,7 +109,7 @@ export function githubCloneRepo(
   token: string,
   body: { repoFullName: string; branch?: string; targetDir?: string }
 ) {
-  return apiRequest<GithubCloneResponse>("/api/github/clone", {
+  return apiRequest<GithubCloneResponse>("/github/clone", {
     method: "POST",
     token,
     body,
@@ -117,7 +117,7 @@ export function githubCloneRepo(
 }
 
 export function githubRepoStatus(token: string, body: { repoPath: string }) {
-  return apiRequest<GithubStatusResponse>("/api/github/status", {
+  return apiRequest<GithubStatusResponse>("/github/status", {
     method: "POST",
     token,
     body,
@@ -125,7 +125,7 @@ export function githubRepoStatus(token: string, body: { repoPath: string }) {
 }
 
 export function githubPullRepo(token: string, body: { repoPath: string; branch?: string }) {
-  return apiRequest<GithubPullResponse>("/api/github/pull", {
+  return apiRequest<GithubPullResponse>("/github/pull", {
     method: "POST",
     token,
     body,
@@ -142,7 +142,7 @@ export function githubPushRepo(
     authorEmail?: string;
   }
 ) {
-  return apiRequest<GithubPushResponse>("/api/github/push", {
+  return apiRequest<GithubPushResponse>("/github/push", {
     method: "POST",
     token,
     body,

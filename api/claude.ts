@@ -25,14 +25,14 @@ export type ClaudeDisconnectResponse = {
 };
 
 export function claudeStatus(token: string) {
-  return apiRequest<ClaudeStatusResponse>("/api/claude/status", {
+  return apiRequest<ClaudeStatusResponse>("/claude/status", {
     method: "GET",
     token,
   });
 }
 
 export function claudeStart(token: string) {
-  return apiRequest<ClaudeStartResponse>("/api/claude/start", {
+  return apiRequest<ClaudeStartResponse>("/claude/start", {
     method: "POST",
     token,
   });
@@ -42,7 +42,7 @@ export function claudeComplete(
   token: string,
   body: { authCode: string; sessionId: string; cmdId: string },
 ) {
-  return apiRequest<ClaudeCompleteResponse>("/api/claude/complete", {
+  return apiRequest<ClaudeCompleteResponse>("/claude/complete", {
     method: "POST",
     token,
     body,
@@ -50,7 +50,7 @@ export function claudeComplete(
 }
 
 export function claudeDisconnect(token: string) {
-  return apiRequest<ClaudeDisconnectResponse>("/api/claude/disconnect", {
+  return apiRequest<ClaudeDisconnectResponse>("/claude/disconnect", {
     method: "POST",
     token,
   });

@@ -30,14 +30,14 @@ export type VerifyOtpError = {
 };
 
 export function requestOtp(email: string) {
-  return apiRequest<RequestOtpResponse>("/api/auth/request-otp", {
+  return apiRequest<RequestOtpResponse>("/auth/request-otp", {
     method: "POST",
     body: { email },
   });
 }
 
 export function verifyOtp(email: string, otp: string) {
-  return apiRequest<VerifyOtpResponse>("/api/auth/verify-otp", {
+  return apiRequest<VerifyOtpResponse>("/auth/verify-otp", {
     method: "POST",
     body: { email, otp },
   });

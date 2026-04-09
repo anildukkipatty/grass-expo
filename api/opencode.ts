@@ -18,14 +18,14 @@ export type OpencodeDisconnectResponse = {
 };
 
 export function opencodeStatus(token: string) {
-  return apiRequest<OpencodeStatusResponse>("/api/opencode/status", {
+  return apiRequest<OpencodeStatusResponse>("/opencode/status", {
     method: "GET",
     token,
   });
 }
 
 export function opencodeConnect(token: string, body: { apiKey: string }) {
-  return apiRequest<OpencodeConnectResponse>("/api/opencode/connect", {
+  return apiRequest<OpencodeConnectResponse>("/opencode/connect", {
     method: "POST",
     token,
     body,
@@ -33,7 +33,7 @@ export function opencodeConnect(token: string, body: { apiKey: string }) {
 }
 
 export function opencodeDisconnect(token: string) {
-  return apiRequest<OpencodeDisconnectResponse>("/api/opencode/disconnect", {
+  return apiRequest<OpencodeDisconnectResponse>("/opencode/disconnect", {
     method: "POST",
     token,
   });
