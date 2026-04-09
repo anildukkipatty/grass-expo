@@ -1,17 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { resolveServerKey } from './url-store';
 
-const STORAGE_KEY = 'grass_threads_v1';
+const STORAGE_KEY = 'grass_threads_v2';
 const MAX_THREADS = 50;
 
 export interface Thread {
-  id: string;        // sessionId
+  grassId: string;        // GRASS UUID (from POST /chat response)
+  sdkSessionId?: string;  // SDK session ID (from SSE system event; may differ from grassId for new claude-code threads)
   title: string;
-  repo: string;      // repoName (display)
+  repo: string;           // repoName (display)
   repoPath: string;
-  tool: string;      // agent
+  tool: string;           // agent
   serverUrl: string;
-  time: string;      // ISO timestamp of last interaction
+  time: string;           // ISO timestamp of last interaction
 }
 
 type ThreadMap = Record<string, Thread[]>; // keyed by serverUrl
@@ -51,7 +52,12 @@ export async function upsertThread(thread: Thread): Promise<void> {
   await load();
   const key = resolveServerKey(thread.serverUrl);
   const list = _map[key] ?? [];
-  const idx = list.findIndex(t => t.id === thread.id);
+  const idx = list.findIndex(t =>
+    t.grassId === thread.grassId ||
+    (thread.sdkSessionId && t.sdkSessionId === thread.sdkSessionId) ||
+    (thread.sdkSessionId && t.grassId === thread.sdkSessionId) ||
+    (t.sdkSessionId && t.sdkSessionId === thread.grassId)
+  );
   if (idx !== -1) {
     list.splice(idx, 1);
   }
@@ -59,6 +65,12 @@ export async function upsertThread(thread: Thread): Promise<void> {
   _map[key] = list.slice(0, MAX_THREADS);
   notify();
   await persist();
+}
+
+export async function clearAllThreads(): Promise<void> {
+  _map = {};
+  notify();
+  await AsyncStorage.removeItem(STORAGE_KEY);
 }
 
 export function subscribeThreads(fn: () => void): () => void {

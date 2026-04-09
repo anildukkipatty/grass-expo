@@ -34,7 +34,7 @@ export default function HomeTab() {
         ) : (
           threads.map((thread) => (
             <TouchableOpacity
-              key={thread.id}
+              key={thread.grassId}
               style={styles.threadCard}
               activeOpacity={0.72}
               onPress={() => {
@@ -43,7 +43,7 @@ export default function HomeTab() {
                   pathname: "/chat",
                   params: {
                     serverUrl: thread.serverUrl,
-                    sessionId: thread.id,
+                    sessionId: thread.grassId,
                     repoName: thread.repo,
                     repoPath: thread.repoPath,
                     agent: thread.tool,

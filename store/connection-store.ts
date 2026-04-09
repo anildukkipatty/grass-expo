@@ -79,6 +79,7 @@ interface ConnectionEntry {
   activity: { label: string } | null;
   permissionQueue: PermissionItem[];
   sessionId: string | null;
+  sdkSessionId: string | null;
   sessionsList: Session[];
   repos: Repo[];
   repoDetails: Map<string, RepoDetails>;
@@ -285,12 +286,10 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
   }
 
   if (event === 'system') {
-    // Record the SDK session ID for display, but don't overwrite currentSessionId
-    // (which holds the grass UUID used for abort/permission endpoints).
     const d = parsed.data as Record<string, unknown> | undefined;
     const sessionIdVal = (d?.session_id ?? parsed.session_id) as string | undefined;
-    if (sessionIdVal && !entry.sessionId) {
-      entry.sessionId = sessionIdVal;
+    if (sessionIdVal && !entry.sdkSessionId) {
+      entry.sdkSessionId = sessionIdVal;
       notifyListeners(serverUrl);
     }
     return;
@@ -496,6 +495,7 @@ export function openConnection(serverUrl: string) {
     activity: null,
     permissionQueue: [],
     sessionId: null,
+    sdkSessionId: null,
     sessionsList: [],
     repos: [],
     repoDetails: new Map(),
@@ -527,6 +527,7 @@ export function openConnectionWithKey(key: string, realUrl: string) {
     activity: null,
     permissionQueue: [],
     sessionId: null,
+    sdkSessionId: null,
     sessionsList: [],
     repos: [],
     repoDetails: new Map(),
@@ -799,6 +800,7 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
   if (!entry) return;
   entry.currentSessionId = id;
   entry.sessionId = id;
+  entry.sdkSessionId = null;
   if (agent !== undefined) entry.currentAgent = agent ?? null;
   if (repoPath !== undefined) entry.currentRepoPath = repoPath ?? null;
   entry.messages = [];
