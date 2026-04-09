@@ -217,11 +217,13 @@ export default function Chat() {
     }
     hasSent.current = true;
     ws.send(text, selectedModelKey, agentMode);
-    // If grassId already exists (returning to an existing thread), update timestamp now
-    if (ws.grassId && serverUrl) {
+    // If returning to an existing thread, update timestamp now.
+    // Use sdkSessionId if available, fall back to grassId.
+    const threadId = ws.sdkSessionId || ws.grassId;
+    if (threadId && serverUrl) {
       upsertThread({
-        grassId: ws.grassId,
-        sdkSessionId: ws.sessionId ?? undefined,
+        grassId: threadId,
+        sdkSessionId: ws.sdkSessionId ?? undefined,
         title: sessionLabel ?? repoName ?? "Chat",
         repo: repoName ?? "",
         repoPath: repoPath ?? "",
@@ -264,20 +266,20 @@ export default function Chat() {
   //
   // Title: derived from the first user message (truncated to 80 chars).
   // IDs:
-  //   - opencode or resuming an existing thread: save as soon as grassId arrives.
-  //   - claude-code new thread: wait for both grassId AND sdkSessionId (they may differ).
-  //     A "new thread" means no initialSessionId was passed in as a route param.
+  //   - New thread: wait for sdkSessionId from the SSE system event, then use it
+  //     as the thread's grassId. This applies to both opencode and claude-code.
+  //   - Resumed thread (initialSessionId was passed): the sessionId is already
+  //     the SDK session ID, so save immediately once grassId is available.
   const threadSaved = useRef(false);
   const isNewThread = !initialSessionId;
-  const isClaudeCode = agent === 'claude-code' || !agent;
 
   useEffect(() => {
     if (threadSaved.current) return;
     if (!hasSent.current || !serverUrl) return;
     if (!ws.grassId) return;
 
-    // For new claude-code threads, wait for the SDK session ID too
-    if (isNewThread && isClaudeCode && !ws.sessionId) return;
+    // For new threads, wait for the SDK session ID from the system event
+    if (isNewThread && !ws.sdkSessionId) return;
 
     const userText = firstUserMessage.current;
     if (!userText) return;
@@ -290,10 +292,14 @@ export default function Chat() {
       setSessionLabel(title);
     }
 
+    // For new threads use the SDK session ID; for resumed threads use grassId
+    // (which is already the SDK session ID passed via route params).
+    const threadId = ws.sdkSessionId || ws.grassId;
+
     threadSaved.current = true;
     upsertThread({
-      grassId: ws.grassId,
-      sdkSessionId: ws.sessionId ?? undefined,
+      grassId: threadId,
+      sdkSessionId: ws.sdkSessionId ?? undefined,
       title: sessionLabel ?? title,
       repo: repoName ?? "",
       repoPath: repoPath ?? "",
@@ -301,7 +307,7 @@ export default function Chat() {
       serverUrl: serverUrl,
       time: new Date().toISOString(),
     });
-  }, [ws.grassId, ws.sessionId, serverUrl, sessionLabel]);
+  }, [ws.grassId, ws.sdkSessionId, serverUrl, sessionLabel]);
 
   // Header derived values
   const branch = repoPath ? ws.repoDetails.get(repoPath)?.branch : null;

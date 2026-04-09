@@ -79,6 +79,7 @@ interface ConnectionEntry {
   activity: { label: string } | null;
   permissionQueue: PermissionItem[];
   sessionId: string | null;
+  sdkSessionId: string | null;
   sessionsList: Session[];
   repos: Repo[];
   repoDetails: Map<string, RepoDetails>;
@@ -287,22 +288,9 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
   if (event === 'system') {
     const d = parsed.data as Record<string, unknown> | undefined;
     const sessionIdVal = (d?.session_id ?? parsed.session_id) as string | undefined;
-    if (sessionIdVal && !entry.sessionId) {
-      entry.sessionId = sessionIdVal;
-      // Rekey the session on the server: migrate grassId → real SDK session ID
-      // so that abort/permission/status/history endpoints use the canonical ID.
-      const grassId = entry.currentSessionId;
-      if (grassId && grassId !== sessionIdVal) {
-        entry.currentSessionId = sessionIdVal;
-        notifyListeners(serverUrl);
-        fetch(`${entry.baseUrl}/sessions/${grassId}/rekey`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ newId: sessionIdVal }),
-        }).catch(() => { /* ignore rekey errors */ });
-      } else {
-        notifyListeners(serverUrl);
-      }
+    if (sessionIdVal && !entry.sdkSessionId) {
+      entry.sdkSessionId = sessionIdVal;
+      notifyListeners(serverUrl);
     }
     return;
   }
@@ -507,6 +495,7 @@ export function openConnection(serverUrl: string) {
     activity: null,
     permissionQueue: [],
     sessionId: null,
+    sdkSessionId: null,
     sessionsList: [],
     repos: [],
     repoDetails: new Map(),
@@ -538,6 +527,7 @@ export function openConnectionWithKey(key: string, realUrl: string) {
     activity: null,
     permissionQueue: [],
     sessionId: null,
+    sdkSessionId: null,
     sessionsList: [],
     repos: [],
     repoDetails: new Map(),
@@ -810,6 +800,7 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
   if (!entry) return;
   entry.currentSessionId = id;
   entry.sessionId = id;
+  entry.sdkSessionId = null;
   if (agent !== undefined) entry.currentAgent = agent ?? null;
   if (repoPath !== undefined) entry.currentRepoPath = repoPath ?? null;
   entry.messages = [];

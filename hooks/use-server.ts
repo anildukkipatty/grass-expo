@@ -23,7 +23,8 @@ export interface UseServerResult {
   messages: import('@/store/connection-store').Message[];
   activity: { label: string } | null;
   permissionQueue: import('@/store/connection-store').PermissionItem[];
-  sessionId: string | null;       // SDK session ID (from SSE system event)
+  sessionId: string | null;       // session ID set from POST /chat response
+  sdkSessionId: string | null;    // SDK session ID (from SSE system event)
   grassId: string | null;         // GRASS UUID (from POST /chat response)
   sessionsList: import('@/store/connection-store').Session[];
   repos: import('@/store/connection-store').Repo[];
@@ -68,6 +69,7 @@ export function useServer(serverUrl: string | null): UseServerResult {
     activity:        entry?.activity        ?? null,
     permissionQueue: entry?.permissionQueue ?? [],
     sessionId:       entry?.sessionId       ?? null,
+    sdkSessionId:    entry?.sdkSessionId    ?? null,
     grassId:         entry?.currentSessionId ?? null,
     sessionsList:    entry?.sessionsList    ?? [],
     repos:           entry?.repos           ?? [],
