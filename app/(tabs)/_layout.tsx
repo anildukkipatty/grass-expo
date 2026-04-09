@@ -3,8 +3,10 @@ import { AgentPickerSheet } from "@/components/NavBanner";
 import { NavbarProvider, orderVmUrls, useNavbar } from "@/contexts/navbar-context";
 import { getEntry, getRepoDetailsStore, listReposStore } from "@/store/connection-store";
 import { getUrls, resolveServerKey } from "@/store/url-store";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
+import React, { useCallback } from "react";
 
 // ─── TabsLayoutInner ──────────────────────────────────────────────────────────
 
@@ -23,9 +25,15 @@ function TabsLayoutInner() {
     pendingRepo,
     setPendingRepo,
     handleSelectAgent,
+    refreshGrassVmState,
   } = useNavbar();
   const router = useRouter();
-  // const permsCount = permissions.length;
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshGrassVmState();
+    }, [refreshGrassVmState]),
+  );
 
   return (
     <>

@@ -1,11 +1,15 @@
-import { heartbeat, requestContainer } from "@/api/containers";
+import { isSandboxUsageLimitError } from "@/api/client";
+import { heartbeat, requestContainer, signedPreviewUrl } from "@/api/containers";
 import { NationalPark } from "@/constants/theme";
 import { getToken } from "@/store/auth-store";
+import { notifyGrassVmReady } from "@/store/grass-vm-events";
+import { saveVmUrl } from "@/store/url-store";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Dimensions,
   FlatList,
@@ -65,9 +69,21 @@ export default function ContainerSetupScreen() {
       const hb = await heartbeat(token);
       if (cancelled) return;
 
+      if (!hb.ok && isSandboxUsageLimitError(hb)) {
+        progressTimer.stop();
+        Alert.alert("VM Monthly Usage Limit Reached", hb.error);
+        setError(hb.error);
+        return;
+      }
+
       if (hb.ok && hb.data.container === "running" && hb.data.grass) {
+        let previewUrl = hb.data.url;
+        if (!previewUrl) {
+          const preview = await signedPreviewUrl(token);
+          if (preview.ok) previewUrl = preview.data.url;
+        }
         provisionDone.current = true;
-        finishAndRedirect();
+        finishAndRedirect(previewUrl);
         return;
       }
 
@@ -79,9 +95,20 @@ export default function ContainerSetupScreen() {
           if (cancelled) return;
           const poll = await heartbeat(token);
           if (cancelled) return;
+          if (!poll.ok && isSandboxUsageLimitError(poll)) {
+            progressTimer.stop();
+            Alert.alert("VM Monthly Usage Limit Reached", poll.error);
+            setError(poll.error);
+            return;
+          }
           if (poll.ok && poll.data.container === "running" && poll.data.grass) {
+            let previewUrl = poll.data.url;
+            if (!previewUrl) {
+              const preview = await signedPreviewUrl(token);
+              if (preview.ok) previewUrl = preview.data.url;
+            }
             provisionDone.current = true;
-            finishAndRedirect();
+            finishAndRedirect(previewUrl);
             return;
           }
           if (poll.ok && poll.data.container !== "provisioning") {
@@ -101,22 +128,30 @@ export default function ContainerSetupScreen() {
           console.log(`[container-setup] demo repo ready: ${result.data.demoRepoReady}`);
         }
         provisionDone.current = true;
-        finishAndRedirect();
+        finishAndRedirect(result.data.url);
       } else {
         progressTimer.stop();
+        if (isSandboxUsageLimitError(result)) {
+          Alert.alert("VM Monthly Usage Limit Reached", result.error);
+        }
         setError(result.error);
       }
     }
 
-    function finishAndRedirect() {
-      // Fill progress to 100% then redirect
+    function finishAndRedirect(previewUrl?: string) {
       Animated.timing(progressAnim, {
         toValue: 1,
         duration: 400,
         useNativeDriver: false,
       }).start(() => {
         if (!cancelled) {
-          router.replace("/(tabs)/home");
+          void (async () => {
+            if (previewUrl) {
+              await saveVmUrl(previewUrl);
+            }
+            notifyGrassVmReady();
+            router.replace("/(tabs)/home");
+          })();
         }
       });
     }

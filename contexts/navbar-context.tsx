@@ -1,4 +1,5 @@
-import { heartbeat, requestContainer, signedPreviewUrl } from "@/api/containers";
+import { isSandboxUsageLimitError } from "@/api/client";
+import { heartbeat, signedPreviewUrl } from "@/api/containers";
 import { clearAuth, getToken } from "@/store/auth-store";
 import {
   closeConnection,
@@ -14,25 +15,33 @@ import {
 import {
   GRASS_VM_KEY,
   clearUrls,
+  getCachedPrimaryVmUrl,
+  getLastActiveTab,
   getUrls,
   refreshPrimaryVmUrl,
   removeUrl,
   resolveServerKey,
   resolveServerUrl,
+  saveLastActiveTab,
   saveVmUrl,
 } from "@/store/url-store";
+import {
+  isGrassSetupNavigationSuppressed,
+  setGrassVmReadyListener,
+} from "@/store/grass-vm-events";
 import {
   Thread,
   getThreadsForServer,
   subscribeThreads,
 } from "@/store/thread-store";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import React, {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Alert } from "react-native";
@@ -123,6 +132,8 @@ interface NavbarContextValue {
   // VM state
   vmRunning: boolean;
   vmUrlStatuses: Map<string, boolean>;
+  /** Re-sync backend container state (e.g. when tabs regain focus). */
+  refreshGrassVmState: () => Promise<void>;
 
   // Actions
   refreshRepos: () => Promise<void>;
@@ -145,6 +156,7 @@ export function useNavbar(): NavbarContextValue {
 
 export function NavbarProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
 
   const [activeVmTab, setActiveVmTab] = useState(0);
   const [permsCount, setPermsCount] = useState(0);
@@ -155,21 +167,64 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     "home" | "connect-agent" | "connect-laptop" | "add-repository" | "github-repos"
   >("home");
   const [vmRunning, setVmRunning] = useState(true);
-  const [vmUrls, setVmUrls] = useState<string[]>([]);
-  const [primaryVmUrl, setPrimaryVmUrl] = useState<string | undefined>(undefined);
+  const [primaryVmUrl, setPrimaryVmUrl] = useState<string | undefined>(
+    () => getCachedPrimaryVmUrl() ?? undefined,
+  );
+  const [vmUrls, setVmUrls] = useState<string[]>(() => {
+    const p = getCachedPrimaryVmUrl();
+    return p ? orderVmUrls([], p) : [];
+  });
   const [vmUrlStatuses, setVmUrlStatuses] = useState<Map<string, boolean>>(new Map());
   const [pendingRepo, setPendingRepo] = useState<RepoItem | null>(null);
   const [threads, setThreads] = useState<Thread[]>([]);
+  /** True after the first getUrls() + order completes (avoids treating pre-hydration [] as "no servers"). */
+  const [urlsHydrated, setUrlsHydrated] = useState(false);
+
+  const activeVmTabRef = useRef(activeVmTab);
+  activeVmTabRef.current = activeVmTab;
 
   const selectedVmUrl = vmUrls[activeVmTab] ?? undefined;
   const selectedServerKey = selectedVmUrl
     ? resolveServerKey(selectedVmUrl)
     : undefined;
 
-  // Hydrate the cached primary VM URL from storage on mount
+  // Hydrate primary URL into React state from VM_URL_KEY so tabs label correctly before
+  // heartbeat completes (avoids treating index 0 as GrassVM while primaryVmUrl was undefined).
   useEffect(() => {
-    refreshPrimaryVmUrl();
+    let cancelled = false;
+    (async () => {
+      const stored = await refreshPrimaryVmUrl();
+      if (!cancelled && stored) {
+        setPrimaryVmUrl(stored);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  // When vmUrls reorder (e.g. primary known), keep the same server selected by URL, not index.
+  const prevVmUrlsKeyRef = useRef("");
+  useEffect(() => {
+    const key = JSON.stringify(vmUrls);
+    const prevKey = prevVmUrlsKeyRef.current;
+    if (prevKey && prevKey !== key) {
+      const prevUrls = JSON.parse(prevKey) as string[];
+      if (prevUrls.length > 0 && vmUrls.length > 0) {
+        const tab = activeVmTabRef.current;
+        const sel = prevUrls[tab];
+        if (sel !== undefined) {
+          const ni = vmUrls.indexOf(sel);
+          if (ni >= 0 && ni !== tab) {
+            setActiveVmTab(ni);
+          } else if (ni < 0) {
+            setActiveVmTab(0);
+          }
+        }
+      }
+    }
+    prevVmUrlsKeyRef.current = key;
+  }, [vmUrls]);
 
   // Load threads for the active server (using resolved key so GrassVM threads persist)
   useEffect(() => {
@@ -202,6 +257,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       const urls = await getUrls();
       if (!cancelled) {
         setVmUrls(orderVmUrls(urls, primaryVmUrl));
+        setUrlsHydrated(true);
       }
     }
     loadVmUrls();
@@ -210,6 +266,41 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     };
   }, [primaryVmUrl]);
 
+  // Restore last active tab from storage once URLs are loaded
+  const [tabRestored, setTabRestored] = useState(false);
+  useEffect(() => {
+    if (tabRestored || !urlsHydrated) return;
+    // Confirmed empty list after storage read (e.g. first login, no VM_URL_KEY / no custom URLs).
+    if (vmUrls.length === 0) {
+      setTabRestored(true);
+      return;
+    }
+    async function restore() {
+      const lastTab = await getLastActiveTab();
+      if (!lastTab || lastTab === GRASS_VM_KEY) {
+        // No stored tab or was on GrassVM — default to index 0
+        setActiveVmTab(0);
+      } else {
+        // Custom server URL — check if it still exists in the list
+        const idx = vmUrls.indexOf(lastTab);
+        setActiveVmTab(idx >= 0 ? idx : 0);
+      }
+      setTabRestored(true);
+    }
+    restore();
+  }, [vmUrls, tabRestored, urlsHydrated]);
+
+  // Persist active tab to storage on change
+  // Store GRASS_VM_KEY for GrassVM tab, actual URL for custom servers
+  useEffect(() => {
+    if (!tabRestored || vmUrls.length === 0) return;
+    const url = vmUrls[activeVmTab];
+    if (url) {
+      const isGrassVm = primaryVmUrl && url === primaryVmUrl;
+      saveLastActiveTab(isGrassVm ? GRASS_VM_KEY : url);
+    }
+  }, [activeVmTab, vmUrls, primaryVmUrl, tabRestored]);
+
   // Clamp activeVmTab if vmUrls shrinks
   useEffect(() => {
     if (activeVmTab >= vmUrls.length && vmUrls.length > 0) {
@@ -217,22 +308,69 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeVmTab, vmUrls.length]);
 
-  // Check container health on mount
   useEffect(() => {
+    setGrassVmReadyListener(() => {
+      setVmRunning(true);
+    });
+    return () => setGrassVmReadyListener(null);
+  }, []);
+
+  const refreshGrassVmState = useCallback(async () => {
+    const token = await getToken();
+    if (!token) return;
+    const hb = await heartbeat(token);
+    if (hb.ok && hb.data.container === "running" && hb.data.grass) {
+      setVmRunning(true);
+    } else {
+      setVmRunning(false);
+    }
+  }, []);
+
+  // GrassVM tab selected but VM is down → full-screen setup (spinner + /request via container-setup).
+  useEffect(() => {
+    if (!tabRestored) return;
+    if (pathname === "/container-setup") return;
+    if (isGrassSetupNavigationSuppressed()) return;
+    if (!primaryVmUrl || selectedVmUrl !== primaryVmUrl) return;
+
+    const edgeDown = vmUrlStatuses.get(primaryVmUrl) === false;
+    const backendDown = !vmRunning;
+    if (!edgeDown && !backendDown) return;
+
+    router.replace("/container-setup");
+  }, [
+    tabRestored,
+    pathname,
+    primaryVmUrl,
+    selectedVmUrl,
+    vmRunning,
+    vmUrlStatuses,
+    router,
+  ]);
+
+  // Check container health on mount — only wake VM if last active tab was GrassVM
+  useEffect(() => {
+    if (!tabRestored) return;
     let cancelled = false;
     async function checkContainer() {
       const token = await getToken();
       if (!token || cancelled) return;
 
+      // Only check and wake the VM if user was last on the GrassVM tab
+      const lastTab = await getLastActiveTab();
+      const wasOnGrassVm = !lastTab || lastTab === GRASS_VM_KEY;
+
       const hb = await heartbeat(token);
       if (cancelled) return;
 
-      if (!hb.ok && hb.status === 403) {
+      if (!hb.ok && isSandboxUsageLimitError(hb)) {
         setVmRunning(false);
         Alert.alert("VM Monthly Usage Limit Reached", hb.error);
       } else if (!hb.ok || hb.data.container !== "running" || !hb.data.grass) {
         setVmRunning(false);
-        router.replace("/container-setup");
+        if (wasOnGrassVm) {
+          router.replace("/container-setup");
+        }
       } else {
         setVmRunning(true);
         let backendPreviewUrl: string | undefined;
@@ -244,6 +382,9 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         }
         if (backendPreviewUrl) {
           setPrimaryVmUrl(backendPreviewUrl);
+          setVmUrls((prev) =>
+            orderVmUrls([...new Set([...prev, backendPreviewUrl])], backendPreviewUrl),
+          );
           await saveVmUrl(backendPreviewUrl);
         }
         const urls = await getUrls();
@@ -256,14 +397,12 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, tabRestored]);
 
   // Poll health for all known URLs to drive per-URL status dots.
   // If the primary GrassVM goes down, call requestContainer to wake it.
   useEffect(() => {
     if (vmUrls.length === 0) return;
-    let reviving = false;
-    let sandboxLimitHit = false;
 
     async function pollAll() {
       const results = await Promise.all(
@@ -286,38 +425,12 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         results.forEach(({ url, ok }) => next.set(url, ok));
         return next;
       });
-
-      // If primary GrassVM is down, try to wake it
-      const primaryResult = primaryVmUrl
-        ? results.find((r) => r.url === primaryVmUrl)
-        : undefined;
-      if (primaryResult && !primaryResult.ok && !reviving && !sandboxLimitHit) {
-        reviving = true;
-        console.log("[health] GrassVM down, calling requestContainer");
-        const token = await getToken();
-        if (token) {
-          const res = await requestContainer(token);
-          if (res.ok && res.data.url) {
-            setPrimaryVmUrl(res.data.url);
-            await saveVmUrl(res.data.url);
-            const urls = await getUrls();
-            setVmUrls(orderVmUrls(urls, res.data.url));
-          } else if (!res.ok && res.status === 403) {
-            sandboxLimitHit = true;
-            Alert.alert(
-              "VM Monthly Usage Limit Reached",
-              res.error,
-            );
-          }
-        }
-        reviving = false;
-      }
     }
 
     pollAll();
     const interval = setInterval(pollAll, 15000);
     return () => clearInterval(interval);
-  }, [vmUrls, primaryVmUrl]);
+  }, [vmUrls, primaryVmUrl, selectedVmUrl]);
 
   // Fetch repos from the grass server when VM is running
   useEffect(() => {
@@ -474,6 +587,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     setSheetInitialView,
     vmRunning,
     vmUrlStatuses,
+    refreshGrassVmState,
     refreshRepos,
     handleRemoveUserVm,
     handleSelectAgent,
@@ -482,6 +596,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     vmUrls, primaryVmUrl, activeVmTab, selectedVmUrl, selectedServerKey,
     permsCount, repos, reposLoading, threads, pendingRepo,
     getMoreVisible, sheetInitialView, vmRunning, vmUrlStatuses,
+    refreshGrassVmState,
     refreshRepos, handleRemoveUserVm, handleSelectAgent, handleLogout,
   ]);
 

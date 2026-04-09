@@ -47,9 +47,12 @@ export function VmTabBar() {
       >
         {vmUrls.map((url, idx) => {
           const isActive = activeVmTab === idx;
-          const isPrimaryVm = primaryVmUrl ? url === primaryVmUrl : idx === 0;
+          // Only label as GrassVM when we know the managed primary URL — never use index 0 as a
+          // stand-in (primaryVmUrl is unset until storage/heartbeat hydrate, so custom URLs at
+          // index 0 were incorrectly shown as GrassVM).
+          const isPrimaryVm = !!primaryVmUrl && url === primaryVmUrl;
           const tabLabel = isPrimaryVm ? "GrassVM" : extractHost(url);
-          const isUserVm = !isPrimaryVm;
+          const isUserVm = primaryVmUrl ? url !== primaryVmUrl : idx > 0;
           // undefined = not yet polled → show grey; true = green; false = red
           const status = vmUrlStatuses.get(url);
           return (

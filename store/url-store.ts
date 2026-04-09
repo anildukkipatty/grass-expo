@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const URLS_KEY = 'grass_server_urls';
 const OLD_URLS_KEY = 'grass_ws_urls';
 const VM_URL_KEY = 'grass_vm_url';
+const LAST_TAB_KEY = 'grass_last_active_tab';
 
 export async function getUrls(): Promise<string[]> {
   // One-time migration: convert old ws:// URLs to http://
@@ -91,6 +92,14 @@ export function resolveServerUrl(key: string): string {
   return key;
 }
 
+export async function saveLastActiveTab(url: string): Promise<void> {
+  await AsyncStorage.setItem(LAST_TAB_KEY, url);
+}
+
+export async function getLastActiveTab(): Promise<string | null> {
+  return AsyncStorage.getItem(LAST_TAB_KEY);
+}
+
 export async function clearUrls(): Promise<void> {
   // Write empty arrays first to avoid any stale reads racing remove calls.
   await AsyncStorage.multiSet([
@@ -98,5 +107,5 @@ export async function clearUrls(): Promise<void> {
     [OLD_URLS_KEY, JSON.stringify([])],
   ]);
   _cachedPrimaryVmUrl = null;
-  await AsyncStorage.multiRemove([URLS_KEY, OLD_URLS_KEY, VM_URL_KEY]);
+  await AsyncStorage.multiRemove([URLS_KEY, OLD_URLS_KEY, VM_URL_KEY, LAST_TAB_KEY]);
 }
