@@ -227,7 +227,10 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       const hb = await heartbeat(token);
       if (cancelled) return;
 
-      if (!hb.ok || hb.data.container !== "running" || !hb.data.grass) {
+      if (!hb.ok && hb.status === 403) {
+        setVmRunning(false);
+        Alert.alert("VM Monthly Usage Limit Reached", hb.error);
+      } else if (!hb.ok || hb.data.container !== "running" || !hb.data.grass) {
         setVmRunning(false);
         router.replace("/container-setup");
       } else {
@@ -260,6 +263,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (vmUrls.length === 0) return;
     let reviving = false;
+    let sandboxLimitHit = false;
 
     async function pollAll() {
       const results = await Promise.all(
@@ -287,7 +291,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       const primaryResult = primaryVmUrl
         ? results.find((r) => r.url === primaryVmUrl)
         : undefined;
-      if (primaryResult && !primaryResult.ok && !reviving) {
+      if (primaryResult && !primaryResult.ok && !reviving && !sandboxLimitHit) {
         reviving = true;
         console.log("[health] GrassVM down, calling requestContainer");
         const token = await getToken();
@@ -298,6 +302,12 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
             await saveVmUrl(res.data.url);
             const urls = await getUrls();
             setVmUrls(orderVmUrls(urls, res.data.url));
+          } else if (!res.ok && res.status === 403) {
+            sandboxLimitHit = true;
+            Alert.alert(
+              "VM Monthly Usage Limit Reached",
+              res.error,
+            );
           }
         }
         reviving = false;
