@@ -1,5 +1,4 @@
 import GetMoreCardSvg from "@/assets/images/navbar-screens/get-more-card.svg";
-import UserIconSvg from "@/assets/images/navbar-screens/user-icon.svg";
 import { NationalPark } from "@/constants/theme";
 import { extractHost, useNavbar } from "@/contexts/navbar-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -37,6 +36,7 @@ export function VmTabBar() {
     setGetMoreVisible,
     grassSandboxBlockedByUsageLimit,
     requestGrassVmUsageRecheck,
+    setSheetInitialView,
   } = useNavbar();
 
   return (
@@ -110,7 +110,10 @@ export function VmTabBar() {
         })}
       </ScrollView>
       <TouchableOpacity
-        onPress={() => setGetMoreVisible(true)}
+        onPress={() => {
+          setSheetInitialView("connect-laptop");
+          setGetMoreVisible(true);
+        }}
         activeOpacity={0.7}
         hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
         style={{ paddingHorizontal: 8, paddingVertical: 6 }}
@@ -250,7 +253,7 @@ export function AgentPickerSheet({
 // ─── NavBanner ────────────────────────────────────────────────────────────────
 
 export function NavBanner() {
-  const { setGetMoreVisible } = useNavbar();
+  const { setGetMoreVisible, setSheetInitialView } = useNavbar();
 
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
@@ -318,7 +321,7 @@ export function NavBanner() {
                 style={styles.avatarWrap}
                 onPress={() => router.push("/settings")}
               >
-                <UserIconSvg width={30} height={30} />
+                <Ionicons name="person-circle-outline" size={30} color="#fff" />
               </TouchableOpacity>
             </View>
           )}
@@ -327,7 +330,10 @@ export function NavBanner() {
           {!isPerms && !isRepos && (
             <TouchableOpacity
               style={styles.getMoreCard}
-              onPress={() => setGetMoreVisible(true)}
+              onPress={() => {
+                setSheetInitialView("home");
+                setGetMoreVisible(true);
+              }}
               activeOpacity={0.85}
             >
               <BlurView
