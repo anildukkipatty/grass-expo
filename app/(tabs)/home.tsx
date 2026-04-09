@@ -6,7 +6,12 @@ import { setSessionLabel } from "@/store/session-label-store";
 import { formatRelativeTime } from "@/store/thread-store";
 import { useRouter } from "expo-router";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+
+const AGENT_LOGOS: Record<string, ReturnType<typeof require>> = {
+  "claude-code": require("@/assets/images/cluade-logo.jpg"),
+  opencode: require("@/assets/images/open-code.png"),
+};
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const BANNER_HEIGHT = 220;
@@ -52,6 +57,12 @@ export default function HomeTab() {
               }}
             >
               <View style={styles.threadRow}>
+                {thread.tool && AGENT_LOGOS[thread.tool] ? (
+                  <Image
+                    source={AGENT_LOGOS[thread.tool]}
+                    style={styles.agentIcon}
+                  />
+                ) : null}
                 <View style={styles.threadLeft}>
                   <Text style={styles.threadTitle} numberOfLines={1}>
                     {thread.title}
@@ -102,6 +113,13 @@ const styles = StyleSheet.create({
   threadRow: {
     flexDirection: "row",
     alignItems: "flex-end",
+  },
+  agentIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    marginRight: 10,
+    alignSelf: "center",
   },
   threadLeft: {
     flex: 1,
