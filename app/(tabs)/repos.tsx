@@ -81,11 +81,11 @@ export default function ReposTab() {
         )}
 
         {/* Swipe hint */}
-        {repos.length > 0 && !reposLoading && (
+        {/* {repos.length > 0 && !reposLoading && (
           <Text style={repoStyles.swipeHint}>
             Swipe left of a repo to delete
           </Text>
-        )}
+        )} */}
       </StickyBannerLayout>
     </View>
   );
