@@ -277,10 +277,27 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     async function loadVmUrls() {
-      const urls = await getUrls();
-      if (!cancelled) {
-        setVmUrls(orderVmUrls(urls, primaryVmUrl));
-        setUrlsHydrated(true);
+      try {
+        const [urls, lastTab] = await Promise.all([getUrls(), getLastActiveTab()]);
+        if (!cancelled) {
+          const ordered = orderVmUrls(urls, primaryVmUrl);
+          setVmUrls(ordered);
+          // Resolve and apply the last active tab in the same update to avoid a flash on tab 0
+          if (lastTab && lastTab !== GRASS_VM_KEY && ordered.length > 0) {
+            const idx = ordered.indexOf(lastTab);
+            setActiveVmTab(idx >= 0 ? idx : 0);
+          } else {
+            setActiveVmTab(0);
+          }
+          setTabRestored(true);
+          setUrlsHydrated(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setActiveVmTab(0);
+          setTabRestored(true);
+          setUrlsHydrated(true);
+        }
       }
     }
     loadVmUrls();
@@ -289,29 +306,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     };
   }, [primaryVmUrl]);
 
-  // Restore last active tab from storage once URLs are loaded
   const [tabRestored, setTabRestored] = useState(false);
-  useEffect(() => {
-    if (tabRestored || !urlsHydrated) return;
-    // Confirmed empty list after storage read (e.g. first login, no VM_URL_KEY / no custom URLs).
-    if (vmUrls.length === 0) {
-      setTabRestored(true);
-      return;
-    }
-    async function restore() {
-      const lastTab = await getLastActiveTab();
-      if (!lastTab || lastTab === GRASS_VM_KEY) {
-        // No stored tab or was on GrassVM — default to index 0
-        setActiveVmTab(0);
-      } else {
-        // Custom server URL — check if it still exists in the list
-        const idx = vmUrls.indexOf(lastTab);
-        setActiveVmTab(idx >= 0 ? idx : 0);
-      }
-      setTabRestored(true);
-    }
-    restore();
-  }, [vmUrls, tabRestored, urlsHydrated]);
 
   // Persist active tab to storage on change
   // Store GRASS_VM_KEY for GrassVM tab, actual URL for custom servers
