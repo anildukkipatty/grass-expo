@@ -479,10 +479,45 @@ AppState.addEventListener('change', (next) => {
 
 // --- Connection lifecycle ---
 
+/**
+ * Signed preview URLs rotate; the stable map key (e.g. `grassvm`) must keep using the latest base URL.
+ * Updates `baseUrl`, reconnects live SSE channels to the new host, and refreshes health/repos when the URL changes.
+ */
+function syncConnectionBaseUrlIfChanged(key: string, realUrl: string): void {
+  const existing = _connections.get(key);
+  if (!existing || existing.baseUrl === realUrl) return;
+
+  const activeChatSse =
+    !!existing.sseAbortController && existing.currentSessionId != null;
+  const reconnectSessionId = activeChatSse ? existing.currentSessionId : null;
+
+  existing.baseUrl = realUrl;
+
+  closeSSEStream(key);
+  if (reconnectSessionId) {
+    void openSSEStream(key, reconnectSessionId);
+  }
+
+  closePermissionsSSE(key);
+  const perm = _permissionsSSE.get(key);
+  if (perm && perm.listeners.size > 0) {
+    void openPermissionsSSE(key);
+  }
+
+  void healthStore(key);
+  void listReposStore(key);
+
+  notifyListeners(key);
+  _globalListeners.forEach((fn) => fn());
+}
+
 export function openConnection(serverUrl: string) {
   const key = resolveServerKey(serverUrl);
   const realUrl = resolveServerUrl(serverUrl);
-  if (_connections.has(key)) return;
+  if (_connections.has(key)) {
+    syncConnectionBaseUrlIfChanged(key, realUrl);
+    return;
+  }
   const entry: ConnectionEntry = {
     baseUrl: realUrl,
     currentRepoPath: null,
@@ -514,7 +549,10 @@ export function openConnection(serverUrl: string) {
 }
 
 export function openConnectionWithKey(key: string, realUrl: string) {
-  if (_connections.has(key)) return;
+  if (_connections.has(key)) {
+    syncConnectionBaseUrlIfChanged(key, realUrl);
+    return;
+  }
   const entry: ConnectionEntry = {
     baseUrl: realUrl,
     currentRepoPath: null,
