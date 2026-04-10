@@ -453,22 +453,47 @@ export function closeSSEStream(serverUrl: string) {
 }
 
 // AppState handling — runs once on import
+//
+// Tracks which connections were actively streaming at the moment the app was
+// backgrounded. closeSSEStream() clears entry.streaming as a side-effect, so
+// we capture this before closing — otherwise the foreground handler would
+// always see streaming=false and never reconnect.
+//
+// iOS fires: active → inactive → background (going away)
+//            background → inactive → active  (coming back)
+// Both 'inactive' and 'background' hit the next !== 'active' branch, so we
+// must only snapshot on the single transition away from 'active' (prev === 'active').
+// Subsequent inactive→background fires must not clear the map.
+const _wasStreamingOnBackground = new Map<string, string>(); // serverKey → sessionId
+
 let _appStateValue = AppState.currentState;
 AppState.addEventListener('change', (next) => {
   if (_appStateValue === next) return;
+  const prev = _appStateValue;
   _appStateValue = next;
   if (next !== 'active') {
-    // Background: close all SSE streams
+    // Snapshot streaming sessions only on the first step away from active.
+    // Later inactive→background (and background→inactive on return) must not
+    // overwrite the map, because entry.streaming is already false by then.
+    if (prev === 'active') {
+      _wasStreamingOnBackground.clear();
+      for (const [url, entry] of _connections) {
+        if (entry.streaming && entry.currentSessionId) {
+          _wasStreamingOnBackground.set(url, entry.currentSessionId);
+        }
+      }
+    }
     for (const [url] of _connections) closeSSEStream(url);
     for (const [url] of _permissionsSSE) closePermissionsSSE(url);
     _globalListeners.forEach(fn => fn());
   } else {
-    // Foreground: re-attach SSE if a session was streaming
-    for (const [url, entry] of _connections) {
-      if (entry.currentSessionId && entry.streaming) {
-        openSSEStream(url, entry.currentSessionId);
-      }
+    // Foreground: re-attach SSE for any session that was streaming when we left.
+    // The server replays missed events via Last-Event-ID, so result/done events
+    // will naturally reset streaming=false if the agent finished while backgrounded.
+    for (const [url, sessionId] of _wasStreamingOnBackground) {
+      openSSEStream(url, sessionId);
     }
+    _wasStreamingOnBackground.clear();
     // Re-open permissions SSE for any server that had listeners
     for (const [url, pEntry] of _permissionsSSE) {
       if (pEntry.listeners.size > 0) openPermissionsSSE(url);
