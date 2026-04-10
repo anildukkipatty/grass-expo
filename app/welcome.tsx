@@ -547,7 +547,7 @@ function AuthSheet({
                   Resend OTP in {resendTimer}s
                 </Text>
               ) : (
-                <TouchableOpacity onPress={handleResendOtp}>
+                <TouchableOpacity onPress={handleResendOtp} disabled={loading}>
                   <Text style={styles.resendButtonText}>Resend OTP</Text>
                 </TouchableOpacity>
               )}
