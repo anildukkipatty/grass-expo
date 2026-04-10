@@ -335,6 +335,16 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     setGrassVmReadyListener(() => {
       setVmRunning(true);
       setGrassSandboxBlockedByUsageLimit(false);
+      // Sync the new signed preview URL from url-store into React state so
+      // the health poll targets the fresh URL instead of an expired one.
+      // Setting primaryVmUrl triggers the existing useEffect [primaryVmUrl]
+      // which reloads vmUrls from AsyncStorage automatically.
+      (async () => {
+        const newUrl = await refreshPrimaryVmUrl();
+        if (newUrl) {
+          setPrimaryVmUrl(newUrl);
+        }
+      })();
     });
     return () => setGrassVmReadyListener(null);
   }, []);
@@ -463,6 +473,29 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       }
       if (cancelled) return;
       if (grassSandboxBlockedRef.current) return;
+
+      // Container is actually running — the edge health failure was caused by a
+      // rotated signed URL, not a stopped container.  Refresh the URL in-place
+      // instead of bouncing through container-setup.
+      if (hb.ok && hb.data.container === "running" && hb.data.grass) {
+        setVmRunning(true);
+        let backendPreviewUrl: string | undefined;
+        const preview = await signedPreviewUrl(token);
+        if (!cancelled && preview.ok) {
+          backendPreviewUrl = preview.data.url;
+        } else if (hb.data.url) {
+          backendPreviewUrl = hb.data.url;
+        }
+        if (backendPreviewUrl && !cancelled) {
+          await saveVmUrl(backendPreviewUrl);
+          const newUrl = await refreshPrimaryVmUrl();
+          if (newUrl && !cancelled) {
+            setPrimaryVmUrl(newUrl);
+          }
+        }
+        return;
+      }
+
       router.replace("/container-setup");
     })();
     return () => {
