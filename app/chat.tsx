@@ -548,6 +548,7 @@ export default function Chat() {
               hitSlop={8}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                Keyboard.dismiss();
                 modelSheetRef.current?.present();
               }}
             >
