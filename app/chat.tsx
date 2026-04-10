@@ -2,6 +2,7 @@ import { MessageBubble } from "@/components/MessageBubble";
 import { PermissionCard } from "@/components/PermissionCard";
 import { AgentTypingskeleton } from "@/components/SkeletonLoader";
 import { GrassColors } from "@/constants/theme";
+import { posthog } from "@/constants/posthog";
 import { useServer } from "@/hooks/use-server";
 import modelsJson from "@/models.json";
 import {
@@ -185,6 +186,11 @@ export default function Chat() {
     if (!sessionInitialized.current && serverUrl) {
       sessionInitialized.current = true;
       ws.initSession(initialSessionId ?? null, agent ?? null, repoPath ?? null);
+      posthog.capture("chat_session_started", {
+        agent: agent ?? "unknown",
+        repo_name: repoName ?? "",
+        is_new_session: !initialSessionId,
+      });
     }
     return () => {
       if (serverUrl) closeSSEStream(serverUrl);
@@ -216,6 +222,12 @@ export default function Chat() {
       firstUserMessage.current = text;
     }
     hasSent.current = true;
+    posthog.capture("chat_message_sent", {
+      agent: agent ?? "unknown",
+      model: selectedModelKey,
+      mode: agentMode,
+      repo_name: repoName ?? "",
+    });
     ws.send(text, selectedModelKey, agentMode);
     // If returning to an existing thread, update timestamp now.
     // Use sdkSessionId if available, fall back to grassId.
@@ -249,11 +261,14 @@ export default function Chat() {
 
   const goDiffs = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    posthog.capture("diffs_viewed", {
+      repo_name: repoName ?? "",
+    });
     router.push({
       pathname: "/diffs",
       params: { serverUrl: serverUrl!, repoPath: repoPath ?? "" },
     });
-  }, [router, serverUrl, repoPath]);
+  }, [router, serverUrl, repoPath, repoName]);
 
   const canSend = !!inputText.trim() && !ws.streaming;
 

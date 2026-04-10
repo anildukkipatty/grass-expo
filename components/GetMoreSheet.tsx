@@ -29,6 +29,7 @@ import MicrosoftSvg from "@/assets/images/get-more/microsoft.svg";
 import OpencodeLightSvg from "@/assets/images/get-more/opencode-logo-light.svg";
 import OpencodeSvg from "@/assets/images/get-more/opencode.svg";
 import { NationalPark } from "@/constants/theme";
+import { posthog } from "@/constants/posthog";
 import { getToken } from "@/store/auth-store";
 import { cloneRepoStore, getEntry } from "@/store/connection-store";
 import { saveUrl } from "@/store/url-store";
@@ -455,6 +456,9 @@ export function GetMoreSheet({
       const statusRes = await githubOauthStatus(token);
       console.log("[github-oauth] status response:", statusRes);
       if (statusRes.ok && statusRes.data.connected) {
+        posthog.capture("github_connected", {
+          github_login: statusRes.data.githubLogin ?? "",
+        });
         setGithubConnected(true);
         setGithubLogin(statusRes.data.githubLogin ?? null);
         setGithubFlowActive(false);
@@ -1204,6 +1208,10 @@ export function GetMoreSheet({
     if (entry?.cloneStatus.error) {
       Alert.alert("Clone failed", entry.cloneStatus.error);
     } else {
+      posthog.capture("repo_cloned", {
+        repo_name: repo.fullName,
+        source: "github",
+      });
       onRepoAdded?.();
       onClose();
     }
@@ -1378,6 +1386,10 @@ export function GetMoreSheet({
             if (entry?.cloneStatus.error) {
               setCloneError(entry.cloneStatus.error);
             } else {
+              posthog.capture("repo_cloned", {
+                repo_name: url,
+                source: "url",
+              });
               setRepoUrl("");
               onRepoAdded?.();
               onClose();

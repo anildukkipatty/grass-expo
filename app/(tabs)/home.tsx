@@ -1,6 +1,7 @@
 import { NavBanner, VmTabBar } from "@/components/NavBanner";
 import { StickyBannerLayout } from "@/components/StickyBannerLayout";
 import { NationalPark } from "@/constants/theme";
+import { posthog } from "@/constants/posthog";
 import { useNavbar } from "@/contexts/navbar-context";
 import { setSessionLabel } from "@/store/session-label-store";
 import { formatRelativeTime } from "@/store/thread-store";
@@ -43,6 +44,10 @@ export default function HomeTab() {
               style={styles.threadCard}
               activeOpacity={0.72}
               onPress={() => {
+                posthog.capture("thread_resumed", {
+                  agent: thread.tool,
+                  repo_name: thread.repo,
+                });
                 setSessionLabel(thread.title);
                 router.push({
                   pathname: "/chat",

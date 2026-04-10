@@ -1,5 +1,6 @@
 import { requestOtp, verifyOtp } from "@/api/auth";
 import { heartbeat, requestContainer } from "@/api/containers";
+import { posthog } from "@/constants/posthog";
 import EmailPlaceHolderIcon from "@/assets/images/home-screen/email-place-holder-icon.svg";
 import { NationalPark } from "@/constants/theme";
 import { getToken, saveAuth } from "@/store/auth-store";
@@ -414,6 +415,7 @@ function AuthSheet({
     const result = await requestOtp(trimmed);
     setLoading(false);
     if (result.ok) {
+      posthog.capture("otp_requested", { email: trimmed });
       setStep("otp");
       startResendTimer();
     } else {
@@ -446,6 +448,15 @@ function AuthSheet({
     setLoading(false);
     if (result.ok) {
       await saveAuth(result.data.token, result.data.user);
+      const isNewUser = result.data.user.userType === "new";
+      posthog.identify(result.data.user.id, {
+        $set: { email: email.trim() },
+        $set_once: { first_login_date: new Date().toISOString() },
+      });
+      posthog.capture(isNewUser ? "user_signed_up" : "user_logged_in", {
+        email: email.trim(),
+        user_type: result.data.user.userType,
+      });
       sheetRef.current?.dismiss();
       onVerified(result.data.user.userType);
     } else {

@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
+import { posthog } from '@/constants/posthog';
 import { useWebSocket } from '@/hooks/use-websocket';
 
 const AGENTS = [
@@ -73,6 +74,10 @@ export default function AgentPicker() {
   const ws = useWebSocket(wsUrl ?? null);
 
   function handleSelectAgent(agentId: string) {
+    posthog.capture("agent_selected", {
+      agent: agentId,
+      repo_name: repoName ?? "",
+    });
     ws.selectAgent(agentId);
     router.push({
       pathname: '/sessions',

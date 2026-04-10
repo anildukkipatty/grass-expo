@@ -1,6 +1,7 @@
 import { isSandboxUsageLimitError } from "@/api/client";
 import { heartbeat, requestContainer, signedPreviewUrl } from "@/api/containers";
 import { NationalPark } from "@/constants/theme";
+import { posthog } from "@/constants/posthog";
 import { getToken } from "@/store/auth-store";
 import { notifyGrassSandboxUsageLimitHit, notifyGrassVmReady } from "@/store/grass-vm-events";
 import { saveVmUrl } from "@/store/url-store";
@@ -127,13 +128,16 @@ export default function ContainerSetupScreen() {
           console.log(`[container-setup] demo repo ready: ${result.data.demoRepoReady}`);
         }
         provisionDone.current = true;
+        posthog.capture("container_provisioned");
         finishAndRedirect(result.data.url);
       } else {
         progressTimer.stop();
         if (isSandboxUsageLimitError(result)) {
+          posthog.capture("container_provision_failed", { reason: "sandbox_limit" });
           notifyGrassSandboxUsageLimitHit();
           router.replace("/(tabs)/home");
         } else {
+          posthog.capture("container_provision_failed", { reason: result.error });
           setError(result.error);
         }
       }

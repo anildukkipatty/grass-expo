@@ -50,7 +50,8 @@
       "expo-font",
       "expo-image",
       "expo-web-browser",
-      "react-native-bottom-tabs"
+      "react-native-bottom-tabs",
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,

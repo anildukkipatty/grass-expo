@@ -5,6 +5,7 @@ import BackIcon from "@/assets/images/settings/back-arrow.svg";
 import ProfileIconSvg from "@/assets/images/settings/profile-icon.svg";
 import { clearAuth, getUser } from "@/store/auth-store";
 import { closeConnection, getConnectedUrls } from "@/store/connection-store";
+import { posthog } from "@/constants/posthog";
 import { clearAllThreads } from "@/store/thread-store";
 import { clearUrls } from "@/store/url-store";
 import { BlurView } from "expo-blur";
@@ -80,6 +81,8 @@ export default function SettingsScreen() {
         text: "Logout",
         style: "destructive",
         onPress: async () => {
+          posthog.capture("user_logged_out");
+          posthog.reset();
           const connectedUrls = getConnectedUrls();
           connectedUrls.forEach((url) => closeConnection(url));
           await clearUrls();

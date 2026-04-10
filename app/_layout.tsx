@@ -7,12 +7,24 @@ if (ErrorUtils) {
   const _originalHandler = ErrorUtils.getGlobalHandler();
   ErrorUtils.setGlobalHandler((error, isFatal) => {
     console.error(`[GlobalError] fatal=${isFatal}`, error);
+    try {
+      const { posthog: ph } = require("@/constants/posthog");
+      ph.capture("$exception", {
+        $exception_type: error?.name ?? "Error",
+        $exception_message: error?.message ?? String(error),
+        $exception_source: "GlobalErrorHandler",
+        $exception_stack_trace_raw: error?.stack,
+        is_fatal: isFatal,
+      });
+    } catch (_) {}
     _originalHandler(error, isFatal);
   });
 }
 
 import { PermissionModal } from "@/components/PermissionModal";
 import { GrassColors, NationalPark, DMMono } from "@/constants/theme";
+import { posthog } from "@/constants/posthog";
+import { PostHogProvider } from "posthog-react-native";
 import {
   getConnectedUrls,
   getEntry,
@@ -23,11 +35,12 @@ import {
   subscribeToPermissions,
 } from "@/store/connection-store";
 import { useTheme } from "@/store/theme-store";
+import { getUser } from "@/store/auth-store";
 import { useFonts } from "expo-font";
 import { Stack, usePathname, useLocalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Text, TextInput } from "react-native";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -116,28 +129,62 @@ function GlobalPermissionsManager({ theme }: { theme: "light" | "dark" }) {
         toolName: first.toolName,
         input: first.input,
       }}
-      onAllow={() =>
+      onAllow={() => {
+        posthog.capture("permission_responded", {
+          tool_name: first.toolName,
+          response: "allow",
+        });
         respondGlobalPermission(
           first.serverUrl,
           first.sessionId,
           first.toolUseID,
           true,
-        )
-      }
-      onDeny={() =>
+        );
+      }}
+      onDeny={() => {
+        posthog.capture("permission_responded", {
+          tool_name: first.toolName,
+          response: "deny",
+        });
         respondGlobalPermission(
           first.serverUrl,
           first.sessionId,
           first.toolUseID,
           false,
-        )
-      }
+        );
+      }}
       theme={theme}
     />
   );
 }
 
+// Track screen views for PostHog analytics using Expo Router's pathname.
+function useScreenTracking() {
+  const pathname = usePathname();
+  const prevPathname = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (pathname && pathname !== prevPathname.current) {
+      posthog.screen(pathname, {
+        previous_screen: prevPathname.current,
+      });
+      prevPathname.current = pathname;
+    }
+  }, [pathname]);
+}
+
 export default function RootLayout() {
+  useScreenTracking();
+
+  // Re-identify the user on app load so PostHog links sessions correctly.
+  useEffect(() => {
+    getUser().then((user) => {
+      if (user) {
+        posthog.identify(user.id, { $set: { email: user.email } });
+      }
+    });
+  }, []);
+
   const [theme] = useTheme();
   const c = GrassColors[theme];
   const [fontsLoaded] = useFonts({
@@ -162,6 +209,15 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>
+      <PostHogProvider
+        client={posthog}
+        autocapture={{
+          captureScreens: false,
+          captureTouches: true,
+          propsToCapture: ["testID"],
+        }}
+        debug={__DEV__}
+      >
       <Stack
         screenOptions={{
           animation: "slide_from_right",
@@ -201,6 +257,7 @@ export default function RootLayout() {
           }}
         />
       </Stack>
+      </PostHogProvider>
       <StatusBar style={theme === "dark" ? "light" : "dark"} />
       <GlobalPermissionsManager theme={theme} />
       </BottomSheetModalProvider>
