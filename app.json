@@ -12,7 +12,11 @@
       "bundleIdentifier": "com.codeongrass",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "Used to scan QR codes to connect to sandboxes."
+        "NSCameraUsageDescription": "Used to scan QR codes to connect to sandboxes.",
+        "NSLocalNetworkUsageDescription": "GRASS uses the local network to connect to your coding servers.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {
