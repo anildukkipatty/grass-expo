@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { GrassColors } from '@/constants/theme';
@@ -7,13 +7,14 @@ import { PermissionBody } from '@/components/PermissionBody';
 
 interface Props {
   item: GlobalPermissionItem;
-  onAllow: () => void;
+  onAllow: (updatedInput?: Record<string, unknown>) => void;
   onDeny: () => void;
   theme: 'light' | 'dark';
 }
 
 export function PermissionCard({ item, onAllow, onDeny, theme }: Props) {
   const c = GrassColors[theme];
+  const [answers, setAnswers] = useState<Record<number, number[]>>({});
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(12)).current;
@@ -29,6 +30,20 @@ export function PermissionCard({ item, onAllow, onDeny, theme }: Props) {
 
   function handleAllow() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (item.toolName === 'AskUserQuestion') {
+      const questions = item.input.questions as Array<{ question: string; options: Array<{ label: string }>; multiSelect: boolean }> | undefined;
+      const answerMap: Record<string, string> = {};
+      if (questions) {
+        questions.forEach((q, qIdx) => {
+          const selectedIndices = answers[qIdx] ?? [];
+          if (selectedIndices.length > 0) {
+            answerMap[q.question] = selectedIndices.map(i => q.options[i]?.label ?? '').join(', ');
+          }
+        });
+      }
+      onAllow({ ...item.input, answers: answerMap });
+      return;
+    }
     onAllow();
   }
 
@@ -51,7 +66,7 @@ export function PermissionCard({ item, onAllow, onDeny, theme }: Props) {
         <Text style={[styles.title, { color: c.text }]}>Permission Request</Text>
       </View>
       <ScrollView style={styles.body} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-        <PermissionBody toolName={item.toolName} input={item.input} theme={theme} />
+        <PermissionBody toolName={item.toolName} input={item.input} theme={theme} answers={answers} onAnswersChange={setAnswers} />
       </ScrollView>
       <View style={styles.actions}>
         <Animated.View style={{ transform: [{ scale: denyScale }] }}>

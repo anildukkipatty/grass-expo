@@ -92,11 +92,12 @@ const MOCK_PERMISSIONS = [
 // ─── PermCard — PermissionModal structure + PermissionCard styling ────────────
 
 const BADGE_CONFIG: Record<string, { bg: string; border: string; text: string }> = {
-  Write:   { bg: "#FFF5E6", border: "#FF9500", text: "#B05A00" },
-  Bash:    { bg: "#EEF2FF", border: "#4F6BFF", text: "#1E3799" },
-  Edit:    { bg: "#F3EEFF", border: "#8B5CF6", text: "#5B21B6" },
-  Read:    { bg: "#E6F7FF", border: "#0EA5E9", text: "#0C4A6E" },
-  default: { bg: "#F0F0F0", border: "#999999", text: "#555555" },
+  Write:           { bg: "#FFF5E6", border: "#FF9500",  text: "#B05A00" },
+  Bash:            { bg: "#EEF2FF", border: "#4F6BFF",  text: "#1E3799" },
+  Edit:            { bg: "#F3EEFF", border: "#8B5CF6",  text: "#5B21B6" },
+  Read:            { bg: "#E6F7FF", border: "#0EA5E9",  text: "#0C4A6E" },
+  AskUserQuestion: { bg: "#E6FFF0", border: "#22c55e",  text: "#14532d" },
+  default:         { bg: "#F0F0F0", border: "#999999",  text: "#555555" },
 };
 
 function PermCard({
@@ -109,8 +110,23 @@ function PermCard({
   theme: 'light' | 'dark';
 }) {
   const badge = BADGE_CONFIG[item.toolName] ?? BADGE_CONFIG.default;
+  const [answers, setAnswers] = React.useState<Record<number, number[]>>({});
 
   function handleApprove() {
+    if (item.toolName === 'AskUserQuestion') {
+      const questions = item.input.questions as Array<{ question: string; options: Array<{ label: string }>; multiSelect: boolean }> | undefined;
+      const answerMap: Record<string, string> = {};
+      if (questions) {
+        questions.forEach((q, qIdx) => {
+          const selectedIndices = answers[qIdx] ?? [];
+          if (selectedIndices.length > 0) {
+            answerMap[q.question] = selectedIndices.map(i => q.options[i]?.label ?? '').join(', ');
+          }
+        });
+      }
+      respondGlobalPermission(serverUrl, item.sessionId, item.toolUseID, true, { ...item.input, answers: answerMap });
+      return;
+    }
     respondGlobalPermission(serverUrl, item.sessionId, item.toolUseID, true);
   }
 
@@ -130,7 +146,7 @@ function PermCard({
 
       {/* Content sections */}
       <ScrollView style={card.body} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-        <PermissionBody toolName={item.toolName} input={item.input} theme={theme} />
+        <PermissionBody toolName={item.toolName} input={item.input} theme={theme} answers={answers} onAnswersChange={setAnswers} />
       </ScrollView>
 
       {/* Action buttons — PermissionCard gradient style */}

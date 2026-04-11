@@ -435,12 +435,13 @@ export default function Chat() {
                 <PermissionCard
                   item={pendingPermission}
                   theme={theme}
-                  onAllow={() =>
+                  onAllow={(updatedInput) =>
                     respondGlobalPermission(
                       serverUrl,
                       pendingPermission.sessionId,
                       pendingPermission.toolUseID,
                       true,
+                      updatedInput,
                     )
                   }
                   onDeny={() =>

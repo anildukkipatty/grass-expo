@@ -202,7 +202,13 @@ export function getPermissions(serverUrl: string): GlobalPermissionItem[] {
   return _permissionsSSE.get(key)?.permissions ?? [];
 }
 
-export async function respondGlobalPermission(serverUrl: string, sessionId: string, toolUseID: string, approved: boolean) {
+export async function respondGlobalPermission(
+  serverUrl: string,
+  sessionId: string,
+  toolUseID: string,
+  approved: boolean,
+  updatedInput?: Record<string, unknown>,
+) {
   const key = resolveServerKey(serverUrl);
   const entry = _permissionsSSE.get(key);
   const realUrl = entry?.resolvedUrl ?? _connections.get(key)?.baseUrl ?? resolveServerUrl(serverUrl);
@@ -214,7 +220,7 @@ export async function respondGlobalPermission(serverUrl: string, sessionId: stri
     await fetch(`${realUrl}/sessions/${sessionId}/permission`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ toolUseID, approved }),
+      body: JSON.stringify(updatedInput !== undefined ? { toolUseID, approved, updatedInput } : { toolUseID, approved }),
     });
   } catch (err) {
     console.warn('[respondGlobalPermission] failed to send response:', { sessionId, toolUseID, approved, err });
