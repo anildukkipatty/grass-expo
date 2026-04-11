@@ -16,12 +16,9 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Animated,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { SyntaxBlock } from "@/components/SyntaxBlock";
-import { GrassColors } from "@/constants/theme";
-import { fenceColors } from "@/constants/markdownStyles";
+import { PermissionBody } from "@/components/PermissionBody";
 
 // ─── Old UI (commented out for future reference) ──────────────────────────────
 /*
@@ -92,29 +89,6 @@ const MOCK_PERMISSIONS = [
 */
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Section helpers (mirrors PermissionModal's formatSections) ───────────────
-
-interface Section { label: string; code: string; language: string }
-
-function formatSections(toolName: string, input: Record<string, unknown>): Section[] {
-  switch (toolName) {
-    case 'Write': {
-      const content = (input.content as string) || '';
-      const preview = content.slice(0, 500) + (content.length > 500 ? '\n...' : '');
-      return [{ label: `File: ${input.file_path}`, code: preview, language: 'tsx' }];
-    }
-    case 'Edit':
-      return [
-        { label: `File: ${input.file_path}  —  Replace`, code: (input.old_string as string || '').slice(0, 300), language: 'tsx' },
-        { label: 'With', code: (input.new_string as string || '').slice(0, 300), language: 'tsx' },
-      ];
-    case 'Bash':
-      return [{ label: 'Command', code: String(input.command ?? ''), language: 'bash' }];
-    default:
-      return [{ label: '', code: JSON.stringify(input, null, 2), language: 'json' }];
-  }
-}
-
 // ─── PermCard — PermissionModal structure + PermissionCard styling ────────────
 
 const BADGE_CONFIG: Record<string, { bg: string; border: string; text: string }> = {
@@ -134,8 +108,6 @@ function PermCard({
   serverUrl: string;
   theme: 'light' | 'dark';
 }) {
-  const fence = fenceColors(theme);
-  const sections = formatSections(item.toolName, item.input);
   const badge = BADGE_CONFIG[item.toolName] ?? BADGE_CONFIG.default;
 
   function handleApprove() {
@@ -156,27 +128,9 @@ function PermCard({
         <Text style={card.repoText} numberOfLines={1}>{item.repoName}</Text>
       </View>
 
-      {/* Content sections (matches PermissionModal body) */}
+      {/* Content sections */}
       <ScrollView style={card.body} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-        {sections.map((sec, idx) => (
-          <View key={idx} style={idx > 0 ? { marginTop: 10 } : undefined}>
-            {sec.label ? (
-              <Text
-                style={[
-                  card.sectionLabel,
-                  {
-                    color: fence.text,
-                    backgroundColor: fence.bg,
-                    borderColor: fence.border,
-                  },
-                ]}
-              >
-                {sec.label}
-              </Text>
-            ) : null}
-            <SyntaxBlock code={sec.code} language={sec.language} theme={theme} />
-          </View>
-        ))}
+        <PermissionBody toolName={item.toolName} input={item.input} theme={theme} />
       </ScrollView>
 
       {/* Action buttons — PermissionCard gradient style */}
@@ -194,9 +148,9 @@ function PermCard({
 
         <TouchableOpacity style={card.approveOuter} onPress={handleApprove} activeOpacity={0.85}>
           <LinearGradient
-            colors={["#00FF26"]}
-            start={{ x: 0.72, y: 1 }}
-            end={{ x: 0.28, y: 0 }}
+            colors={["#00FF40", "#E0FF47"]}
+            start={{ x: 0.82, y: 0 }}
+            end={{ x: 0.18, y: 1 }}
             style={card.btnGradient}
           >
             <Text style={card.approveText}>✓ Approve</Text>
@@ -307,14 +261,6 @@ const card = StyleSheet.create({
   body: {
     maxHeight: 260,
   },
-  sectionLabel: {
-    fontSize: 11,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    marginBottom: 4,
-  },
   buttonRow: {
     flexDirection: "row",
     gap: 10,
@@ -331,7 +277,7 @@ const card = StyleSheet.create({
     flex: 1,
     borderRadius: 63,
     borderWidth: 1,
-    borderColor: "#00CC33",
+    borderColor: "#00FF40",
     overflow: "hidden",
   },
   btnGradient: {

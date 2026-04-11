@@ -1,10 +1,9 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { GrassColors, Fonts } from '@/constants/theme';
-import { fenceColors } from '@/constants/markdownStyles';
+import { GrassColors } from '@/constants/theme';
 import { GlobalPermissionItem } from '@/store/connection-store';
-import { SyntaxBlock } from '@/components/SyntaxBlock';
+import { PermissionBody } from '@/components/PermissionBody';
 
 interface Props {
   item: GlobalPermissionItem;
@@ -13,32 +12,8 @@ interface Props {
   theme: 'light' | 'dark';
 }
 
-interface Section { label: string; code: string; language: string }
-
-function formatSections(toolName: string, input: Record<string, unknown>): Section[] {
-  switch (toolName) {
-    case 'Write': {
-      const content = (input.content as string) || '';
-      const preview = content.slice(0, 500) + (content.length > 500 ? '\n...' : '');
-      return [{ label: `File: ${input.file_path}`, code: preview, language: 'tsx' }];
-    }
-    case 'Edit':
-      return [
-        { label: `File: ${input.file_path}  —  Replace`, code: (input.old_string as string || '').slice(0, 300), language: 'tsx' },
-        { label: 'With', code: (input.new_string as string || '').slice(0, 300), language: 'tsx' },
-      ];
-    case 'Bash':
-      return [{ label: 'Command', code: String(input.command ?? ''), language: 'bash' }];
-    default:
-      return [{ label: '', code: JSON.stringify(input, null, 2), language: 'json' }];
-  }
-}
-
 export function PermissionCard({ item, onAllow, onDeny, theme }: Props) {
   const c = GrassColors[theme];
-  const mono = Fonts?.mono ?? 'monospace';
-  const fence = fenceColors(theme);
-  const sections = formatSections(item.toolName, item.input);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(12)).current;
@@ -76,16 +51,7 @@ export function PermissionCard({ item, onAllow, onDeny, theme }: Props) {
         <Text style={[styles.title, { color: c.text }]}>Permission Request</Text>
       </View>
       <ScrollView style={styles.body} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-        {sections.map((sec, idx) => (
-          <View key={idx} style={idx > 0 ? { marginTop: 10 } : undefined}>
-            {sec.label ? (
-              <Text style={[styles.sectionLabel, { color: fence.text, backgroundColor: fence.bg, borderColor: fence.border, fontFamily: mono }]}>
-                {sec.label}
-              </Text>
-            ) : null}
-            <SyntaxBlock code={sec.code} language={sec.language} theme={theme} />
-          </View>
-        ))}
+        <PermissionBody toolName={item.toolName} input={item.input} theme={theme} />
       </ScrollView>
       <View style={styles.actions}>
         <Animated.View style={{ transform: [{ scale: denyScale }] }}>
@@ -154,14 +120,6 @@ const styles = StyleSheet.create({
   },
   body: {
     maxHeight: 260,
-  },
-  sectionLabel: {
-    fontSize: 11,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    marginBottom: 4,
   },
   actions: {
     flexDirection: 'row',
