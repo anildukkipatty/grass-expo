@@ -282,20 +282,27 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           const ordered = orderVmUrls(urls, primaryVmUrl);
           setVmUrls(ordered);
-          // Resolve and apply the last active tab in the same update to avoid a flash on tab 0
-          if (lastTab && lastTab !== GRASS_VM_KEY && ordered.length > 0) {
-            const idx = ordered.indexOf(lastTab);
-            setActiveVmTab(idx >= 0 ? idx : 0);
-          } else {
-            setActiveVmTab(0);
+          // Resolve and apply the last active tab only on the first run — subsequent
+          // primaryVmUrl changes (e.g. signed URL rotation) must not reset the active tab.
+          if (!tabRestoredRef.current) {
+            tabRestoredRef.current = true;
+            if (lastTab && lastTab !== GRASS_VM_KEY && ordered.length > 0) {
+              const idx = ordered.indexOf(lastTab);
+              setActiveVmTab(idx >= 0 ? idx : 0);
+            } else {
+              setActiveVmTab(0);
+            }
+            setTabRestored(true);
           }
-          setTabRestored(true);
           setUrlsHydrated(true);
         }
       } catch {
         if (!cancelled) {
-          setActiveVmTab(0);
-          setTabRestored(true);
+          if (!tabRestoredRef.current) {
+            tabRestoredRef.current = true;
+            setActiveVmTab(0);
+            setTabRestored(true);
+          }
           setUrlsHydrated(true);
         }
       }
@@ -307,6 +314,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   }, [primaryVmUrl]);
 
   const [tabRestored, setTabRestored] = useState(false);
+  const tabRestoredRef = useRef(false);
 
   // Persist active tab to storage on change
   // Store GRASS_VM_KEY for GrassVM tab, actual URL for custom servers
