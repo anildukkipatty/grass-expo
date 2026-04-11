@@ -8,7 +8,6 @@ import {
   getPermissions,
   getRepoDetailsStore,
   listReposStore,
-  openConnection,
   openConnectionWithKey,
   subscribeToPermissions,
 } from "@/store/connection-store";
@@ -188,8 +187,6 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   const [vmUrlStatuses, setVmUrlStatuses] = useState<Map<string, boolean>>(new Map());
   const [pendingRepo, setPendingRepo] = useState<RepoItem | null>(null);
   const [threads, setThreads] = useState<Thread[]>([]);
-  /** True after the first getUrls() + order completes (avoids treating pre-hydration [] as "no servers"). */
-  const [urlsHydrated, setUrlsHydrated] = useState(false);
   /** Grass managed sandbox blocked by monthly usage — do not send user to container-setup; custom VMs OK. */
   const [grassSandboxBlockedByUsageLimit, setGrassSandboxBlockedByUsageLimit] = useState(false);
   const grassSandboxBlockedRef = useRef(grassSandboxBlockedByUsageLimit);
@@ -294,7 +291,6 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
             }
             setTabRestored(true);
           }
-          setUrlsHydrated(true);
         }
       } catch {
         if (!cancelled) {
@@ -303,7 +299,6 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
             setActiveVmTab(0);
             setTabRestored(true);
           }
-          setUrlsHydrated(true);
         }
       }
     }
@@ -425,13 +420,10 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
             backendPreviewUrl = hb.data.url;
           }
           if (backendPreviewUrl) {
-            setPrimaryVmUrl(backendPreviewUrl);
-            setVmUrls((prev) =>
-              orderVmUrls([...new Set([...prev, backendPreviewUrl])], backendPreviewUrl),
-            );
             await saveVmUrl(backendPreviewUrl);
           }
           const urls = await getUrls();
+          setPrimaryVmUrl(backendPreviewUrl);
           setVmUrls(orderVmUrls(urls, backendPreviewUrl));
           return;
         }
@@ -581,14 +573,11 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
           backendPreviewUrl = hb.data.url;
         }
         if (backendPreviewUrl) {
-          setPrimaryVmUrl(backendPreviewUrl);
-          setVmUrls((prev) =>
-            orderVmUrls([...new Set([...prev, backendPreviewUrl])], backendPreviewUrl),
-          );
           await saveVmUrl(backendPreviewUrl);
         }
         const urls = await getUrls();
         if (!cancelled) {
+          setPrimaryVmUrl(backendPreviewUrl);
           setVmUrls(orderVmUrls(urls, backendPreviewUrl));
         }
       }
