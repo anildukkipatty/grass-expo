@@ -101,6 +101,7 @@ export default function Chat() {
   const flatListRef = useRef<FlatList>(null);
   const sessionInitialized = useRef(false);
   const hasSent = useRef(false);
+  const [hasSentState, setHasSentState] = useState(false);
 
   const [agentMode, setAgentMode] = useState<"plan" | "build">("build");
 
@@ -230,6 +231,7 @@ export default function Chat() {
     ]).start();
     if (!hasSent.current) {
       firstUserMessage.current = text;
+      setHasSentState(true);
     }
     hasSent.current = true;
     posthog.capture("chat_message_sent", {
@@ -517,6 +519,19 @@ export default function Chat() {
               Sending message to the agent…
             </Text>
           </View>
+        )}
+
+        {/* Onboarding home nudge — shown after first message is sent */}
+        {showOnboarding && hasSentState && (
+          <TouchableOpacity
+            onPress={() => router.replace('/(tabs)/home')}
+            style={styles.onboardingNudge}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.onboardingNudgeText, { color: c.accent }]}>
+              Finished exploring? Tap here to go to your home screen →
+            </Text>
+          </TouchableOpacity>
         )}
 
         {/* Input area */}
@@ -856,6 +871,19 @@ const styles = StyleSheet.create({
   onboardingText: {
     fontSize: 15,
     textAlign: "center",
+  },
+
+  // Onboarding nudge
+  onboardingNudge: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  onboardingNudgeText: {
+    fontSize: 14,
+    fontFamily: 'NationalPark-Medium',
+    textDecorationLine: 'underline',
+    textAlign: 'center',
   },
 
   // Input area
