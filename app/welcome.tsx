@@ -16,7 +16,6 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   FlatList,
@@ -32,6 +31,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Alert } from "@/utils/alert";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 

@@ -6,6 +6,14 @@ const VM_URL_KEY = 'grass_vm_url';
 const LAST_TAB_KEY = 'grass_last_active_tab';
 
 export async function getUrls(): Promise<string[]> {
+  // Web (and native cold start): module-level `_cachedPrimaryVmUrl` is null until something
+  // reads VM_URL_KEY. If callers resolve keys before `refreshPrimaryVmUrl()` runs, we used
+  // the raw preview URL as the connection map key and later switched to `grassvm`, so
+  // `getEntry`/repo fetches hit the wrong entry. Hydrate from storage whenever still null.
+  if (_cachedPrimaryVmUrl === null) {
+    _cachedPrimaryVmUrl = await AsyncStorage.getItem(VM_URL_KEY);
+  }
+
   // One-time migration: convert old ws:// URLs to http://
   const oldRaw = await AsyncStorage.getItem(OLD_URLS_KEY);
   if (oldRaw) {

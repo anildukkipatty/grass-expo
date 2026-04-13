@@ -50,7 +50,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Alert } from "react-native";
+import { Alert } from "@/utils/alert";
+import { vmFetch } from "@/utils/vm-fetch";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -207,6 +208,10 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
 
   const primaryEdgeHealthBad =
     !!primaryVmUrl && vmUrlStatuses.get(primaryVmUrl) === false;
+
+  const selectedVmEdgeFailed = selectedVmUrl
+    ? vmUrlStatuses.get(selectedVmUrl) === false
+    : false;
 
   // Hydrate primary URL into React state from VM_URL_KEY so tabs label correctly before
   // heartbeat completes (avoids treating index 0 as GrassVM while primaryVmUrl was undefined).
@@ -600,7 +605,9 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), 4000);
           try {
-            const res = await fetch(`${realUrl}/health`, { signal: controller.signal });
+            const res = await vmFetch(`${realUrl}/health`, {
+              signal: controller.signal,
+            });
             return { url, ok: res.ok };
           } catch {
             return { url, ok: false };
@@ -621,11 +628,14 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [vmUrls, primaryVmUrl, selectedVmUrl]);
 
-  // Fetch repos for the selected server. GrassVM needs vmRunning; custom machines work even if Grass is down or usage-limited.
+  // Fetch repos for the selected server. For GrassVM we avoid hammering a known-stopped
+  // VM when the edge /health is already failing — but if /health is OK (or not polled yet)
+  // we still fetch even when vmRunning is false (API/URL desync, or last tab was not GrassVM
+  // so checkContainer set vmRunning false without redirect).
   useEffect(() => {
     const onGrassVm =
       !!primaryVmUrl && !!selectedVmUrl && selectedVmUrl === primaryVmUrl;
-    if (onGrassVm && !vmRunning) return;
+    if (onGrassVm && !vmRunning && selectedVmEdgeFailed) return;
 
     let cancelled = false;
 
@@ -643,7 +653,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       }
 
       const key = resolveServerKey(serverUrl);
-      const realUrl = resolveServerUrl(serverUrl);
+      const realUrl = resolveServerUrl(key);
       openConnectionWithKey(key, realUrl);
       await listReposStore(key);
       if (cancelled) return;
@@ -652,7 +662,9 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       const repoList = entry?.repos ?? [];
 
       await Promise.all(
-        repoList.map((r) => getRepoDetailsStore(key, r.path)),
+        repoList
+          .filter((r) => r.isGit)
+          .map((r) => getRepoDetailsStore(key, r.path)),
       );
       if (cancelled) return;
 
@@ -682,21 +694,23 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [vmRunning, selectedVmUrl, primaryVmUrl]);
+  }, [vmRunning, selectedVmUrl, primaryVmUrl, selectedVmEdgeFailed]);
 
   const refreshRepos = useCallback(async () => {
     if (!selectedVmUrl) return;
     const onGrassVm =
       !!primaryVmUrl && selectedVmUrl === primaryVmUrl;
-    if (onGrassVm && !vmRunning) return;
+    if (onGrassVm && !vmRunning && selectedVmEdgeFailed) return;
     setReposLoading(true);
     const key = resolveServerKey(selectedVmUrl);
-    const realUrl = resolveServerUrl(selectedVmUrl);
+    const realUrl = resolveServerUrl(key);
     openConnectionWithKey(key, realUrl);
     await listReposStore(key);
     const entry = getEntry(key);
     const repoList = entry?.repos ?? [];
-    await Promise.all(repoList.map((r) => getRepoDetailsStore(key, r.path)));
+    await Promise.all(
+      repoList.filter((r) => r.isGit).map((r) => getRepoDetailsStore(key, r.path)),
+    );
     const updatedEntry = getEntry(key);
     const details = updatedEntry?.repoDetails ?? new Map();
     setRepos(
@@ -711,7 +725,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       }))
     );
     setReposLoading(false);
-  }, [selectedVmUrl, primaryVmUrl, vmRunning]);
+  }, [selectedVmUrl, primaryVmUrl, vmRunning, selectedVmEdgeFailed]);
 
   const handleRemoveUserVm = useCallback(async (idx: number) => {
     if (idx <= 0 || idx >= vmUrls.length) return;

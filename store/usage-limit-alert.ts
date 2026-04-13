@@ -1,4 +1,4 @@
-import { Alert } from "react-native";
+import { Alert } from "@/utils/alert";
 
 let lastSandboxUsageAlertAt = 0;
 const DEBOUNCE_MS = 6000;

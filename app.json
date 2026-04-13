@@ -34,7 +34,11 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "GRASS",
+      "shortName": "GRASS",
+      "themeColor": "#088120",
+      "backgroundColor": "#a8d97f"
     },
     "plugins": [
       "expo-router",
