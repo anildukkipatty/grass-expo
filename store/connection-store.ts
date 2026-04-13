@@ -679,7 +679,7 @@ export async function sendMessageStore(serverUrl: string, text: string, model?: 
       notifyListeners(key);
       openSSEStream(key, sid);
     }
-  } catch {
+  } catch (err) {
     entry.streaming = false;
     entry.activity = null;
     entry.messages = [...entry.messages, { role: 'error', content: 'Failed to send message', complete: true, msgId: nextMsgId(entry) }];
@@ -886,7 +886,6 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
       type HistoryContentBlock = { type: 'text'; text: string } | { type: 'tool_use'; tool_name: string; tool_input: string };
       type HistoryMessage = { role: string; content: string | HistoryContentBlock[] };
       const json = await res.json() as { messages?: HistoryMessage[] };
-      console.log('[history]', JSON.stringify(json.messages?.slice(0, 3), null, 2));
       if (_connections.has(key)) {
         const msgs = json.messages ?? [];
         const expanded: Message[] = [];

@@ -4,6 +4,8 @@ import GitContributersSvg from "@/assets/images/push-commit/git-contributers.svg
 import GitSvg from "@/assets/images/push-commit/git.svg";
 import GitStarsSvg from "@/assets/images/push-commit/git-stars.svg";
 import OpenCodeSvg from "@/assets/images/push-commit/open-code.svg";
+import { openConnection } from "@/store/connection-store";
+import { refreshPrimaryVmUrl } from "@/store/url-store";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -107,16 +109,23 @@ export default function PushCommitScreen() {
           {/* Action buttons */}
           <TouchableOpacity
             activeOpacity={0.88}
-            onPress={() => router.push({
-              pathname: '/chat',
-              params: {
-                serverUrl,
-                agent: 'opencode',
-                repoPath: '/home/daytona/start/repo/grass-demo',
-                repoName: 'grass-demo',
-                initialOnboarding: 'true',
-              },
-            })}
+            onPress={async () => {
+              // Ensure _cachedPrimaryVmUrl is warm before chat mounts, so
+              // resolveServerKey is consistent between openConnection and
+              // the subscribeToConnection call inside useServer.
+              await refreshPrimaryVmUrl();
+              openConnection(serverUrl);
+              router.push({
+                pathname: '/chat',
+                params: {
+                  serverUrl,
+                  agent: 'opencode',
+                  repoPath: '/home/daytona/start/repo/grass-demo',
+                  repoName: 'grass-demo',
+                  initialOnboarding: 'true',
+                },
+              });
+            }}
           >
             <LinearGradient
               colors={["#00FF26"]}

@@ -41,15 +41,10 @@ export async function saveUrl(url: string): Promise<void> {
 export async function saveVmUrl(url: string): Promise<void> {
   const oldVmUrl = await AsyncStorage.getItem(VM_URL_KEY);
   const urls = await getUrls();
-  console.log('[saveVmUrl] new url:', url);
-  console.log('[saveVmUrl] old VM url from key:', oldVmUrl);
-  console.log('[saveVmUrl] urls before filter:', JSON.stringify(urls));
   const filtered = oldVmUrl ? urls.filter((u) => u !== oldVmUrl) : urls;
-  console.log('[saveVmUrl] urls after filter:', JSON.stringify(filtered));
   if (!filtered.includes(url)) {
     filtered.unshift(url);
   }
-  console.log('[saveVmUrl] final urls:', JSON.stringify(filtered));
   await AsyncStorage.setItem(VM_URL_KEY, url);
   _cachedPrimaryVmUrl = url;
   await AsyncStorage.setItem(URLS_KEY, JSON.stringify(filtered));
@@ -79,10 +74,7 @@ export async function refreshPrimaryVmUrl(): Promise<string | null> {
 }
 
 export function resolveServerKey(url: string): string {
-  if (_cachedPrimaryVmUrl && url === _cachedPrimaryVmUrl) {
-    return GRASS_VM_KEY;
-  }
-  return url;
+  return (_cachedPrimaryVmUrl && url === _cachedPrimaryVmUrl) ? GRASS_VM_KEY : url;
 }
 
 export function resolveServerUrl(key: string): string {

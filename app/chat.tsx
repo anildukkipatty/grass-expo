@@ -70,7 +70,7 @@ function getDefaultModel(agent: string | undefined): string {
 export default function Chat() {
   const router = useRouter();
   const {
-    serverUrl,
+    serverUrl: serverUrlParam,
     sessionId: initialSessionId,
     repoName,
     repoPath,
@@ -84,6 +84,16 @@ export default function Chat() {
     agent?: string;
     initialOnboarding?: string;
   }>();
+
+  // Expo Router can return undefined for params on intermediate renders while
+  // the route is being hydrated. Pin the first non-null value in a ref so that
+  // useServer always receives a stable URL and never reverts to null mid-session.
+  const serverUrlRef = useRef<string | null>(null);
+  if (serverUrlParam && !serverUrlRef.current) {
+    serverUrlRef.current = serverUrlParam;
+  }
+  const serverUrl = serverUrlRef.current ?? serverUrlParam ?? null;
+
   const showOnboarding = initialOnboarding === "true";
   const [theme, setTheme] = useTheme();
   const [inputText, setInputText] = useState("");
@@ -117,7 +127,7 @@ export default function Chat() {
   const sendRotation = useRef(new Animated.Value(0)).current;
   const prevStreaming = useRef(false);
 
-  const ws = useServer(serverUrl ?? null);
+  const ws = useServer(serverUrl);
 
   const [sessionLabel, setSessionLabelState] = useState<string | null>(
     getSessionLabel,
