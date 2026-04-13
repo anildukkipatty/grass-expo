@@ -2,6 +2,8 @@ import { AppState } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { fetch } from 'expo/fetch';
 import { resolveServerKey, resolveServerUrl } from './url-store';
+import { APP_VERSION } from '@/constants/versions';
+import { checkVersionCompat, CompatResult } from '@/store/version-compat';
 
 export interface Message {
   role: 'user' | 'assistant' | 'error' | 'tool';
@@ -88,6 +90,9 @@ interface ConnectionEntry {
   fileContent: FileContentResult | null;
   cloneStatus: { cloning: boolean; creating: boolean; error: string | null };
   serverCwd: string | null;
+  serverVersion: string | null;
+  clientVersionRange: string | null;
+  versionCompatible: boolean | null;  // null = not yet checked
 
   // TODO: Revisit connection health indicators
   // connected: boolean;
@@ -570,6 +575,9 @@ export function openConnection(serverUrl: string) {
     fileContent: null,
     cloneStatus: { cloning: false, creating: false, error: null },
     serverCwd: null,
+    serverVersion: null,
+    clientVersionRange: null,
+    versionCompatible: null,
     msgCounter: 0,
     listeners: new Set(),
   };
@@ -605,6 +613,9 @@ export function openConnectionWithKey(key: string, realUrl: string) {
     fileContent: null,
     cloneStatus: { cloning: false, creating: false, error: null },
     serverCwd: null,
+    serverVersion: null,
+    clientVersionRange: null,
+    versionCompatible: null,
     msgCounter: 0,
     listeners: new Set(),
   };
@@ -722,18 +733,32 @@ export async function respondPermissionStore(serverUrl: string, approved: boolea
 
 // --- Health ---
 
-export async function healthStore(serverUrl: string) {
+export async function healthStore(serverUrl: string): Promise<CompatResult> {
   const key = resolveServerKey(serverUrl);
   const entry = _connections.get(key);
-  if (!entry) return;
+  if (!entry) return { compatible: true };
   try {
-    const res = await fetch(`${entry.baseUrl}/health`);
-    const json = await res.json() as { cwd?: string };
-    if (_connections.has(key) && json.cwd) {
-      entry.serverCwd = json.cwd;
-      notifyListeners(key);
-    }
-  } catch { /* ignore */ }
+    const res = await fetch(`${entry.baseUrl}/health`, {
+      headers: { 'X-Client-Version': APP_VERSION },
+    });
+    const json = await res.json() as {
+      cwd?: string;
+      serverVersion?: string;
+      clientVersionRange?: string;
+    };
+    if (!_connections.has(key)) return { compatible: true };
+    if (json.cwd) entry.serverCwd = json.cwd;
+
+    entry.serverVersion = json.serverVersion ?? null;
+    entry.clientVersionRange = json.clientVersionRange ?? null;
+
+    const result = checkVersionCompat(entry.serverVersion, entry.clientVersionRange);
+    entry.versionCompatible = result.compatible;
+    notifyListeners(key);
+    return result;
+  } catch {
+    return { compatible: true };  // network error → no compat alert
+  }
 }
 
 // --- Repos ---

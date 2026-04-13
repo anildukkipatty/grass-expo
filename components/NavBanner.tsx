@@ -39,6 +39,7 @@ export function VmTabBar() {
     requestGrassVmUsageRecheck,
     setSheetInitialView,
     grassVmChecking,
+    incompatUrls,
   } = useNavbar();
 
   return (
@@ -59,6 +60,7 @@ export function VmTabBar() {
           const isUserVm = primaryVmUrl ? url !== primaryVmUrl : idx > 0;
           // undefined = not yet polled → show grey; true = green; false = red
           const status = vmUrlStatuses.get(url);
+          const isIncompat = incompatUrls.has(url);
           return (
             <View key={url} style={styles.tabPillWrap}>
               <TouchableOpacity
@@ -88,11 +90,13 @@ export function VmTabBar() {
                   <View
                     style={[
                       styles.vmDot,
-                      status === undefined
+                      isIncompat
                         ? styles.vmDotUnknown
-                        : status
-                          ? styles.vmDotActive
-                          : styles.vmDotStopped,
+                        : status === undefined
+                          ? styles.vmDotUnknown
+                          : status
+                            ? styles.vmDotActive
+                            : styles.vmDotStopped,
                     ]}
                   />
                 )}
@@ -101,6 +105,7 @@ export function VmTabBar() {
                     styles.tabPillText,
                     isActive && styles.tabPillTextActive,
                     isUserVm && styles.userVmTabText,
+                    isIncompat && styles.tabPillTextIncompat,
                   ]}
                   numberOfLines={1}
                 >
@@ -530,6 +535,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.08)",
   },
   tabPillTextActive: { color: "#1C1C1E", fontWeight: "600" },
+  tabPillTextIncompat: { color: "#9ca3af", textDecorationLine: "line-through" },
   tabAddText: {
     fontSize: 16,
     fontWeight: "500",

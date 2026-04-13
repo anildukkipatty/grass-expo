@@ -7,10 +7,12 @@ import {
   getEntry,
   getPermissions,
   getRepoDetailsStore,
+  healthStore,
   listReposStore,
   openConnectionWithKey,
   subscribeToPermissions,
 } from "@/store/connection-store";
+import type { CompatResult } from "@/store/version-compat";
 import {
   GRASS_VM_KEY,
   clearUrls,
@@ -146,6 +148,8 @@ interface NavbarContextValue {
   requestGrassVmUsageRecheck: () => void;
   /** True while the Grass VM heartbeat check is in flight (shows spinner + overlay). */
   grassVmChecking: boolean;
+  /** Set of server URLs whose version is incompatible with this app. */
+  incompatUrls: Set<string>;
 
   // Actions
   refreshRepos: () => Promise<void>;
@@ -195,6 +199,8 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   grassSandboxBlockedRef.current = grassSandboxBlockedByUsageLimit;
   const grassLimitRecheckInFlightRef = useRef(false);
   const [grassVmChecking, setGrassVmChecking] = useState(false);
+  const [incompatUrls, setIncompatUrls] = useState<Set<string>>(new Set());
+  const versionAlertVisibleRef = useRef(false);
 
   const activeVmTabRef = useRef(activeVmTab);
   activeVmTabRef.current = activeVmTab;
@@ -204,6 +210,8 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   primaryVmUrlRef.current = primaryVmUrl;
 
   const selectedVmUrl = vmUrls[activeVmTab] ?? undefined;
+  const selectedVmUrlRef = useRef(selectedVmUrl);
+  selectedVmUrlRef.current = selectedVmUrl;
   const selectedServerKey = selectedVmUrl
     ? resolveServerKey(selectedVmUrl)
     : undefined;
@@ -607,16 +615,37 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     async function pollAll() {
       const results = await Promise.all(
         vmUrls.map(async (url) => {
-          const realUrl = resolveServerUrl(url);
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 4000);
           try {
-            const res = await fetch(`${realUrl}/health`, { signal: controller.signal });
-            return { url, ok: res.ok };
+            const result = await Promise.race<CompatResult>([
+              healthStore(url),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('timeout')), 4000)
+              ),
+            ]);
+
+            setIncompatUrls((prev) => {
+              const alreadyIncompat = prev.has(url);
+              if (!result.compatible && alreadyIncompat) return prev;
+              if (result.compatible && !alreadyIncompat) return prev;
+              const next = new Set(prev);
+              if (!result.compatible) next.add(url);
+              else next.delete(url);
+              return next;
+            });
+
+            if (!result.compatible && url === selectedVmUrlRef.current && !versionAlertVisibleRef.current) {
+              versionAlertVisibleRef.current = true;
+              Alert.alert(
+                'Version Mismatch',
+                "This server's version is not compatible with your app. Please upgrade both the server CLI (npm install -g @grass-ai/ide) and the app to the latest version.",
+                [{ text: 'OK', onPress: () => { versionAlertVisibleRef.current = false; } }],
+                { onDismiss: () => { versionAlertVisibleRef.current = false; } },
+              );
+            }
+
+            return { url, ok: true };
           } catch {
             return { url, ok: false };
-          } finally {
-            clearTimeout(timer);
           }
         }),
       );
@@ -766,6 +795,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
           setGrassSandboxBlockedByUsageLimit(false);
           clearPendingGrassUsageLimitHit();
           resetSandboxUsageLimitAlertDebounce();
+          setIncompatUrls(new Set());
           await clearAuth();
           router.replace("/welcome");
         },
@@ -800,6 +830,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     grassSandboxBlockedByUsageLimit,
     requestGrassVmUsageRecheck,
     grassVmChecking,
+    incompatUrls,
     refreshRepos,
     handleRemoveUserVm,
     handleSelectAgent,
@@ -812,6 +843,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     grassSandboxBlockedByUsageLimit,
     requestGrassVmUsageRecheck,
     grassVmChecking,
+    incompatUrls,
     refreshRepos, handleRemoveUserVm, handleSelectAgent, handleLogout,
   ]);
 
