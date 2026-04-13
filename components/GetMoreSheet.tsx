@@ -109,6 +109,7 @@ export function GetMoreSheet({
   const [opencodeConnected, setOpencodeConnected] = useState(false);
   const [opencodeLoading, setOpencodeLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [openingBrowser, setOpeningBrowser] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [opencodeDisconnecting, setOpencodeDisconnecting] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
@@ -286,12 +287,18 @@ export function GetMoreSheet({
     Alert.alert("Copied!", "URL copied to clipboard.");
   }
 
-  function handleOpenBrowser() {
+  async function handleOpenBrowser() {
+    if (openingBrowser) return;
     const url =
       activeTab === "claude" && claudeAuthUrl
         ? claudeAuthUrl
         : "https://" + authUrl;
-    Linking.openURL(url);
+    setOpeningBrowser(true);
+    try {
+      await Linking.openURL(url);
+    } finally {
+      setOpeningBrowser(false);
+    }
   }
 
   async function handleVerify() {
@@ -944,6 +951,7 @@ export function GetMoreSheet({
               onPress={handleOpenBrowser}
               activeOpacity={0.85}
               style={styles.browserBtnWrap}
+              disabled={openingBrowser}
             >
               <LinearGradient
                 colors={["#00FF26", "#00FF26"]}
@@ -951,7 +959,14 @@ export function GetMoreSheet({
                 end={{ x: 1, y: 0 }}
                 style={styles.browserBtn}
               >
-                <Text style={styles.browserBtnText}>Open in browser →</Text>
+                {openingBrowser ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <ActivityIndicator size="small" color="#000000" />
+                    <Text style={styles.browserBtnText}>Opening...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.browserBtnText}>Open in browser →</Text>
+                )}
               </LinearGradient>
             </TouchableOpacity>
 
