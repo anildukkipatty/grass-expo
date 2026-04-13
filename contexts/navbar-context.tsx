@@ -144,6 +144,8 @@ interface NavbarContextValue {
   grassSandboxBlockedByUsageLimit: boolean;
   /** Re-check heartbeat when user taps GrassVM while usage-blocked (credits may have been restored). */
   requestGrassVmUsageRecheck: () => void;
+  /** True while the Grass VM heartbeat check is in flight (shows spinner + overlay). */
+  grassVmChecking: boolean;
 
   // Actions
   refreshRepos: () => Promise<void>;
@@ -192,6 +194,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   const grassSandboxBlockedRef = useRef(grassSandboxBlockedByUsageLimit);
   grassSandboxBlockedRef.current = grassSandboxBlockedByUsageLimit;
   const grassLimitRecheckInFlightRef = useRef(false);
+  const [grassVmChecking, setGrassVmChecking] = useState(false);
 
   const activeVmTabRef = useRef(activeVmTab);
   activeVmTabRef.current = activeVmTab;
@@ -449,52 +452,60 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     if (!primaryEdgeHealthBad && !backendDown) return;
 
     let cancelled = false;
+
+    setGrassVmChecking(true);
+
     (async () => {
-      const token = await getToken();
-      if (!token || cancelled) return;
-      const hb = await heartbeat(token);
-      if (cancelled) return;
-      if (!hb.ok && isSandboxUsageLimitError(hb)) {
-        setGrassSandboxBlockedByUsageLimit(true);
-        setVmRunning(false);
-        alertSandboxUsageLimitOnce(hb.error);
-        const urls = vmUrlsRef.current;
-        const primary = primaryVmUrlRef.current ?? getCachedPrimaryVmUrl() ?? undefined;
-        if (primary && urls.some((u) => u !== primary)) {
-          const idx = urls.findIndex((u) => u !== primary);
-          if (idx >= 0) setActiveVmTab(idx);
-        }
-        return;
-      }
-      if (cancelled) return;
-      if (grassSandboxBlockedRef.current) return;
-
-      // Container is actually running — the edge health failure was caused by a
-      // rotated signed URL, not a stopped container.  Refresh the URL in-place
-      // instead of bouncing through container-setup.
-      if (hb.ok && hb.data.container === "running" && hb.data.grass) {
-        setVmRunning(true);
-        let backendPreviewUrl: string | undefined;
-        const preview = await signedPreviewUrl(token);
-        if (!cancelled && preview.ok) {
-          backendPreviewUrl = preview.data.url;
-        } else if (hb.data.url) {
-          backendPreviewUrl = hb.data.url;
-        }
-        if (backendPreviewUrl && !cancelled) {
-          await saveVmUrl(backendPreviewUrl);
-          const newUrl = await refreshPrimaryVmUrl();
-          if (newUrl && !cancelled) {
-            setPrimaryVmUrl(newUrl);
+      try {
+        const token = await getToken();
+        if (!token || cancelled) return;
+        const hb = await heartbeat(token);
+        if (cancelled) return;
+        if (!hb.ok && isSandboxUsageLimitError(hb)) {
+          setGrassSandboxBlockedByUsageLimit(true);
+          setVmRunning(false);
+          alertSandboxUsageLimitOnce(hb.error);
+          const urls = vmUrlsRef.current;
+          const primary = primaryVmUrlRef.current ?? getCachedPrimaryVmUrl() ?? undefined;
+          if (primary && urls.some((u) => u !== primary)) {
+            const idx = urls.findIndex((u) => u !== primary);
+            if (idx >= 0) setActiveVmTab(idx);
           }
+          return;
         }
-        return;
-      }
+        if (cancelled) return;
+        if (grassSandboxBlockedRef.current) return;
 
-      router.replace("/container-setup");
+        // Container is actually running — the edge health failure was caused by a
+        // rotated signed URL, not a stopped container.  Refresh the URL in-place
+        // instead of bouncing through container-setup.
+        if (hb.ok && hb.data.container === "running" && hb.data.grass) {
+          setVmRunning(true);
+          let backendPreviewUrl: string | undefined;
+          const preview = await signedPreviewUrl(token);
+          if (!cancelled && preview.ok) {
+            backendPreviewUrl = preview.data.url;
+          } else if (hb.data.url) {
+            backendPreviewUrl = hb.data.url;
+          }
+          if (backendPreviewUrl && !cancelled) {
+            await saveVmUrl(backendPreviewUrl);
+            const newUrl = await refreshPrimaryVmUrl();
+            if (newUrl && !cancelled) {
+              setPrimaryVmUrl(newUrl);
+            }
+          }
+          return;
+        }
+
+        router.replace("/container-setup");
+      } finally {
+        if (!cancelled) setGrassVmChecking(false);
+      }
     })();
     return () => {
       cancelled = true;
+      setGrassVmChecking(false);
     };
   }, [
     tabRestored,
@@ -788,6 +799,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     refreshGrassVmState,
     grassSandboxBlockedByUsageLimit,
     requestGrassVmUsageRecheck,
+    grassVmChecking,
     refreshRepos,
     handleRemoveUserVm,
     handleSelectAgent,
@@ -799,6 +811,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     refreshGrassVmState,
     grassSandboxBlockedByUsageLimit,
     requestGrassVmUsageRecheck,
+    grassVmChecking,
     refreshRepos, handleRemoveUserVm, handleSelectAgent, handleLogout,
   ]);
 

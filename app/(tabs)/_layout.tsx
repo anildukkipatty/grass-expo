@@ -7,6 +7,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import React, { useCallback } from "react";
+import { ActivityIndicator, Text, View } from "react-native";
 
 // ─── TabsLayoutInner ──────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ function TabsLayoutInner() {
     setPendingRepo,
     handleSelectAgent,
     refreshGrassVmState,
+    grassVmChecking,
   } = useNavbar();
   const router = useRouter();
 
@@ -36,7 +38,7 @@ function TabsLayoutInner() {
   );
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <NativeTabs
         tintColor="#088120"
       >
@@ -109,7 +111,37 @@ function TabsLayoutInner() {
           router.navigate("/(tabs)/repos");
         }}
       />
-    </>
+
+      {grassVmChecking && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.35)",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+          }}
+          pointerEvents="box-only"
+        >
+          <ActivityIndicator size="large" color="#ffffff" />
+          <Text
+            style={{
+              color: "#ffffff",
+              marginTop: 12,
+              fontSize: 14,
+              fontWeight: "500",
+              opacity: 0.9,
+            }}
+          >
+            Checking Grass VM…
+          </Text>
+        </View>
+      )}
+    </View>
   );
 }
 

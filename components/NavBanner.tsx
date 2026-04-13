@@ -13,6 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { usePathname, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Image,
   ScrollView,
@@ -37,6 +38,7 @@ export function VmTabBar() {
     grassSandboxBlockedByUsageLimit,
     requestGrassVmUsageRecheck,
     setSheetInitialView,
+    grassVmChecking,
   } = useNavbar();
 
   return (
@@ -74,16 +76,26 @@ export function VmTabBar() {
                 }}
                 activeOpacity={0.75}
               >
-                <View
-                  style={[
-                    styles.vmDot,
-                    status === undefined
-                      ? styles.vmDotUnknown
-                      : status
-                        ? styles.vmDotActive
-                        : styles.vmDotStopped,
-                  ]}
-                />
+                {isPrimaryVm && grassVmChecking ? (
+                  <View style={{ width: 8, height: 8, alignItems: "center", justifyContent: "center" }}>
+                    <ActivityIndicator
+                      size="small"
+                      color={isActive ? "#1C1C1E" : "#6C6C70"}
+                      style={{ transform: [{ scale: 0.4 }] }}
+                    />
+                  </View>
+                ) : (
+                  <View
+                    style={[
+                      styles.vmDot,
+                      status === undefined
+                        ? styles.vmDotUnknown
+                        : status
+                          ? styles.vmDotActive
+                          : styles.vmDotStopped,
+                    ]}
+                  />
+                )}
                 <Text
                   style={[
                     styles.tabPillText,
