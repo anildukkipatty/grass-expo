@@ -235,10 +235,6 @@ export function GetMoreSheet({
           setGithubLogin(statusRes.data.githubLogin ?? null);
           if (connected) {
             setGithubFlowActive(false);
-            Alert.alert(
-              "GitHub connected",
-              "GitHub OAuth is complete. Git access is now configured for your VM.",
-            );
           }
         }
       })();
