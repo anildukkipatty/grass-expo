@@ -8,7 +8,6 @@ import { saveVmUrl } from "@/store/url-store";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
-  BottomSheetTextInput,
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
@@ -17,7 +16,6 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   FlatList,
@@ -29,9 +27,11 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { Alert } from "@/utils/alert";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -510,7 +510,7 @@ function AuthSheet({
               /> */}
 
               <EmailPlaceHolderIcon style={styles.inputIconImage} />
-              <BottomSheetTextInput
+              <TextInput
                 style={[styles.input, !email && styles.inputPlaceholder]}
                 placeholder="name@email.com"
                 placeholderTextColor="#59B26E"
@@ -528,7 +528,7 @@ function AuthSheet({
           <>
             <Text style={styles.fieldLabel}>OTP CODE</Text>
             <View style={styles.inputRow}>
-              <BottomSheetTextInput
+              <TextInput
                 style={[styles.input, !otp && styles.inputPlaceholder]}
                 placeholder="Enter 6-digit code"
                 placeholderTextColor="#59B26E"

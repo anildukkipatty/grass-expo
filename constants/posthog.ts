@@ -1,4 +1,5 @@
 import PostHog from 'posthog-react-native'
+import { Platform } from 'react-native'
 
 const apiKey = process.env.EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN
 const isPostHogConfigured = apiKey && apiKey !== 'phc_your_project_token_here'
@@ -13,7 +14,6 @@ export const posthog = new PostHog(apiKey || 'placeholder_key', {
 })
 
 // Attach platform to every event so mobile vs backend events are distinguishable.
-posthog.register({ platform: 'mobile' })
-
+posthog.register({ platform: Platform.OS === 'web' ? 'web' : 'mobile' })
 // Suppress verbose SDK console logs in all environments.
 posthog.debug(false)

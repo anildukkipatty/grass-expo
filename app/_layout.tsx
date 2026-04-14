@@ -31,7 +31,8 @@ import { Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef } from "react";
-import { Text, TextInput } from "react-native";
+import { Platform, Text, TextInput, View } from "react-native";
+import { Image } from "expo-image";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -92,7 +93,16 @@ export default function RootLayout() {
     if (fontsLoaded) SplashScreen.hideAsync();
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded) {
+    if (Platform.OS === "web") {
+      return (
+        <View style={{ flex: 1, backgroundColor: "#a8d97f", justifyContent: "center", alignItems: "center" }}>
+          <Image source={require("../assets/images/logo.png")} style={{ width: 170, height: 170 }} />
+        </View>
+      );
+    }
+    return null;
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

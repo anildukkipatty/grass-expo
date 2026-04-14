@@ -1,6 +1,7 @@
-import { AppState } from 'react-native';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { AppState, Platform } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
-import { fetch } from 'expo/fetch';
+import { vmFetch } from '@/utils/vm-fetch';
 import { resolveServerKey, resolveServerUrl } from './url-store';
 import { APP_VERSION } from '@/constants/versions';
 import { checkVersionCompat, CompatResult } from '@/store/version-compat';
@@ -124,7 +125,7 @@ function notifyPermissionsListeners(serverUrl: string) {
 
 async function openPermissionsSSE(serverUrl: string) {
   const key = resolveServerKey(serverUrl);
-  const realUrl = _connections.get(key)?.baseUrl ?? resolveServerUrl(serverUrl);
+  const realUrl = _connections.get(key)?.baseUrl ?? resolveServerUrl(key);
   let entry = _permissionsSSE.get(key);
   if (!entry) {
     entry = { abortController: null, permissions: [], listeners: new Set(), resolvedUrl: null };
@@ -137,15 +138,47 @@ async function openPermissionsSSE(serverUrl: string) {
   const controller = new AbortController();
   entry.abortController = controller;
 
+  if (Platform.OS === 'web') {
+    try {
+      await fetchEventSource(`${realUrl}/permissions/events`, {
+        signal: controller.signal,
+        openWhenHidden: true,
+        headers: {
+          Accept: 'text/event-stream',
+          'X-Daytona-Skip-Preview-Warning': 'true',
+        },
+        onmessage(ev) {
+          if (ev.event !== 'permissions' || !ev.data) return;
+          try {
+            const parsed = JSON.parse(ev.data) as { permissions: GlobalPermissionItem[] };
+            const e2 = _permissionsSSE.get(key);
+            if (e2) {
+              e2.permissions = parsed.permissions ?? [];
+              notifyPermissionsListeners(key);
+            }
+          } catch { /* ignore parse error */ }
+        },
+        onerror() {
+          throw new Error('permissions_sse');
+        },
+      });
+    } catch {
+      /* aborted or network error */
+    }
+    const e2 = _permissionsSSE.get(key);
+    if (e2) e2.abortController = null;
+    return;
+  }
+
   let buffer = '';
 
   try {
-    const response = await fetch(
+    const response = await vmFetch(
       `${realUrl}/permissions/events`,
-      { headers: { Accept: 'text/event-stream' }, signal: controller.signal, reactNativeFetchMode: 'stream' } as unknown as Parameters<typeof fetch>[1]
+      { headers: { Accept: 'text/event-stream' }, signal: controller.signal, reactNativeFetchMode: 'stream' } as unknown as Parameters<typeof vmFetch>[1]
     );
 
-    if (!response.body) return;
+    if (!response.ok || !response.body) return;
     const reader = (response.body as ReadableStream<Uint8Array>).getReader();
     const decoder = new TextDecoder();
 
@@ -216,13 +249,13 @@ export async function respondGlobalPermission(
 ) {
   const key = resolveServerKey(serverUrl);
   const entry = _permissionsSSE.get(key);
-  const realUrl = entry?.resolvedUrl ?? _connections.get(key)?.baseUrl ?? resolveServerUrl(serverUrl);
+  const realUrl = entry?.resolvedUrl ?? _connections.get(key)?.baseUrl ?? resolveServerUrl(key);
   if (entry) {
     entry.permissions = entry.permissions.filter(p => p.toolUseID !== toolUseID);
     notifyPermissionsListeners(key);
   }
   try {
-    await fetch(`${realUrl}/sessions/${sessionId}/permission`, {
+    await vmFetch(`${realUrl}/sessions/${sessionId}/permission`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedInput !== undefined ? { toolUseID, approved, updatedInput } : { toolUseID, approved }),
@@ -411,18 +444,61 @@ async function openSSEStream(serverKey: string, sessionId: string) {
   entry.streaming = true;
   notifyListeners(serverKey);
 
-  const headers: Record<string, string> = { Accept: 'text/event-stream' };
+  const headers: Record<string, string> = {
+    Accept: 'text/event-stream',
+    'X-Daytona-Skip-Preview-Warning': 'true',
+  };
   if (entry.lastEventId) headers['Last-Event-ID'] = entry.lastEventId;
+
+  if (Platform.OS === 'web') {
+    try {
+      await fetchEventSource(
+        `${entry.baseUrl}/events?sessionId=${encodeURIComponent(sessionId)}`,
+        {
+          signal: controller.signal,
+          openWhenHidden: true,
+          headers,
+          onmessage(ev) {
+            if (ev.id) entry.lastEventId = ev.id;
+            const eventName = ev.event?.trim();
+            const data = ev.data;
+            if (!eventName && !data) return;
+            handleSSEEvent(serverKey, eventName || undefined, data || undefined);
+          },
+          onerror() {
+            throw new Error('chat_sse');
+          },
+        },
+      );
+    } catch {
+      /* aborted or network error */
+    }
+    const e = _connections.get(serverKey);
+    if (e) {
+      e.sseAbortController = null;
+      e.streaming = false;
+      notifyListeners(serverKey);
+    }
+    return;
+  }
 
   let buffer = '';
 
   try {
-    const response = await fetch(
+    const response = await vmFetch(
       `${entry.baseUrl}/events?sessionId=${encodeURIComponent(sessionId)}`,
-      { headers, signal: controller.signal, reactNativeFetchMode: 'stream' } as unknown as Parameters<typeof fetch>[1]
+      { headers, signal: controller.signal, reactNativeFetchMode: 'stream' } as unknown as Parameters<typeof vmFetch>[1]
     );
 
-    if (!response.body) return;
+    if (!response.ok || !response.body) {
+      const e = _connections.get(serverKey);
+      if (e) {
+        e.sseAbortController = null;
+        e.streaming = false;
+        notifyListeners(serverKey);
+      }
+      return;
+    }
     const reader = (response.body as ReadableStream<Uint8Array>).getReader();
     const decoder = new TextDecoder();
 
@@ -549,7 +625,7 @@ function syncConnectionBaseUrlIfChanged(key: string, realUrl: string): void {
 
 export function openConnection(serverUrl: string) {
   const key = resolveServerKey(serverUrl);
-  const realUrl = resolveServerUrl(serverUrl);
+  const realUrl = resolveServerUrl(key);
   if (_connections.has(key)) {
     syncConnectionBaseUrlIfChanged(key, realUrl);
     return;
@@ -669,7 +745,7 @@ export async function sendMessageStore(serverUrl: string, text: string, model?: 
   notifyListeners(key);
 
   try {
-    const res = await fetch(`${entry.baseUrl}/chat`, {
+    const res = await vmFetch(`${entry.baseUrl}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -681,6 +757,9 @@ export async function sendMessageStore(serverUrl: string, text: string, model?: 
         ...(mode ? { mode } : {}),
       }),
     });
+    if (!res.ok) {
+      throw new Error(`chat HTTP ${res.status}`);
+    }
     const json = await res.json() as { sessionId?: string };
     const sid = json.sessionId ?? entry.currentSessionId;
     if (sid) {
@@ -708,7 +787,7 @@ export async function abortStore(serverUrl: string) {
   entry.permissionQueue = [];
   notifyListeners(key);
   try {
-    await fetch(`${entry.baseUrl}/sessions/${entry.currentSessionId}/abort`, { method: 'POST' });
+    await vmFetch(`${entry.baseUrl}/sessions/${entry.currentSessionId}/abort`, { method: 'POST' });
   } catch { /* ignore */ }
 }
 
@@ -723,7 +802,7 @@ export async function respondPermissionStore(serverUrl: string, approved: boolea
   entry.permissionQueue = entry.permissionQueue.slice(1);
   notifyListeners(key);
   try {
-    await fetch(`${entry.baseUrl}/sessions/${entry.currentSessionId}/permission`, {
+    await vmFetch(`${entry.baseUrl}/sessions/${entry.currentSessionId}/permission`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ toolUseID: current.toolUseID, approved }),
@@ -738,8 +817,8 @@ export async function healthStore(serverUrl: string): Promise<CompatResult> {
   const entry = _connections.get(key);
   if (!entry) return { compatible: true };
   try {
-    const res = await fetch(`${entry.baseUrl}/health`, {
-      headers: { 'X-Client-Version': APP_VERSION },
+    const res = await vmFetch(`${entry.baseUrl}/health`, {
+      headers: { 'X-Client-Version': APP_VERSION, 'X-Daytona-Skip-Preview-Warning': 'true' },
     });
     if (!res.ok) throw new Error(`health ${res.status}`);
     const json = await res.json() as {
@@ -769,8 +848,9 @@ export async function listReposStore(serverUrl: string) {
   const entry = _connections.get(key);
   if (!entry) return;
   try {
-    const res = await fetch(`${entry.baseUrl}/repos`);
-    const json = await res.json() as { repos?: Repo[] };
+    const res = await vmFetch(`${entry.baseUrl}/repos`);
+    if (!res.ok) return;
+    const json = (await res.json()) as { repos?: Repo[] };
     if (_connections.has(key)) {
       entry.repos = json.repos ?? [];
       notifyListeners(key);
@@ -783,8 +863,9 @@ export async function getRepoDetailsStore(serverUrl: string, repoPath: string): 
   const entry = _connections.get(key);
   if (!entry) return;
   try {
-    const res = await fetch(`${entry.baseUrl}/repos/details?repoPath=${encodeURIComponent(repoPath)}`);
-    const json = await res.json() as RepoDetails;
+    const res = await vmFetch(`${entry.baseUrl}/repos/details?repoPath=${encodeURIComponent(repoPath)}`);
+    if (!res.ok) return;
+    const json = (await res.json()) as RepoDetails;
     if (_connections.has(key)) {
       entry.repoDetails = new Map(entry.repoDetails).set(repoPath, json);
       notifyListeners(key);
@@ -799,7 +880,7 @@ export async function cloneRepoStore(serverUrl: string, gitUrl: string): Promise
   entry.cloneStatus = { cloning: true, creating: false, error: null };
   notifyListeners(key);
   try {
-    const res = await fetch(`${entry.baseUrl}/repos/clone`, {
+    const res = await vmFetch(`${entry.baseUrl}/repos/clone`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: gitUrl }),
@@ -829,7 +910,7 @@ export async function createFolderStore(serverUrl: string, name: string): Promis
   entry.cloneStatus = { cloning: false, creating: true, error: null };
   notifyListeners(key);
   try {
-    const res = await fetch(`${entry.baseUrl}/folders`, {
+    const res = await vmFetch(`${entry.baseUrl}/folders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
@@ -880,7 +961,7 @@ export async function listSessionsStore(serverUrl: string, repoPath?: string, ag
     if (repoPath) params.set('repoPath', repoPath);
     if (agent) params.set('agent', agent);
     const qs = params.toString();
-    const res = await fetch(`${entry.baseUrl}/sessions${qs ? '?' + qs : ''}`);
+    const res = await vmFetch(`${entry.baseUrl}/sessions${qs ? '?' + qs : ''}`);
     const json = await res.json() as { sessions?: Session[] };
     if (_connections.has(key)) {
       entry.sessionsList = json.sessions ?? [];
@@ -908,7 +989,7 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
       if (agent) params.set('agent', agent);
       if (repoPath) params.set('repoPath', repoPath);
       const qs = params.toString();
-      const res = await fetch(`${entry.baseUrl}/sessions/${id}/history${qs ? '?' + qs : ''}`);
+      const res = await vmFetch(`${entry.baseUrl}/sessions/${id}/history${qs ? '?' + qs : ''}`);
       type HistoryContentBlock = { type: 'text'; text: string } | { type: 'tool_use'; tool_name: string; tool_input: string };
       type HistoryMessage = { role: string; content: string | HistoryContentBlock[] };
       const json = await res.json() as { messages?: HistoryMessage[] };
@@ -951,7 +1032,7 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
     // If so, set streaming=true immediately (so UI shows abort button / disabled input)
     // and re-attach the SSE stream to receive remaining events.
     try {
-      const statusRes = await fetch(`${entry.baseUrl}/sessions/${id}/status`);
+      const statusRes = await vmFetch(`${entry.baseUrl}/sessions/${id}/status`);
       if (statusRes.ok && _connections.has(key)) {
         const statusJson = await statusRes.json() as { streaming?: boolean };
         if (statusJson.streaming) {
@@ -985,7 +1066,7 @@ export async function listDirStore(serverUrl: string, path: string, repoPath: st
 
   try {
     const params = new URLSearchParams({ repoPath, path });
-    const res = await fetch(`${entry.baseUrl}/dir?${params.toString()}`, { signal: ctrl.signal });
+    const res = await vmFetch(`${entry.baseUrl}/dir?${params.toString()}`, { signal: ctrl.signal });
     const json = await res.json() as { entries?: DirEntry[] };
     if (_connections.has(key)) {
       entry.dirListing = json.entries ?? [];
@@ -1006,7 +1087,7 @@ export async function readFileStore(serverUrl: string, path: string, repoPath: s
 
   try {
     const params = new URLSearchParams({ repoPath, path });
-    const res = await fetch(`${entry.baseUrl}/file?${params.toString()}`, { signal: ctrl.signal });
+    const res = await vmFetch(`${entry.baseUrl}/file?${params.toString()}`, { signal: ctrl.signal });
     const json = await res.json() as { content: string; size: number };
     if (_connections.has(key)) {
       entry.fileContent = { path, content: json.content, size: json.size };
@@ -1023,7 +1104,7 @@ export async function getDiffsStore(serverUrl: string, repoPath?: string) {
     const params = new URLSearchParams();
     if (repoPath) params.set('repoPath', repoPath);
     const qs = params.toString();
-    const res = await fetch(`${entry.baseUrl}/diffs${qs ? '?' + qs : ''}`);
+    const res = await vmFetch(`${entry.baseUrl}/diffs${qs ? '?' + qs : ''}`);
     const json = await res.json() as { diff?: string };
     if (_connections.has(key)) {
       entry.diffs = json.diff ?? null;

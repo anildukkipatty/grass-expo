@@ -4,6 +4,7 @@ import { StickyBannerLayout } from "@/components/StickyBannerLayout";
 import { SwipeableRepoCard, repoStyles } from "@/components/SwipeableRepoCard";
 import { useNavbar } from "@/contexts/navbar-context";
 import { resolveServerUrl } from "@/store/url-store";
+import { vmFetch } from "@/utils/vm-fetch";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -32,7 +33,7 @@ export default function ReposTab() {
       return;
     }
     setDebugResult("fetching...");
-    fetch(healthApiUrl)
+    vmFetch(healthApiUrl)
       .then(async (res) => {
         const text = await res.text();
         setDebugResult(`${res.status} — ${text.slice(0, 300)}`);

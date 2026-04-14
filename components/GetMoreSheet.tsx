@@ -17,6 +17,7 @@ import {
   type GithubRepo,
 } from "@/api/github";
 import { useNavbar } from "@/contexts/navbar-context";
+import { EnableCameraButton } from "@/components/EnableCameraButton";
 import AddRepoSvg from "@/assets/images/get-more/add-repo.svg";
 import AppleSvg from "@/assets/images/get-more/apple.svg";
 import BackArrow from "@/assets/images/get-more/back-arrow.svg";
@@ -54,8 +55,6 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  AppState,
   Clipboard,
   Keyboard,
   KeyboardAvoidingView,
@@ -67,6 +66,9 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { onAppForeground } from "@/utils/app-foreground-listener";
+import { readClipboardText } from "@/utils/clipboard";
+import { Alert } from "@/utils/alert";
 import { Easing } from "react-native-reanimated";
 
 type SheetView = "home" | "connect-agent" | "connect-laptop" | "add-repository" | "github-repos";
@@ -91,7 +93,7 @@ export function GetMoreSheet({
   serverUrl,
   onRepoAdded,
 }: Props) {
-  const { repos: vmRepos } = useNavbar();
+  const { repos: vmRepos, refreshRepos } = useNavbar();
   const [currentView, setCurrentView] = useState<SheetView>(initialView);
   const [activeTab, setActiveTab] = useState<AgentTab>("claude");
   const [claudeCode, setClaudeCode] = useState("");
@@ -120,7 +122,9 @@ export function GetMoreSheet({
   const [githubRepos, setGithubRepos] = useState<GithubRepo[]>([]);
   const [githubReposLoading, setGithubReposLoading] = useState(false);
   const [cloningRepoId, setCloningRepoId] = useState<string | number | null>(null);
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [cameraPermission, requestCameraPermission, refreshCameraPermission] =
+    useCameraPermissions();
+  const [webCameraGranted, setWebCameraGranted] = useState(false);
   const [scannedQr, setScannedQr] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
   const [scannerPaused, setScannerPaused] = useState(false);
@@ -158,6 +162,19 @@ export function GetMoreSheet({
     [vmRepos],
   );
 
+  const connectLaptopCameraGranted = useMemo(
+    () =>
+      Boolean(cameraPermission?.granted) ||
+      (Platform.OS === "web" && webCameraGranted),
+    [cameraPermission?.granted, webCameraGranted],
+  );
+
+  useEffect(() => {
+    if (!visible) {
+      setWebCameraGranted(false);
+    }
+  }, [visible]);
+
   useEffect(() => {
     if (visible) {
       setCurrentView(initialView ?? "home");
@@ -193,15 +210,21 @@ export function GetMoreSheet({
   }, [visible]);
 
   useEffect(() => {
-    if (visible && currentView === "github-repos") {
-      loadGithubRepos();
+    if (!visible || !serverUrl) return;
+    if (currentView === "github-repos") {
+      void loadGithubRepos();
+      // GitHub "already on VM" uses the API's sandbox folder list; the Repos tab uses
+      // `GET {vm}/repos`. Refresh here so the tab + vmRepoNameSet match the VM after web
+      // cold start or any missed sync.
+      void refreshRepos();
+    } else if (currentView === "add-repository") {
+      void refreshRepos();
     }
-  }, [visible, currentView]);
+  }, [visible, currentView, serverUrl, refreshRepos]);
 
   useEffect(() => {
     if (!visible || !githubFlowActive) return;
-    const subscription = AppState.addEventListener("change", (nextState) => {
-      if (nextState !== "active") return;
+    const cleanup = onAppForeground(() => {
       void (async () => {
         const token = await getToken();
         if (!token) return;
@@ -221,9 +244,7 @@ export function GetMoreSheet({
       })();
     });
 
-    return () => {
-      subscription.remove();
-    };
+    return cleanup;
   }, [visible, githubFlowActive]);
 
   // Start Claude auth flow when navigating to connect-agent with claude tab
@@ -259,6 +280,10 @@ export function GetMoreSheet({
 
   useEffect(() => {
     if (!visible || currentView !== "connect-laptop") return;
+    // On web (including iOS Safari / installed PWA), getUserMedia must run from a real user
+    // gesture. Auto-requesting from an effect fails silently and can make later taps feel
+    // broken; the connect-laptop UI already has an "Enable Camera" control for web.
+    if (Platform.OS === "web") return;
     if (cameraPermission?.granted) return;
     if (cameraPermission?.canAskAgain === false) return;
     void requestCameraPermission();
@@ -278,6 +303,78 @@ export function GetMoreSheet({
     scanLockRef.current = false;
   }, [visible, currentView]);
 
+  const handleConnectLaptopEnableCamera = useCallback(() => {
+    if (Platform.OS === "web") {
+      if (cameraPermission?.canAskAgain === false) {
+        Alert.alert(
+          "Camera blocked",
+          "Allow camera for this site in your browser settings (often the lock or site settings icon next to the address bar), then reload the page.",
+        );
+        return;
+      }
+      const md =
+        typeof navigator !== "undefined" ? navigator.mediaDevices : undefined;
+      if (!md?.getUserMedia) {
+        Alert.alert(
+          "Camera unavailable",
+          "Your browser does not support camera access, or this page is not being served securely (use HTTPS).",
+        );
+        return;
+      }
+
+      const tryGum = (fallback: boolean) => {
+        md.getUserMedia({
+          video: fallback ? true : { facingMode: { ideal: "environment" } },
+          audio: false,
+        })
+          .then(async (stream) => {
+            stream.getTracks().forEach((t) => t.stop());
+            setWebCameraGranted(true);
+            try {
+              await refreshCameraPermission();
+            } catch {
+              /* Permissions API may be unavailable; webCameraGranted is enough */
+            }
+          })
+          .catch((err: unknown) => {
+            const dom = err as Partial<DOMException>;
+            const name = dom?.name ?? "";
+            if (
+              (name === "ConstraintNotSatisfiedError" ||
+                name === "OverconstrainedError") &&
+              !fallback
+            ) {
+              tryGum(true);
+              return;
+            }
+            const msg = dom?.message ?? String(err);
+            const blocked =
+              name === "NotAllowedError" ||
+              /Permission|denied|NotAllowed/i.test(msg);
+            Alert.alert(
+              blocked ? "Camera access" : "Camera error",
+              blocked
+                ? "Allow camera for this site when your browser asks, or enable it in site settings."
+                : msg || "Could not open the camera.",
+            );
+          });
+      };
+
+      tryGum(false);
+      return;
+    }
+
+    if (cameraPermission?.canAskAgain === false) {
+      void Linking.openSettings();
+    } else {
+      void requestCameraPermission();
+    }
+  }, [
+    cameraPermission?.canAskAgain,
+    requestCameraPermission,
+    refreshCameraPermission,
+  ]);
+
   function handleCopyAuthUrl() {
     const url =
       activeTab === "claude" && claudeAuthUrl
@@ -293,6 +390,18 @@ export function GetMoreSheet({
       activeTab === "claude" && claudeAuthUrl
         ? claudeAuthUrl
         : "https://" + authUrl;
+
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const win = window.open(url, "_blank", "noopener,noreferrer");
+      if (!win) {
+        Alert.alert(
+          "Could not open a new tab",
+          "Your browser blocked the popup. Allow popups for this site, or copy the URL and open it in a new tab.",
+        );
+      }
+      return;
+    }
+
     setOpeningBrowser(true);
     try {
       await Linking.openURL(url);
@@ -1002,9 +1111,16 @@ export function GetMoreSheet({
               <TouchableOpacity
                 style={styles.copyBtnWrap}
                 onPress={async () => {
-                  const text = await Clipboard.getString();
-                  if (text?.trim()) {
-                    setAuthCode(text.trim());
+                  const text = (await readClipboardText())?.trim() ?? "";
+                  if (text) {
+                    setAuthCode(text);
+                    return;
+                  }
+                  if (Platform.OS === "web") {
+                    Alert.alert(
+                      "Clipboard",
+                      "Nothing was read from the clipboard. Allow clipboard access for this site in your browser settings, or paste with Ctrl+V / ⌘V in the field.",
+                    );
                   }
                 }}
                 activeOpacity={0.75}
@@ -1122,7 +1238,7 @@ export function GetMoreSheet({
         </View>
 
         <View>
-          {cameraPermission?.granted && !scannerPaused ? (
+          {connectLaptopCameraGranted && !scannerPaused ? (
             <View style={styles.qrImageContainer}>
               <CameraView
                 style={styles.qrCamera}
@@ -1133,7 +1249,7 @@ export function GetMoreSheet({
                 }}
               />
             </View>
-          ) : cameraPermission?.granted ? (
+          ) : connectLaptopCameraGranted ? (
             <View style={[styles.qrPausedState, styles.qrImageContainer]}>
               <Ionicons name="pause-circle-outline" size={32} color="#7AAA58" />
               <Text style={styles.qrPermissionText}>
@@ -1146,31 +1262,19 @@ export function GetMoreSheet({
               <Text style={styles.qrPermissionText}>
                 Allow camera access to scan the QR code
               </Text>
-              <TouchableOpacity
+              <EnableCameraButton
                 style={styles.qrPermissionBtn}
-                onPress={() => {
-                  if (cameraPermission?.canAskAgain === false) {
-                    void Linking.openSettings();
-                  } else {
-                    void requestCameraPermission();
-                  }
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.qrPermissionBtnText}>
-                  {cameraPermission?.canAskAgain === false
-                    ? "Enable Camera"
-                    : "Enable Camera"}
-                </Text>
-              </TouchableOpacity>
+                textStyle={styles.qrPermissionBtnText}
+                onPress={handleConnectLaptopEnableCamera}
+              />
             </View>
           )}
           <Text style={styles.qrCaption}>
-            {cameraPermission?.granted
+            {connectLaptopCameraGranted
               ? "POINT THE CAMERA AT THE QR"
               : "ENABLE CAMERA TO SCAN QR"}
           </Text>
-          {cameraPermission?.granted && scannerPaused && (
+          {connectLaptopCameraGranted && scannerPaused && (
             <TouchableOpacity
               style={styles.scanAgainBtn}
               onPress={() => {
@@ -1430,6 +1534,24 @@ export function GetMoreSheet({
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  function renderSheetScrollContent() {
+    return (
+      <>
+        <LinearGradient
+          colors={["#FFFFFF", "#CCFFD9"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        {currentView === "home" && renderHomeView()}
+        {currentView === "connect-agent" && renderConnectAgentView()}
+        {currentView === "connect-laptop" && renderConnectLaptopView()}
+        {currentView === "add-repository" && renderAddRepositoryView()}
+        {currentView === "github-repos" && renderGithubReposView()}
+      </>
+    );
+  }
+
   return (
     <BottomSheetModal
       ref={bottomSheetRef}
@@ -1449,26 +1571,20 @@ export function GetMoreSheet({
         <BottomSheetScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps={
+            Platform.OS === "web" ? "always" : "handled"
+          }
         >
-          <TouchableWithoutFeedback
-            onPress={Keyboard.dismiss}
-            accessible={false}
-          >
-            <View style={{ flex: 1 }}>
-              <LinearGradient
-                colors={["#FFFFFF", "#CCFFD9"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-              {currentView === "home" && renderHomeView()}
-              {currentView === "connect-agent" && renderConnectAgentView()}
-              {currentView === "connect-laptop" && renderConnectLaptopView()}
-              {currentView === "add-repository" && renderAddRepositoryView()}
-              {currentView === "github-repos" && renderGithubReposView()}
-            </View>
-          </TouchableWithoutFeedback>
+          {Platform.OS === "web" ? (
+            <View style={{ flex: 1 }}>{renderSheetScrollContent()}</View>
+          ) : (
+            <TouchableWithoutFeedback
+              onPress={Keyboard.dismiss}
+              accessible={false}
+            >
+              <View style={{ flex: 1 }}>{renderSheetScrollContent()}</View>
+            </TouchableWithoutFeedback>
+          )}
         </BottomSheetScrollView>
       </KeyboardAvoidingView>
     </BottomSheetModal>

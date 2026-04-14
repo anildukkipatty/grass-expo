@@ -8,12 +8,16 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "build:web": "expo export --platform web",
+    "preview:web": "npx serve dist",
     "lint": "expo lint"
   },
   "dependencies": {
     "@expo-google-fonts/dm-mono": "^0.4.2",
     "@expo/vector-icons": "^15.0.3",
     "@gorhom/bottom-sheet": "^5.2.8",
+    "@microsoft/fetch-event-source": "^2.0.1",
+    "@radix-ui/react-tabs": "^1.1.13",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
