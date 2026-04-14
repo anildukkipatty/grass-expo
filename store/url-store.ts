@@ -92,6 +92,25 @@ export async function getLastActiveTab(): Promise<string | null> {
   return AsyncStorage.getItem(LAST_TAB_KEY);
 }
 
+// Returns true if the URL looks like a relay session URL: /s/<token>
+export function isRelayUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return /^\/s\/[^/]+/.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
+// Extracts the relay base host for display (e.g. "relay.example.com")
+export function relayHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
 export async function clearUrls(): Promise<void> {
   // Write empty arrays first to avoid any stale reads racing remove calls.
   await AsyncStorage.multiSet([

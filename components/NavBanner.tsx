@@ -1,6 +1,7 @@
 import GetMoreCardSvg from "@/assets/images/navbar-screens/get-more-card.svg";
 import { NationalPark } from "@/constants/theme";
 import { extractHost, useNavbar } from "@/contexts/navbar-context";
+import { isRelayUrl, relayHost } from "@/store/url-store";
 import { Ionicons } from "@expo/vector-icons";
 import {
   BottomSheetBackdrop,
@@ -56,7 +57,7 @@ export function VmTabBar() {
           // stand-in (primaryVmUrl is unset until storage/heartbeat hydrate, so custom URLs at
           // index 0 were incorrectly shown as GrassVM).
           const isPrimaryVm = !!primaryVmUrl && url === primaryVmUrl;
-          const tabLabel = isPrimaryVm ? "GrassVM" : extractHost(url);
+          const tabLabel = isPrimaryVm ? "GrassVM" : isRelayUrl(url) ? `${relayHost(url)} (relay)` : extractHost(url);
           const isUserVm = primaryVmUrl ? url !== primaryVmUrl : idx > 0;
           // undefined = not yet polled → show grey; true = green; false = red
           const status = vmUrlStatuses.get(url);

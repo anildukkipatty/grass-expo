@@ -540,7 +540,7 @@ function syncConnectionBaseUrlIfChanged(key: string, realUrl: string): void {
     void openPermissionsSSE(key);
   }
 
-  void healthStore(key);
+  void healthStore(key).catch(() => {});
   void listReposStore(key);
 
   notifyListeners(key);
@@ -582,7 +582,7 @@ export function openConnection(serverUrl: string) {
     listeners: new Set(),
   };
   _connections.set(key, entry);
-  healthStore(key);
+  void healthStore(key).catch(() => {});
   listReposStore(key);
   _globalListeners.forEach(fn => fn());
 }
@@ -620,7 +620,7 @@ export function openConnectionWithKey(key: string, realUrl: string) {
     listeners: new Set(),
   };
   _connections.set(key, entry);
-  healthStore(key);
+  void healthStore(key).catch(() => {});
   listReposStore(key);
   _globalListeners.forEach(fn => fn());
 }
@@ -741,6 +741,7 @@ export async function healthStore(serverUrl: string): Promise<CompatResult> {
     const res = await fetch(`${entry.baseUrl}/health`, {
       headers: { 'X-Client-Version': APP_VERSION },
     });
+    if (!res.ok) throw new Error(`health ${res.status}`);
     const json = await res.json() as {
       cwd?: string;
       serverVersion?: string;
@@ -756,8 +757,8 @@ export async function healthStore(serverUrl: string): Promise<CompatResult> {
     entry.versionCompatible = result.compatible;
     notifyListeners(key);
     return result;
-  } catch {
-    return { compatible: true };  // network error → no compat alert
+  } catch (err) {
+    throw err;  // let pollAll mark the dot red; compat alert is not shown for failures
   }
 }
 
