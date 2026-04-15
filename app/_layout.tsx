@@ -25,9 +25,9 @@ import { GrassColors, NationalPark, DMMono } from "@/constants/theme";
 import { posthog } from "@/constants/posthog";
 import { PostHogProvider } from "posthog-react-native";
 import { useTheme } from "@/store/theme-store";
-import { getUser } from "@/store/auth-store";
+import { getUser, setAuthErrorHandler, clearAuth } from "@/store/auth-store";
 import { useFonts } from "expo-font";
-import { Stack, usePathname } from "expo-router";
+import { Stack, usePathname, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef } from "react";
@@ -64,6 +64,17 @@ function useScreenTracking() {
 
 export default function RootLayout() {
   useScreenTracking();
+  const router = useRouter();
+
+  // Sign out automatically when any API call returns 401 Unauthorized.
+  useEffect(() => {
+    setAuthErrorHandler(async () => {
+      await clearAuth();
+      router.dismissAll();
+      router.replace("/welcome");
+    });
+    return () => setAuthErrorHandler(() => {});
+  }, [router]);
 
   // Re-identify the user on app load so PostHog links sessions correctly.
   useEffect(() => {
