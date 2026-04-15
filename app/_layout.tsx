@@ -21,7 +21,7 @@ if (ErrorUtils) {
   });
 }
 
-import { GrassColors, NationalPark, DMMono } from "@/constants/theme";
+import { GrassColors, NationalPark, DMMono, SFPro } from "@/constants/theme";
 import { posthog } from "@/constants/posthog";
 import { PostHogProvider } from "posthog-react-native";
 import { useTheme } from "@/store/theme-store";
@@ -37,14 +37,14 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 SplashScreen.preventAutoHideAsync();
 
-// Apply National Park as the default font for all Text and TextInput components
+// Apply SF Pro as the default font for all Text and TextInput components
 const DefaultText = Text as any;
 if (DefaultText.defaultProps == null) DefaultText.defaultProps = {};
-DefaultText.defaultProps.style = { fontFamily: NationalPark.regular };
+DefaultText.defaultProps.style = { fontFamily: SFPro.regular };
 
 const DefaultTextInput = TextInput as any;
 if (DefaultTextInput.defaultProps == null) DefaultTextInput.defaultProps = {};
-DefaultTextInput.defaultProps.style = { fontFamily: NationalPark.regular };
+DefaultTextInput.defaultProps.style = { fontFamily: SFPro.regular };
 
 // Track screen views for PostHog analytics using Expo Router's pathname.
 function useScreenTracking() {
@@ -70,7 +70,7 @@ export default function RootLayout() {
     setAuthErrorHandler(async () => {
       await clearAuth();
       router.dismissAll();
-      router.replace("/welcome");
+      router.replace("/onboarding" as any);
     });
     return () => setAuthErrorHandler(() => {});
   }, [router]);
@@ -97,6 +97,14 @@ export default function RootLayout() {
     [DMMono.light]: require("@expo-google-fonts/dm-mono/300Light/DMMono_300Light.ttf"),
     [DMMono.regular]: require("@expo-google-fonts/dm-mono/400Regular/DMMono_400Regular.ttf"),
     [DMMono.medium]: require("@expo-google-fonts/dm-mono/500Medium/DMMono_500Medium.ttf"),
+    [SFPro.regular]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Regular.otf"),
+    [SFPro.medium]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Medium.otf"),
+    [SFPro.semiBold]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Semibold.otf"),
+    [SFPro.bold]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Bold.otf"),
+    [SFPro.displayRegular]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Regular.otf"),
+    [SFPro.displayMedium]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Medium.otf"),
+    [SFPro.displaySemiBold]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Semibold.otf"),
+    [SFPro.displayBold]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Bold.otf"),
   });
 
   useEffect(() => {
@@ -132,12 +140,17 @@ export default function RootLayout() {
         />
         <Stack.Screen name="machines" options={{ headerShown: false }} />
         <Stack.Screen name="welcome" options={{ headerShown: false }} />
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+        <Stack.Screen name="onboarding-claim" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="folders" options={{ headerShown: false }} />
         <Stack.Screen name="agent-picker" options={{ headerShown: false }} />
         <Stack.Screen name="project" options={{ headerShown: false }} />
         <Stack.Screen name="sessions" options={{ headerShown: false }} />
         <Stack.Screen name="chat" options={{ headerShown: false }} />
-        <Stack.Screen name="container-setup" options={{ headerShown: false }} />
+        <Stack.Screen name="vm-ready" options={{ headerShown: false }} />
+        <Stack.Screen name="vm-name" options={{ headerShown: false }} />
+        <Stack.Screen name="vm-final" options={{ headerShown: false }} />
+        <Stack.Screen name="vm-first-task" options={{ headerShown: false }} />
         <Stack.Screen name="push-commit" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen

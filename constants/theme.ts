@@ -82,6 +82,17 @@ export const NationalPark = {
   extraBold:  'NationalPark-ExtraBold',
 } as const;
 
+export const SFPro = {
+  regular:        'SFProText-Regular',
+  medium:         'SFProText-Medium',
+  semiBold:       'SFProText-Semibold',
+  bold:           'SFProText-Bold',
+  displayRegular: 'SFProDisplay-Regular',
+  displayMedium:  'SFProDisplay-Medium',
+  displaySemiBold:'SFProDisplay-Semibold',
+  displayBold:    'SFProDisplay-Bold',
+} as const;
+
 export const Fonts = Platform.select({
   ios: {
     sans:    NationalPark.regular,
