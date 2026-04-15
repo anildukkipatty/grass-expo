@@ -3,9 +3,9 @@ import { AgentPickerSheet } from "@/components/NavBanner";
 import { NavbarProvider, orderVmUrls, useNavbar } from "@/contexts/navbar-context";
 import { getEntry, getRepoDetailsStore, listReposStore } from "@/store/connection-store";
 import { getUrls, resolveServerKey } from "@/store/url-store";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { useRouter } from "expo-router";
-import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { Tabs, useRouter } from "expo-router";
 import React, { useCallback } from "react";
 
 // ─── TabsLayoutInner ──────────────────────────────────────────────────────────
@@ -37,24 +37,47 @@ function TabsLayoutInner() {
 
   return (
     <>
-      <NativeTabs
-        tintColor="#088120"
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: "#088120",
+          tabBarStyle: {
+            position: "fixed" as any,
+            bottom: 0,
+            left: 0,
+            right: 0,
+          },
+        }}
       >
-        <NativeTabs.Trigger name="home">
-          <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-
-        <NativeTabs.Trigger name="perms">
-          <NativeTabs.Trigger.Label>Perms</NativeTabs.Trigger.Label>
-          {permsCount > 0 && (
-            <NativeTabs.Trigger.Badge>{String(permsCount)}</NativeTabs.Trigger.Badge>
-          )}
-        </NativeTabs.Trigger>
-
-        <NativeTabs.Trigger name="repos">
-          <NativeTabs.Trigger.Label>Repos</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-      </NativeTabs>
+        <Tabs.Screen
+          name="home"
+          options={{
+            title: "Home",
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="home" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="perms"
+          options={{
+            title: "Perms",
+            tabBarBadge: permsCount > 0 ? permsCount : undefined,
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="shield-checkmark" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="repos"
+          options={{
+            title: "Repos",
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="folder" size={size} color={color} />
+            ),
+          }}
+        />
+      </Tabs>
 
       <AgentPickerSheet
         pendingRepo={pendingRepo}
