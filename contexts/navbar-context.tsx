@@ -387,18 +387,23 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   const refreshGrassVmState = useCallback(async () => {
     const token = await getToken();
     if (!token) return;
-    const hb = await heartbeat(token);
-    if (!hb.ok && isSandboxUsageLimitError(hb)) {
-      setGrassSandboxBlockedByUsageLimit(true);
-      setVmRunning(false);
-      return;
-    }
-    if (hb.ok && hb.data.container === "running" && hb.data.grass) {
-      setGrassSandboxBlockedByUsageLimit(false);
-      setVmRunning(true);
-    } else {
-      setGrassSandboxBlockedByUsageLimit(false);
-      setVmRunning(false);
+    setGrassVmChecking(true);
+    try {
+      const hb = await heartbeat(token);
+      if (!hb.ok && isSandboxUsageLimitError(hb)) {
+        setGrassSandboxBlockedByUsageLimit(true);
+        setVmRunning(false);
+        return;
+      }
+      if (hb.ok && hb.data.container === "running" && hb.data.grass) {
+        setGrassSandboxBlockedByUsageLimit(false);
+        setVmRunning(true);
+      } else {
+        setGrassSandboxBlockedByUsageLimit(false);
+        setVmRunning(false);
+      }
+    } finally {
+      setGrassVmChecking(false);
     }
   }, []);
 

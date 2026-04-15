@@ -18,6 +18,7 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 
@@ -47,11 +48,45 @@ export default function ContainerSetupScreen() {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const [activeIndex, setActiveIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [retrySecondsLeft, setRetrySecondsLeft] = useState(0);
   const provisionDone = useRef(false);
   const flatListRef = useRef<FlatList>(null);
+  const cooldownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clear cooldown interval on unmount
+  useEffect(() => {
+    return () => {
+      if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current);
+    };
+  }, []);
+
+  const handleRetry = () => {
+    // Reset UI and restart provisioning (cleanup in useEffect cancels the previous call)
+    progressAnim.setValue(0);
+    setError(null);
+    setTimedOut(false);
+    setRetryCount((c) => c + 1);
+
+    // Start 15s cooldown so the button can't be spammed
+    setRetrySecondsLeft(15);
+    if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current);
+    cooldownIntervalRef.current = setInterval(() => {
+      setRetrySecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(cooldownIntervalRef.current!);
+          cooldownIntervalRef.current = null;
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+  };
 
   useEffect(() => {
     let cancelled = false;
+    provisionDone.current = false;
 
     // Animate progress 0% → 95% over 18s
     const progressTimer = Animated.timing(progressAnim, {
@@ -60,6 +95,13 @@ export default function ContainerSetupScreen() {
       useNativeDriver: false,
     });
     progressTimer.start();
+
+    // Show retry button if provisioning takes longer than 15s
+    const timeoutTimer = setTimeout(() => {
+      if (!provisionDone.current && !cancelled) {
+        setTimedOut(true);
+      }
+    }, 15000);
 
     async function provision() {
       const token = await getToken();
@@ -70,7 +112,6 @@ export default function ContainerSetupScreen() {
       if (cancelled) return;
 
       if (!hb.ok && isSandboxUsageLimitError(hb)) {
-        progressTimer.stop();
         notifyGrassSandboxUsageLimitHit();
         router.replace("/(tabs)/home");
         return;
@@ -96,7 +137,6 @@ export default function ContainerSetupScreen() {
           const poll = await heartbeat(token);
           if (cancelled) return;
           if (!poll.ok && isSandboxUsageLimitError(poll)) {
-            progressTimer.stop();
             notifyGrassSandboxUsageLimitHit();
             router.replace("/(tabs)/home");
             return;
@@ -174,9 +214,10 @@ export default function ContainerSetupScreen() {
     return () => {
       cancelled = true;
       progressTimer.stop();
+      clearTimeout(timeoutTimer);
       clearInterval(cardInterval);
     };
-  }, [router, progressAnim]);
+  }, [router, progressAnim, retryCount]);
 
   // Spinner rotation loop
   useEffect(() => {
@@ -275,14 +316,28 @@ export default function ContainerSetupScreen() {
 
         <View style={styles.bottomArea}>
           {error ? (
-            <Text
-              style={[
-                styles.statusText,
-                { color: "#ef4444", textAlign: "center" },
-              ]}
-            >
-              {error}
-            </Text>
+            <>
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: "#ef4444", textAlign: "center" },
+                ]}
+              >
+                {error}
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.retryButton,
+                  retrySecondsLeft > 0 && styles.retryButtonDisabled,
+                ]}
+                onPress={handleRetry}
+                disabled={retrySecondsLeft > 0}
+              >
+                <Text style={styles.retryButtonText}>
+                  {retrySecondsLeft > 0 ? `Retry (${retrySecondsLeft}s)` : "Retry"}
+                </Text>
+              </TouchableOpacity>
+            </>
           ) : (
             <>
               <View style={styles.statusRow}>
@@ -303,6 +358,30 @@ export default function ContainerSetupScreen() {
                   style={[styles.progressFill, { width: progressWidth }]}
                 />
               </View>
+              {timedOut && (
+                <>
+                  <Text
+                    style={[
+                      styles.statusText,
+                      { color: "#ef4444", textAlign: "center" },
+                    ]}
+                  >
+                    This is taking longer than expected.
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.retryButton,
+                      retrySecondsLeft > 0 && styles.retryButtonDisabled,
+                    ]}
+                    onPress={handleRetry}
+                    disabled={retrySecondsLeft > 0}
+                  >
+                    <Text style={styles.retryButtonText}>
+                      {retrySecondsLeft > 0 ? `Retry (${retrySecondsLeft}s)` : "Retry"}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </>
           )}
         </View>
@@ -455,5 +534,22 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: "#7FE63A",
     borderRadius: 4,
+  },
+  retryButton: {
+    backgroundColor: "#7FE63A",
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+    alignItems: "center",
+    alignSelf: "center",
+  },
+  retryButtonDisabled: {
+    backgroundColor: "rgba(127, 230, 58, 0.4)",
+  },
+  retryButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#000",
+    fontFamily: NationalPark.bold,
   },
 });
