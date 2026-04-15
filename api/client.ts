@@ -1,5 +1,7 @@
+import { triggerAuthError } from "@/store/auth-store";
+
 // const BASE_URL = "https://uat.revise.network/grass/api";
-// const BASE_URL = "http://100.70.11.43:4008";
+// const BASE_URL = "http://100.70.11.43:4008/api";
 const BASE_URL = "https://api.codeongrass.com/v1"
 
 type RequestOptions = {
@@ -65,6 +67,9 @@ export async function apiRequest<T = unknown>(
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
+      if (response.status === 401) {
+        triggerAuthError();
+      }
       const code =
         data && typeof data === "object" && typeof (data as { code?: unknown }).code === "string"
           ? (data as { code: string }).code

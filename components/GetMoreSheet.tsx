@@ -91,7 +91,7 @@ export function GetMoreSheet({
   serverUrl,
   onRepoAdded,
 }: Props) {
-  const { repos: vmRepos } = useNavbar();
+  const { repos: vmRepos, primaryVmUrl } = useNavbar();
   const [currentView, setCurrentView] = useState<SheetView>(initialView);
   const [activeTab, setActiveTab] = useState<AgentTab>("claude");
   const [claudeCode, setClaudeCode] = useState("");
@@ -157,6 +157,12 @@ export function GetMoreSheet({
       ),
     [vmRepos],
   );
+
+  // When the user is on a custom VM (not the primary Daytona sandbox), the backend's
+  // `alreadyOnVm` flag is unreliable — it always reflects the Daytona sandbox folders,
+  // not the custom VM. In that case, rely solely on vmRepoNameSet (fetched from the
+  // selected VM) to determine whether a repo is already present.
+  const isCustomVm = !!serverUrl && !!primaryVmUrl && serverUrl !== primaryVmUrl;
 
   useEffect(() => {
     if (visible) {
@@ -1204,9 +1210,10 @@ export function GetMoreSheet({
   }
 
   async function handleCloneGithubRepo(repo: GithubRepo) {
+    const repoName = String(repo.name || "").trim().toLowerCase();
     const alreadyOnVm =
-      Boolean(repo.alreadyOnVm) ||
-      vmRepoNameSet.has(String(repo.name || "").trim().toLowerCase());
+      vmRepoNameSet.has(repoName) ||
+      (!isCustomVm && Boolean(repo.alreadyOnVm));
     if (cloningRepoId || alreadyOnVm) return;
     if (!serverUrl) {
       Alert.alert(
@@ -1272,9 +1279,10 @@ export function GetMoreSheet({
         ) : (
           <View style={{ marginTop: 16, gap: 10 }}>
             {githubRepos.map((repo) => {
+              const repoName = String(repo.name || "").trim().toLowerCase();
               const alreadyOnVm =
-                Boolean(repo.alreadyOnVm) ||
-                vmRepoNameSet.has(String(repo.name || "").trim().toLowerCase());
+                vmRepoNameSet.has(repoName) ||
+                (!isCustomVm && Boolean(repo.alreadyOnVm));
               return (
                 <TouchableOpacity
                   key={repo.id}
