@@ -93,7 +93,7 @@ export function GetMoreSheet({
   serverUrl,
   onRepoAdded,
 }: Props) {
-  const { repos: vmRepos, refreshRepos } = useNavbar();
+  const { repos: vmRepos, refreshRepos, primaryVmUrl } = useNavbar();
   const [currentView, setCurrentView] = useState<SheetView>(initialView);
   const [activeTab, setActiveTab] = useState<AgentTab>("claude");
   const [claudeCode, setClaudeCode] = useState("");
@@ -161,6 +161,8 @@ export function GetMoreSheet({
       ),
     [vmRepos],
   );
+
+  const isCustomVm = !!serverUrl && !!primaryVmUrl && serverUrl !== primaryVmUrl;
 
   const connectLaptopCameraGranted = useMemo(
     () =>
@@ -1304,9 +1306,10 @@ export function GetMoreSheet({
   }
 
   async function handleCloneGithubRepo(repo: GithubRepo) {
+    const repoName = String(repo.name || "").trim().toLowerCase();
     const alreadyOnVm =
-      Boolean(repo.alreadyOnVm) ||
-      vmRepoNameSet.has(String(repo.name || "").trim().toLowerCase());
+      vmRepoNameSet.has(repoName) ||
+      (!isCustomVm && Boolean(repo.alreadyOnVm));
     if (cloningRepoId || alreadyOnVm) return;
     if (!serverUrl) {
       Alert.alert(
@@ -1372,9 +1375,10 @@ export function GetMoreSheet({
         ) : (
           <View style={{ marginTop: 16, gap: 10 }}>
             {githubRepos.map((repo) => {
+              const repoName = String(repo.name || "").trim().toLowerCase();
               const alreadyOnVm =
-                Boolean(repo.alreadyOnVm) ||
-                vmRepoNameSet.has(String(repo.name || "").trim().toLowerCase());
+                vmRepoNameSet.has(repoName) ||
+                (!isCustomVm && Boolean(repo.alreadyOnVm));
               return (
                 <TouchableOpacity
                   key={repo.id}
