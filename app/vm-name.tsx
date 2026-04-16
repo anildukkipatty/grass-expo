@@ -18,17 +18,7 @@ import {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-// Approximate rendered size of the illustration with contentFit="contain"
-// vm-name.png natural aspect ratio ≈ 0.528 (portrait)
 const IMAGE_HEIGHT = SCREEN_HEIGHT * 0.65;
-const IMAGE_ASPECT = 0.528;
-const IMAGE_RENDER_WIDTH = IMAGE_HEIGHT * IMAGE_ASPECT;
-
-// TextInput overlay — positioned over the input box shown in the illustration
-// The input box sits at ~22% from top and spans the right 65% of the image
-const INPUT_OVERLAY_TOP = IMAGE_HEIGHT * 0.295;
-const INPUT_OVERLAY_LEFT = IMAGE_RENDER_WIDTH * 0.45;
-const INPUT_OVERLAY_RIGHT = IMAGE_RENDER_WIDTH * 0.035;
 
 export default function VmNameScreen() {
   const router = useRouter();
@@ -73,28 +63,35 @@ export default function VmNameScreen() {
             onPress={Keyboard.dismiss}
             style={styles.illustrationWrapper}
           >
-            <Image
-              source={require("@/assets/images/new-design/onboarding/vm-name.png")}
-              style={styles.illustration}
-              contentFit="contain"
-              contentPosition={{ left: 0 }}
-            />
-
-            {/* Transparent TextInput overlaid on the input box in the illustration */}
-            <View style={styles.overlayInputWrapper}>
-              <TextInput
-                ref={inputRef}
-                style={styles.overlayInput}
-                value={vmName}
-                onChangeText={setVmName}
-                placeholder=""
-                placeholderTextColor="transparent"
-                autoCorrect={false}
-                autoCapitalize="none"
-                returnKeyType="done"
-                onSubmitEditing={Keyboard.dismiss}
-                caretHidden={false}
+            {/*
+              imageRelativeContainer matches the image's rendered bounds exactly
+              (same offset as the image had before). The TextInput is positioned
+              as a percentage of this container so it lands in the same spot on
+              every screen size.
+            */}
+            <View style={styles.imageRelativeContainer}>
+              <Image
+                source={require("@/assets/images/new-design/onboarding/vm-name.png")}
+                style={styles.illustration}
+                contentFit="fill"
               />
+
+              {/* Input sits just below the "Name your VM" label in the illustration */}
+              <View style={styles.overlayInputWrapper}>
+                <TextInput
+                  ref={inputRef}
+                  style={styles.overlayInput}
+                  value={vmName}
+                  onChangeText={setVmName}
+                  placeholder=""
+                  placeholderTextColor="transparent"
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
+                  caretHidden={false}
+                />
+              </View>
             </View>
           </TouchableOpacity>
 
@@ -193,20 +190,26 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: IMAGE_HEIGHT,
   },
-  illustration: {
+  // Matches the image's rendered bounds; acts as the relative parent
+  // for the input overlay so percentages are image-relative.
+  imageRelativeContainer: {
     position: "absolute",
-    left: 0,
+    left: -132,
     bottom: -102,
     width: SCREEN_WIDTH,
     height: IMAGE_HEIGHT,
   },
+  illustration: {
+    width: "100%",
+    height: "100%",
+  },
 
-  // Clips text so it never escapes the input box drawn in the illustration
+  // Input box in the image: x ≈ 67–98%, y ≈ 10–21% of the 928×1068 image
   overlayInputWrapper: {
     position: "absolute",
-    top: INPUT_OVERLAY_TOP,
-    left: INPUT_OVERLAY_LEFT,
-    right: INPUT_OVERLAY_RIGHT,
+    top: "12%",
+    left: "67%",
+    right: "2%",
     height: 44,
     overflow: "hidden",
   },
@@ -217,6 +220,8 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: "#000",
     paddingHorizontal: 8,
+    letterSpacing: -0.5,
+    lineHeight: 22,
   },
 
   // ── Gradient overlay ──────────────────────────────
