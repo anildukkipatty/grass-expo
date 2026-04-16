@@ -17,6 +17,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
@@ -168,6 +169,7 @@ export function OnboardingAuthSheet({
       statusBarTranslucent
       onRequestClose={onClose}
     >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <SafeAreaView style={s.container}>
         <KeyboardAvoidingView
           style={s.flex}
@@ -240,14 +242,7 @@ export function OnboardingAuthSheet({
                     {Array.from({ length: 6 }).map((_, i) => (
                       <View
                         key={i}
-                        style={[
-                          s.otpCell,
-                          otpError
-                            ? s.otpCellError
-                            : otp[i]
-                              ? s.otpCellFilled
-                              : s.otpCellEmpty,
-                        ]}
+                        style={s.otpCell}
                       >
                         <Text
                           style={[
@@ -335,6 +330,7 @@ export function OnboardingAuthSheet({
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }
@@ -429,18 +425,6 @@ const s = StyleSheet.create({
     borderRadius: 23,
     alignItems: "center",
     justifyContent: "center",
-  },
-  otpCellEmpty: {
-    borderColor: "transparent",
-    backgroundColor: "transparent",
-  },
-  otpCellFilled: {
-    borderColor: "transparent",
-    backgroundColor: "transparent",
-  },
-  otpCellError: {
-    borderColor: "transparent",
-    backgroundColor: "transparent",
   },
   otpDigit: {
     fontFamily: SFPro.regular,
@@ -540,10 +524,5 @@ const s = StyleSheet.create({
     textAlign: "center",
     lineHeight: 18,
     letterSpacing: -0.3,
-  },
-  legalLink: {
-    fontFamily: SFPro.semiBold,
-    textDecorationLine: "underline",
-    color: "#808080",
   },
 });

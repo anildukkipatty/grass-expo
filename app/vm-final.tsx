@@ -1,8 +1,8 @@
 import { SFPro } from "@/constants/theme";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { Stack, useRouter } from "expo-router";
-import React from "react";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   Dimensions,
   SafeAreaView,
@@ -14,16 +14,33 @@ import {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const STATUS_ITEMS = [
-  "Setting up Son of Anton's workspace",
-  "Installing tools",
-  "Connecting to Opencode",
-  "Running a quick health check",
-  "Son of Anton is ready for work",
-];
+const ITEM_DELAY_MS = 600;
 
 export default function VmFinalScreen() {
   const router = useRouter();
+  const { vmName } = useLocalSearchParams<{ vmName: string }>();
+  const name = vmName || "Your VM";
+
+  const STATUS_ITEMS = [
+    `Setting up ${name}'s workspace`,
+    "Installing tools",
+    "Connecting to Opencode",
+    "Running a quick health check",
+    `${name} is ready for work`,
+  ];
+
+  const [visibleCount, setVisibleCount] = useState(0);
+
+  useEffect(() => {
+    if (visibleCount < STATUS_ITEMS.length) {
+      const timer = setTimeout(() => {
+        setVisibleCount((c) => c + 1);
+      }, ITEM_DELAY_MS);
+      return () => clearTimeout(timer);
+    }
+  }, [visibleCount]);
+
+  const allDone = visibleCount >= STATUS_ITEMS.length;
 
   return (
     <>
@@ -44,26 +61,35 @@ export default function VmFinalScreen() {
         >
           <SafeAreaView style={styles.safeContent}>
             <View style={styles.content}>
-              {/* Status list */}
+              {/* Status list — items appear one by one */}
               <View style={styles.statusList}>
-                {STATUS_ITEMS.map((item, index) => (
-                  <View key={index} style={styles.statusRow}>
-                    <View style={styles.dot} />
-                    <Text style={styles.statusText}>{item}</Text>
-                  </View>
-                ))}
+                {STATUS_ITEMS.map((item, index) =>
+                  index < visibleCount ? (
+                    <View key={index} style={styles.statusRow}>
+                      <View style={styles.dot} />
+                      <Text style={styles.statusText}>{item}</Text>
+                    </View>
+                  ) : null
+                )}
               </View>
 
-              {/* Assign their first task button */}
-              <View style={styles.buttonShadowWrap}>
-                <TouchableOpacity
-                  style={styles.button}
-                  activeOpacity={0.85}
-                  onPress={() => router.push("/vm-first-task" as any)}
-                >
-                  <Text style={styles.buttonText}>Assign their first task</Text>
-                </TouchableOpacity>
-              </View>
+              {/* Assign their first task button — shown only after all items */}
+              {allDone && (
+                <View style={styles.buttonShadowWrap}>
+                  <TouchableOpacity
+                    style={styles.button}
+                    activeOpacity={0.85}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/vm-first-task" as any,
+                        params: { vmName: name },
+                      })
+                    }
+                  >
+                    <Text style={styles.buttonText}>Assign their first task</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </SafeAreaView>
         </LinearGradient>

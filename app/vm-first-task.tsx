@@ -4,7 +4,7 @@ import RightArrowIcon from "@/assets/images/new-design/onboarding/right-arrow-he
 import SubmitIcon from "@/assets/images/new-design/onboarding/submit-icon.svg";
 import TypescriptIcon from "@/assets/images/new-design/onboarding/typescript.svg";
 import { SFPro } from "@/constants/theme";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -37,6 +37,8 @@ const SUGGESTED_TASKS = [
 
 export default function VmFirstTaskScreen() {
   const router = useRouter();
+  const { vmName } = useLocalSearchParams<{ vmName: string }>();
+  const name = vmName || "Your VM";
   const [task, setTask] = useState("");
 
   const handleSubmit = () => {
@@ -57,7 +59,7 @@ export default function VmFirstTaskScreen() {
             <View style={styles.badgeRow}>
               <View style={styles.badge}>
                 <View style={styles.dot} />
-                <Text style={styles.badgeText}>Son of Anton is ready</Text>
+                <Text style={styles.badgeText}>{name} is ready</Text>
               </View>
             </View>
 

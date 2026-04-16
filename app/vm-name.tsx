@@ -2,16 +2,17 @@ import { SFPro } from "@/constants/theme";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
@@ -19,91 +20,152 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Approximate rendered size of the illustration with contentFit="contain"
 // vm-name.png natural aspect ratio ≈ 0.528 (portrait)
-const IMAGE_HEIGHT = SCREEN_HEIGHT * 0.42;
+const IMAGE_HEIGHT = SCREEN_HEIGHT * 0.65;
 const IMAGE_ASPECT = 0.528;
 const IMAGE_RENDER_WIDTH = IMAGE_HEIGHT * IMAGE_ASPECT;
 
 // TextInput overlay — positioned over the input box shown in the illustration
 // The input box sits at ~22% from top and spans the right 65% of the image
-const INPUT_OVERLAY_TOP = IMAGE_HEIGHT * 0.215;
-const INPUT_OVERLAY_LEFT = IMAGE_RENDER_WIDTH * 0.365;
+const INPUT_OVERLAY_TOP = IMAGE_HEIGHT * 0.295;
+const INPUT_OVERLAY_LEFT = IMAGE_RENDER_WIDTH * 0.45;
 const INPUT_OVERLAY_RIGHT = IMAGE_RENDER_WIDTH * 0.035;
 
 export default function VmNameScreen() {
   const router = useRouter();
   const [vmName, setVmName] = useState("");
   const inputRef = useRef<TextInput>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const show = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      setKeyboardVisible(true);
+    });
+    const hide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+      setKeyboardVisible(false);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
-      >
-        {/* ── Hint at the very top ── */}
-        <SafeAreaView style={styles.hintArea}>
-          <Text style={styles.hint}>You can always rename them later.</Text>
-        </SafeAreaView>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <View style={styles.container}>
+          {/* ── Hint at the very top ── */}
+          <SafeAreaView style={styles.hintArea}>
+            <Text style={styles.hint}>You can always rename them later.</Text>
+          </SafeAreaView>
 
-        {/* ── Illustration – left-aligned ── */}
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => inputRef.current?.focus()}
-          style={styles.illustrationWrapper}
-        >
-          <Image
-            source={require("@/assets/images/new-design/onboarding/vm-name.png")}
-            style={styles.illustration}
-            contentFit="contain"
-            contentPosition={{ left: 0, top: 0 }}
-          />
-
-          {/* Transparent TextInput overlaid on the input box in the illustration */}
-          <View style={styles.overlayInputWrapper}>
-            <TextInput
-              ref={inputRef}
-              style={styles.overlayInput}
-              value={vmName}
-              onChangeText={setVmName}
-              placeholder=""
-              placeholderTextColor="transparent"
-              autoCorrect={false}
-              autoCapitalize="none"
-              returnKeyType="done"
-              caretHidden={false}
+          {/* ── Illustration – tapping outside the input dismisses keyboard ── */}
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={Keyboard.dismiss}
+            style={styles.illustrationWrapper}
+          >
+            <Image
+              source={require("@/assets/images/new-design/onboarding/vm-name.png")}
+              style={styles.illustration}
+              contentFit="contain"
+              contentPosition={{ left: 0 }}
             />
-          </View>
-        </TouchableOpacity>
 
-        {/* ── Gradient + bottom content ── */}
-        <LinearGradient
-          colors={["rgba(247, 255, 243, 0.00)", "#F7FFF3"]}
-          locations={[0, 0.45]}
-          style={styles.gradientOverlay}
-        >
-          <SafeAreaView style={styles.safeContent}>
-            <View style={styles.content}>
-              <Text style={styles.title}>What's their name?</Text>
-              <Text style={styles.subtitle}>
-                This is who you'll be messaging{"\n"}when you need something done.
-              </Text>
+            {/* Transparent TextInput overlaid on the input box in the illustration */}
+            <View style={styles.overlayInputWrapper}>
+              <TextInput
+                ref={inputRef}
+                style={styles.overlayInput}
+                value={vmName}
+                onChangeText={setVmName}
+                placeholder=""
+                placeholderTextColor="transparent"
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+                caretHidden={false}
+              />
+            </View>
+          </TouchableOpacity>
 
+          {/* ── Gradient + bottom content (hidden when keyboard is up) ── */}
+          {!keyboardVisible && (
+            <LinearGradient
+              colors={["rgba(247, 255, 243, 0.00)", "#F7FFF3"]}
+              locations={[0, 0.45]}
+              style={styles.gradientOverlay}
+            >
+              <SafeAreaView style={styles.safeContent}>
+                <View style={styles.content}>
+                  <Text style={styles.title}>What&#39;s their name?</Text>
+                  <Text style={styles.subtitle}>
+                    This is who you&#39;ll be messaging{"\n"}when you need
+                    something done.
+                  </Text>
+
+                  <View style={styles.buttonShadowWrap}>
+                    <TouchableOpacity
+                      style={[
+                        styles.button,
+                        !vmName.trim() && styles.buttonDisabled,
+                      ]}
+                      activeOpacity={0.85}
+                      disabled={!vmName.trim()}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/vm-final" as any,
+                          params: { vmName: vmName.trim() },
+                        })
+                      }
+                    >
+                      <Text style={styles.buttonText}>Hire</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </SafeAreaView>
+            </LinearGradient>
+          )}
+
+          {/* ── Hire button floating above keyboard ── */}
+          {keyboardVisible && (
+            <View
+              style={[
+                styles.floatingButtonWrap,
+                { bottom: keyboardHeight + 16 },
+              ]}
+            >
               <View style={styles.buttonShadowWrap}>
                 <TouchableOpacity
-                  style={[styles.button, !vmName.trim() && styles.buttonDisabled]}
+                  style={[
+                    styles.button,
+                    !vmName.trim() && styles.buttonDisabled,
+                  ]}
                   activeOpacity={0.85}
                   disabled={!vmName.trim()}
-                  onPress={() => router.push("/vm-final" as any)}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/vm-final" as any,
+                      params: { vmName: vmName.trim() },
+                    })
+                  }
                 >
                   <Text style={styles.buttonText}>Hire</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          </SafeAreaView>
-        </LinearGradient>
-      </KeyboardAvoidingView>
+          )}
+        </View>
+      </TouchableWithoutFeedback>
     </>
   );
 }
@@ -134,7 +196,7 @@ const styles = StyleSheet.create({
   illustration: {
     position: "absolute",
     left: 0,
-    top: 0,
+    bottom: -102,
     width: SCREEN_WIDTH,
     height: IMAGE_HEIGHT,
   },
@@ -151,11 +213,10 @@ const styles = StyleSheet.create({
   overlayInput: {
     flex: 1,
     backgroundColor: "transparent",
-    fontFamily: SFPro.regular,
-    fontSize: 15,
-    color: "#1A1A1A",
+    fontFamily: SFPro.semiBold,
+    fontSize: 24,
+    color: "#000",
     paddingHorizontal: 8,
-    paddingVertical: 0,
   },
 
   // ── Gradient overlay ──────────────────────────────
@@ -221,5 +282,12 @@ const styles = StyleSheet.create({
     color: "#DFDFDF",
     lineHeight: 22,
     letterSpacing: -0.5,
+  },
+
+  // ── Floating button (above keyboard) ──────────────
+  floatingButtonWrap: {
+    position: "absolute",
+    left: 16,
+    right: 16,
   },
 });
