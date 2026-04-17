@@ -139,13 +139,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 32,
+    paddingBottom: 12,
   },
   topRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 28,
+    marginBottom: 12,
   },
   topLinks: {
     flexDirection: "row",
@@ -158,8 +158,8 @@ const styles = StyleSheet.create({
     color: "#000",
   },
   heading: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 28,
+    fontFamily: SFPro.bold,
+    fontSize: 25,
     color: "#000",
     lineHeight: 32,
     marginBottom: 20,
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   featureLabel: {
-    fontFamily: SFPro.semiBold,
+    fontFamily: SFPro.medium,
     fontSize: 17,
     color: "#000",
     flex: 1,
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#606060",
-    backgroundColor: "#000",
+    // backgroundColor: "#000",
     shadowColor: "#606060",
     shadowOffset: { width: 0, height: -40 },
     shadowOpacity: 1,
@@ -218,8 +218,8 @@ const styles = StyleSheet.create({
   button: {
     borderRadius: 50,
     borderWidth: 2,
-    borderColor: "#295E13",
-    backgroundColor: "#123005",
+    borderColor: "#72C44E",
+    backgroundColor: "#3D841E",
     height: 52,
     width: "100%",
     alignSelf: "center",

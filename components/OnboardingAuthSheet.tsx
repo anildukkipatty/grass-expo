@@ -170,166 +170,165 @@ export function OnboardingAuthSheet({
       onRequestClose={onClose}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <SafeAreaView style={s.container}>
-        <KeyboardAvoidingView
-          style={s.flex}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          {/* Header */}
-          <View style={s.header}>
-            <LinearGradient
-              colors={["#389610", "#123005"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={s.iconBox}
-            >
-              <EmailIcon width={26} height={26} color="#fff" />
-            </LinearGradient>
+        <SafeAreaView style={s.container}>
+          <KeyboardAvoidingView
+            style={s.flex}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            {/* Header */}
+            <View style={s.header}>
+              <LinearGradient
+                colors={["#389610", "#123005"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={s.iconBox}
+              >
+                <EmailIcon width={26} height={26} color="#fff" />
+              </LinearGradient>
 
-            <Text style={s.title}>
-              {step === "email" ? "Create your account" : "Check your inbox."}
-            </Text>
-            {step === "email" ? (
-              <Text style={s.subtitle}>
-                We&#39;ll send a one-time code to your email.{"\n"}Use this to
-                log in from any device.
+              <Text style={s.title}>
+                {step === "email" ? "Create your account" : "Check your inbox."}
               </Text>
-            ) : (
-              <Text style={s.subtitle}>
-                We sent a 6-digit code to{"\n"}
-                <Text style={s.subtitleEmail}>{email.trim()}</Text>
-                {"\n"}Enter it below to continue.
-              </Text>
-            )}
-          </View>
-
-          {/* Input area */}
-          <View style={s.inputArea}>
-            {step === "email" ? (
-              <>
-                <TextInput
-                  ref={emailInputRef}
-                  style={[
-                    s.emailInput,
-                    emailError ? s.emailInputError : s.emailInputDefault,
-                  ]}
-                  placeholder="you@example.com"
-                  placeholderTextColor="#9F9F9F"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="done"
-                  value={email}
-                  onChangeText={(t) => {
-                    setEmail(t);
-                    setEmailError("");
-                  }}
-                  onSubmitEditing={handleRequestOtp}
-                  autoFocus
-                  textAlign="center"
-                />
-                {emailError ? (
-                  <Text style={s.errorText}>{emailError}</Text>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <TouchableOpacity
-                  activeOpacity={1}
-                  onPress={() => otpInputRef.current?.focus()}
-                >
-                  <View style={s.otpRow}>
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <View
-                        key={i}
-                        style={s.otpCell}
-                      >
-                        <Text
-                          style={[
-                            s.otpDigit,
-                            otpError
-                              ? s.otpDigitError
-                              : otp[i]
-                                ? s.otpDigitFilled
-                                : s.otpDigitEmpty,
-                          ]}
-                        >
-                          {otp[i] ?? "0"}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </TouchableOpacity>
-                <TextInput
-                  ref={otpInputRef}
-                  style={s.hiddenInput}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  value={otp}
-                  onChangeText={(t) => {
-                    setOtp(t);
-                    setOtpError("");
-                  }}
-                  autoFocus
-                  caretHidden
-                  returnKeyType="done"
-                  onSubmitEditing={handleVerifyOtp}
-                />
-                {otpError ? <Text style={s.errorText}>{otpError}</Text> : null}
-              </>
-            )}
-          </View>
-
-          {/* Bottom area */}
-          <View style={s.bottomArea}>
-            {step === "email" ? (
-              <Text style={s.legal}>
-                We&#39;ll send a verification code to your email.
-              </Text>
-            ) : (
-              /* Resend + Edit email row — same line */
-              <View style={s.resendEditRow}>
-                <View style={s.resendRow}>
-                  <Text style={s.resendLabel}>Didn&#39;t get it? </Text>
-                  {resendTimer > 0 ? (
-                    <Text style={s.resendTimer}>
-                      Resend in {formatTimer(resendTimer)}
-                    </Text>
-                  ) : (
-                    <TouchableOpacity
-                      onPress={handleResendOtp}
-                      disabled={loading}
-                    >
-                      <Text style={s.resendLink}>Resend code</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <TouchableOpacity onPress={handleEditEmail} style={s.editRow}>
-                  <EditIcon width={14} height={14} color="#808080" />
-                  <Text style={s.editText}>Edit email</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Continue button */}
-            <TouchableOpacity
-              style={[
-                s.button,
-                buttonActive ? s.buttonActive : s.buttonDisabled,
-              ]}
-              onPress={step === "email" ? handleRequestOtp : handleVerifyOtp}
-              activeOpacity={0.88}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
+              {step === "email" ? (
+                <Text style={s.subtitle}>
+                  We&#39;ll send a one-time code to your email.{"\n"}Use this to
+                  log in from any device.
+                </Text>
               ) : (
-                <Text style={s.buttonText}>Continue</Text>
+                <Text style={s.subtitle}>
+                  We sent a 6-digit code to{"\n"}
+                  <Text style={s.subtitleEmail}>{email.trim()}</Text>
+                  {"\n"}Enter it below to continue.
+                </Text>
               )}
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+            </View>
+
+            {/* Input area */}
+            <View style={s.inputArea}>
+              {step === "email" ? (
+                <>
+                  <TextInput
+                    ref={emailInputRef}
+                    style={[
+                      s.emailInput,
+                      emailError ? s.emailInputError : s.emailInputDefault,
+                    ]}
+                    placeholder="you@example.com"
+                    placeholderTextColor="#9F9F9F"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    value={email}
+                    onChangeText={(t) => {
+                      setEmail(t);
+                      setEmailError("");
+                    }}
+                    onSubmitEditing={handleRequestOtp}
+                    autoFocus
+                    textAlign="center"
+                  />
+                  {emailError ? (
+                    <Text style={s.errorText}>{emailError}</Text>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    activeOpacity={1}
+                    onPress={() => otpInputRef.current?.focus()}
+                  >
+                    <View style={s.otpRow}>
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <View key={i} style={s.otpCell}>
+                          <Text
+                            style={[
+                              s.otpDigit,
+                              otpError
+                                ? s.otpDigitError
+                                : otp[i]
+                                  ? s.otpDigitFilled
+                                  : s.otpDigitEmpty,
+                            ]}
+                          >
+                            {otp[i] ?? "0"}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </TouchableOpacity>
+                  <TextInput
+                    ref={otpInputRef}
+                    style={s.hiddenInput}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    value={otp}
+                    onChangeText={(t) => {
+                      setOtp(t);
+                      setOtpError("");
+                    }}
+                    autoFocus
+                    caretHidden
+                    returnKeyType="done"
+                    onSubmitEditing={handleVerifyOtp}
+                  />
+                  {otpError ? (
+                    <Text style={s.errorText}>{otpError}</Text>
+                  ) : null}
+                </>
+              )}
+            </View>
+
+            {/* Bottom area */}
+            <View style={s.bottomArea}>
+              {step === "email" ? (
+                <Text style={s.legal}>
+                  We&#39;ll send a verification code to your email.
+                </Text>
+              ) : (
+                /* Resend + Edit email row — same line */
+                <View style={s.resendEditRow}>
+                  <View style={s.resendRow}>
+                    <Text style={s.resendLabel}>Didn&#39;t get it? </Text>
+                    {resendTimer > 0 ? (
+                      <Text style={s.resendTimer}>
+                        Resend in {formatTimer(resendTimer)}
+                      </Text>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={handleResendOtp}
+                        disabled={loading}
+                      >
+                        <Text style={s.resendLink}>Resend code</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <TouchableOpacity onPress={handleEditEmail} style={s.editRow}>
+                    <EditIcon width={14} height={14} color="#808080" />
+                    <Text style={s.editText}>Edit email</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Continue button */}
+              <TouchableOpacity
+                style={[
+                  s.button,
+                  buttonActive ? s.buttonActive : s.buttonDisabled,
+                ]}
+                onPress={step === "email" ? handleRequestOtp : handleVerifyOtp}
+                activeOpacity={0.88}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={s.buttonText}>Continue</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
       </TouchableWithoutFeedback>
     </Modal>
   );
@@ -364,7 +363,7 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
   subtitle: {
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.medium,
     fontSize: 17,
     color: "#000",
     textAlign: "center",
@@ -381,7 +380,7 @@ const s = StyleSheet.create({
     // paddingHorizontal: 24,
   },
   emailInput: {
-    fontFamily: SFPro.bold,
+    fontFamily: SFPro.semiBold,
     fontSize: 28,
     color: "#000000",
     textAlign: "center",
@@ -407,7 +406,7 @@ const s = StyleSheet.create({
   //   color: "#FFFFFF",
   // },
   errorText: {
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.medium,
     fontSize: 13,
     color: "#841E1E",
     textAlign: "center",
@@ -465,7 +464,7 @@ const s = StyleSheet.create({
     gap: 6,
   },
   editText: {
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.medium,
     fontSize: 14,
     color: "#000",
   },
@@ -478,8 +477,8 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   buttonActive: {
-    borderColor: "#295E13",
-    backgroundColor: "#123005",
+    borderColor: "#72C44E",
+    backgroundColor: "#3D841E",
     // shadowColor: "rgba(50, 147, 81, 0.70)",
     // shadowOffset: { width: 0, height: 0 },
     // shadowOpacity: 1,
@@ -493,7 +492,7 @@ const s = StyleSheet.create({
   buttonText: {
     fontFamily: SFPro.semiBold,
     fontSize: 17,
-    color: "#DFDFDF",
+    color: "#F2F2F2",
     letterSpacing: -0.5,
   },
   resendRow: {
@@ -501,7 +500,7 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   resendLabel: {
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.medium,
     fontSize: 14,
     color: "#000",
   },
@@ -519,7 +518,7 @@ const s = StyleSheet.create({
   },
   legal: {
     fontSize: 13,
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.medium,
     color: "#000",
     textAlign: "center",
     lineHeight: 18,

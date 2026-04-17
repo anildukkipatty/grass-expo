@@ -69,7 +69,7 @@ export default function VmFinalScreen() {
                       <View style={styles.dot} />
                       <Text style={styles.statusText}>{item}</Text>
                     </View>
-                  ) : null
+                  ) : null,
                 )}
               </View>
 
@@ -86,7 +86,9 @@ export default function VmFinalScreen() {
                       })
                     }
                   >
-                    <Text style={styles.buttonText}>Assign their first task</Text>
+                    <Text style={styles.buttonText}>
+                      Assign their first task
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -124,8 +126,8 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   content: {
-    paddingHorizontal: 24,
-    paddingBottom: 48,
+    paddingHorizontal: 16,
+    // paddingBottom: 48,
     alignItems: "center",
   },
   statusList: {
@@ -158,8 +160,8 @@ const styles = StyleSheet.create({
   button: {
     borderRadius: 50,
     borderWidth: 2,
-    borderColor: "#295E13",
-    backgroundColor: "#123005",
+    borderColor: "#72C44E",
+    backgroundColor: "#3D841E",
     height: 52,
     width: "100%",
     alignItems: "center",
@@ -168,7 +170,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontFamily: SFPro.semiBold,
     fontSize: 17,
-    color: "#DFDFDF",
+    color: "#f2f2f2",
     lineHeight: 22,
     letterSpacing: -0.5,
   },

@@ -170,19 +170,19 @@ export default function VmNameScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7FFF3",
+    backgroundColor: "#FFF",
   },
 
   // ── Hint ──────────────────────────────────────────
   hintArea: {
     alignItems: "center",
-    paddingTop: 4,
   },
   hint: {
     fontFamily: SFPro.medium,
     fontSize: 13,
-    color: "#3B7A1E",
-    letterSpacing: -0.1,
+    color: "#9F9F9F",
+    lineHeight: 18,
+    letterSpacing: -0.3,
   },
 
   // ── Illustration ──────────────────────────────────
@@ -239,8 +239,8 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   content: {
-    paddingHorizontal: 24,
-    paddingBottom: 48,
+    paddingHorizontal: 16,
+    // paddingBottom: 48,
     alignItems: "center",
   },
 
@@ -271,8 +271,8 @@ const styles = StyleSheet.create({
   button: {
     borderRadius: 50,
     borderWidth: 2,
-    borderColor: "#295E13",
-    backgroundColor: "#123005",
+    borderColor: "#72C44E",
+    backgroundColor: "#3D841E",
     height: 52,
     width: "100%",
     alignItems: "center",
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontFamily: SFPro.semiBold,
     fontSize: 17,
-    color: "#DFDFDF",
+    color: "#f2f2f2",
     lineHeight: 22,
     letterSpacing: -0.5,
   },

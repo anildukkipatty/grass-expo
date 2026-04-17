@@ -30,7 +30,7 @@ export default function VmReadyScreen() {
 
         {/* Gradient + content overlaid at the bottom of the image */}
         <LinearGradient
-          colors={["rgba(247, 255, 243, 0.00)", "#F7FFF3"]}
+          colors={["rgba(255, 255, 255, 0.00)", "##ffffff"]}
           locations={[0, 0.45]}
           style={styles.gradientOverlay}
         >
@@ -72,14 +72,14 @@ export default function VmReadyScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7FFF3",
+    backgroundColor: "#FFFFFF",
   },
   illustration: {
     position: "absolute",
     left: SCREEN_WIDTH * 0.2,
     right: SCREEN_WIDTH * 0.2,
     height: SCREEN_HEIGHT * 0.65,
-    bottom: 102,
+    bottom: 50,
   },
   gradientOverlay: {
     position: "absolute",
@@ -95,8 +95,8 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   content: {
-    paddingHorizontal: 24,
-    paddingBottom: 48,
+    paddingHorizontal: 16,
+    // paddingBottom: 50,
     alignItems: "center",
   },
   badgeRow: {
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   title: {
-    fontFamily: SFPro.bold,
+    fontFamily: SFPro.semiBold,
     fontSize: 28,
     color: "#000000",
     textAlign: "center",
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   subtitle: {
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.medium,
     fontSize: 17,
     color: "#404040",
     textAlign: "center",
@@ -149,8 +149,8 @@ const styles = StyleSheet.create({
   button: {
     borderRadius: 50,
     borderWidth: 2,
-    borderColor: "#295E13",
-    backgroundColor: "#123005",
+    borderColor: "#72C44E",
+    backgroundColor: "#3D841E",
     height: 52,
     width: "100%",
     alignItems: "center",
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontFamily: SFPro.semiBold,
     fontSize: 17,
-    color: "#DFDFDF",
+    color: "#F2F2F2",
     lineHeight: 22,
     letterSpacing: -0.5,
   },

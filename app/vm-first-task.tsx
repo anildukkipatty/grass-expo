@@ -7,13 +7,16 @@ import { SFPro } from "@/constants/theme";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
@@ -54,66 +57,74 @@ export default function VmFirstTaskScreen() {
           style={styles.flex}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <View style={styles.content}>
-            {/* Badge */}
-            <View style={styles.badgeRow}>
-              <View style={styles.badge}>
-                <View style={styles.dot} />
-                <Text style={styles.badgeText}>{name} is ready</Text>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.flex}>
+              <ScrollView
+                style={styles.flex}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Badge */}
+                <View style={styles.badgeRow}>
+                  <View style={styles.badge}>
+                    <View style={styles.dot} />
+                    <Text style={styles.badgeText}>{name} is ready</Text>
+                  </View>
+                </View>
+
+                {/* Title */}
+                <Text style={styles.title}>What&#39;s the first task?</Text>
+
+                {/* Subtitle */}
+                <Text style={styles.subtitle}>
+                  Pick something real. They&#39;ll handle it while{"\n"}you get
+                  on with your day.
+                </Text>
+
+                {/* Suggested task cards */}
+                <View style={styles.cardsContainer}>
+                  {SUGGESTED_TASKS.map(({ id, Icon, text }) => (
+                    <TouchableOpacity
+                      key={id}
+                      style={styles.card}
+                      activeOpacity={0.7}
+                      onPress={() => setTask(text.replace("\n", " "))}
+                    >
+                      <View style={styles.cardIconWrap}>
+                        <Icon width={24} height={24} />
+                      </View>
+                      <Text style={styles.cardText}>{text}</Text>
+                      <RightArrowIcon width={16} height={16} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              {/* Sticky bottom input */}
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.input}
+                  value={task}
+                  onChangeText={setTask}
+                  placeholder="Or type your own task..."
+                  placeholderTextColor="#9A9A9A"
+                  returnKeyType="send"
+                  onSubmitEditing={handleSubmit}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.submitBtn,
+                    !task.trim() && styles.submitBtnDisabled,
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={handleSubmit}
+                  disabled={!task.trim()}
+                >
+                  <SubmitIcon width={22} height={22} />
+                </TouchableOpacity>
               </View>
             </View>
-
-            {/* Title */}
-            <Text style={styles.title}>What&#39;s the first task?</Text>
-
-            {/* Subtitle */}
-            <Text style={styles.subtitle}>
-              Pick something real. They&#39;ll handle it while{"\n"}you get on
-              with your day.
-            </Text>
-
-            {/* Suggested task cards */}
-            <View style={styles.cardsContainer}>
-              {SUGGESTED_TASKS.map(({ id, Icon, text }) => (
-                <TouchableOpacity
-                  key={id}
-                  style={styles.card}
-                  activeOpacity={0.7}
-                  onPress={() => setTask(text.replace("\n", " "))}
-                >
-                  <View style={styles.cardIconWrap}>
-                    <Icon width={28} height={28} />
-                  </View>
-                  <Text style={styles.cardText}>{text}</Text>
-                  <RightArrowIcon width={16} height={16} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Sticky bottom input */}
-          <View style={styles.inputRow}>
-            <TextInput
-              style={styles.input}
-              value={task}
-              onChangeText={setTask}
-              placeholder="Or type your own task..."
-              placeholderTextColor="#9A9A9A"
-              returnKeyType="send"
-              onSubmitEditing={handleSubmit}
-            />
-            <TouchableOpacity
-              style={[
-                styles.submitBtn,
-                !task.trim() && styles.submitBtnDisabled,
-              ]}
-              activeOpacity={0.8}
-              onPress={handleSubmit}
-              disabled={!task.trim()}
-            >
-              <SubmitIcon width={22} height={22} />
-            </TouchableOpacity>
-          </View>
+          </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </>
@@ -128,10 +139,10 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 24,
+    paddingTop: 52,
+    paddingBottom: 8,
   },
 
   // ── Badge ─────────────────────────────────────────
@@ -165,14 +176,14 @@ const styles = StyleSheet.create({
 
   // ── Title / Subtitle ──────────────────────────────
   title: {
-    fontFamily: SFPro.bold,
+    fontFamily: SFPro.semiBold,
     fontSize: 28,
     color: "#000000",
     lineHeight: 32,
     marginBottom: 10,
   },
   subtitle: {
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.medium,
     fontSize: 17,
     color: "#404040",
     lineHeight: 22,
@@ -189,8 +200,8 @@ const styles = StyleSheet.create({
     height: 84,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#C3F6AD",
-    backgroundColor: "#E3FDD7",
+    borderColor: "#DFDFDF",
+    backgroundColor: "#f2f2f2",
     paddingHorizontal: 16,
     gap: 12,
   },
@@ -200,7 +211,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 1,
     borderColor: "#9EE67F",
-    backgroundColor: "#FFF",
+    backgroundColor: "#E3FDD7",
     width: 44,
     height: 44,
   },
@@ -210,6 +221,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: "#1A1A1A",
     lineHeight: 22,
+    letterSpacing: -0.5,
   },
 
   // ── Input row ─────────────────────────────────────
@@ -226,7 +238,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#C3F6AD",
+    borderColor: "#3D841E",
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
     fontFamily: SFPro.regular,
@@ -238,7 +250,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#9EE67F",
+    borderColor: "#72C44E",
     backgroundColor: "#3D841E",
     alignItems: "center",
     justifyContent: "center",

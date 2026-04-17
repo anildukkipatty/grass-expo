@@ -125,9 +125,9 @@ const styles = StyleSheet.create({
   },
   buttonShadowWrap: {
     borderRadius: 50,
-    shadowColor: "rgba(50, 147, 81, 1)",
+    shadowColor: "rgba(84, 147, 50, 0.70)",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
+    shadowOpacity: 1,
     shadowRadius: 25,
     elevation: 12,
     marginBottom: 20,
@@ -136,8 +136,8 @@ const styles = StyleSheet.create({
   button: {
     borderRadius: 50,
     borderWidth: 2,
-    borderColor: "#295E13",
-    backgroundColor: "#123005",
+    borderColor: "#72C44E",
+    backgroundColor: "#3D841E",
     height: 52,
     width: "100%",
     alignItems: "center",
