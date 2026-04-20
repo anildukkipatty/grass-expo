@@ -134,8 +134,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="new-navbar" options={{ headerShown: false, animation: "none" }} />
-        <Stack.Screen
+<Stack.Screen
           name="(tabs)"
           options={{ headerShown: false, animation: "none" }}
         />
@@ -148,6 +147,7 @@ export default function RootLayout() {
         <Stack.Screen name="project" options={{ headerShown: false }} />
         <Stack.Screen name="sessions" options={{ headerShown: false }} />
         <Stack.Screen name="chat" options={{ headerShown: false }} />
+        <Stack.Screen name="new-navbar" options={{ headerShown: false }} />
         <Stack.Screen name="vm-ready" options={{ headerShown: false }} />
         <Stack.Screen name="vm-name" options={{ headerShown: false }} />
         <Stack.Screen name="vm-final" options={{ headerShown: false }} />

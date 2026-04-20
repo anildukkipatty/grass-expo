@@ -30,7 +30,7 @@ export default function VmReadyScreen() {
 
         {/* Gradient + content overlaid at the bottom of the image */}
         <LinearGradient
-          colors={["rgba(255, 255, 255, 0.00)", "##ffffff"]}
+          colors={["#ffffff30", "#ffffff30"]}
           locations={[0, 0.45]}
           style={styles.gradientOverlay}
         >
@@ -72,14 +72,14 @@ export default function VmReadyScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#fff",
   },
   illustration: {
     position: "absolute",
-    left: SCREEN_WIDTH * 0.2,
-    right: SCREEN_WIDTH * 0.2,
-    height: SCREEN_HEIGHT * 0.65,
-    bottom: 50,
+    left: SCREEN_WIDTH * 0,
+    right: SCREEN_WIDTH * 0,
+    height: SCREEN_HEIGHT * 1,
+    bottom: 0,
   },
   gradientOverlay: {
     position: "absolute",
@@ -139,6 +139,7 @@ const styles = StyleSheet.create({
     color: "#404040",
     textAlign: "center",
     lineHeight: 22,
+    letterSpacing: -0.5,
     marginBottom: 36,
   },
   buttonShadowWrap: {

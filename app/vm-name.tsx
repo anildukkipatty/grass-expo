@@ -18,8 +18,6 @@ import {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const IMAGE_HEIGHT = SCREEN_HEIGHT * 0.65;
-
 export default function VmNameScreen() {
   const router = useRouter();
   const [vmName, setVmName] = useState("");
@@ -57,48 +55,40 @@ export default function VmNameScreen() {
             <Text style={styles.hint}>You can always rename them later.</Text>
           </SafeAreaView>
 
-          {/* ── Illustration – tapping outside the input dismisses keyboard ── */}
+          {/* ── Illustration – image is the direct parent of the input overlay ── */}
           <TouchableOpacity
             activeOpacity={1}
             onPress={Keyboard.dismiss}
-            style={styles.illustrationWrapper}
+            style={styles.imageContainer}
           >
-            {/*
-              imageRelativeContainer matches the image's rendered bounds exactly
-              (same offset as the image had before). The TextInput is positioned
-              as a percentage of this container so it lands in the same spot on
-              every screen size.
-            */}
-            <View style={styles.imageRelativeContainer}>
-              <Image
-                source={require("@/assets/images/new-design/onboarding/vm-name.png")}
-                style={styles.illustration}
-                contentFit="fill"
-              />
+            <Image
+              source={require("@/assets/images/new-design/onboarding/vm-name.png")}
+              style={StyleSheet.absoluteFill}
+              contentFit="contain"
+            />
 
-              {/* Input sits just below the "Name your VM" label in the illustration */}
-              <View style={styles.overlayInputWrapper}>
-                <TextInput
-                  ref={inputRef}
-                  style={styles.overlayInput}
-                  value={vmName}
-                  onChangeText={setVmName}
-                  placeholder=""
-                  placeholderTextColor="transparent"
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                  returnKeyType="done"
-                  onSubmitEditing={Keyboard.dismiss}
-                  caretHidden={false}
-                />
-              </View>
+            {/* Input centered on the image; % positions are image-relative */}
+            <View style={styles.overlayInputWrapper}>
+              <TextInput
+                ref={inputRef}
+                style={styles.overlayInput}
+                value={vmName}
+                onChangeText={setVmName}
+                placeholder=""
+                placeholderTextColor="transparent"
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+                caretHidden={false}
+              />
             </View>
           </TouchableOpacity>
 
           {/* ── Gradient + bottom content (hidden when keyboard is up) ── */}
           {!keyboardVisible && (
             <LinearGradient
-              colors={["rgba(247, 255, 243, 0.00)", "#F7FFF3"]}
+              colors={["#ffffff30", "#ffffff30"]}
               locations={[0, 0.45]}
               style={styles.gradientOverlay}
             >
@@ -176,6 +166,7 @@ const styles = StyleSheet.create({
   // ── Hint ──────────────────────────────────────────
   hintArea: {
     alignItems: "center",
+    marginTop: 150,
   },
   hint: {
     fontFamily: SFPro.medium,
@@ -186,42 +177,38 @@ const styles = StyleSheet.create({
   },
 
   // ── Illustration ──────────────────────────────────
-  illustrationWrapper: {
-    width: SCREEN_WIDTH,
-    height: IMAGE_HEIGHT,
-  },
-  // Matches the image's rendered bounds; acts as the relative parent
-  // for the input overlay so percentages are image-relative.
-  imageRelativeContainer: {
-    position: "absolute",
-    left: -132,
-    bottom: -102,
-    width: SCREEN_WIDTH,
-    height: IMAGE_HEIGHT,
-  },
-  illustration: {
+  // Container matches the image's natural aspect ratio (1080×1153).
+  // contentFit="fill" on the Image fills it exactly — no letterboxing —
+  // so absolute % positions on children are truly image-relative.
+  imageContainer: {
     width: "100%",
     height: "100%",
+
+    top: "-35%",
   },
 
-  // Input box in the image: x ≈ 67–98%, y ≈ 10–21% of the 928×1068 image
   overlayInputWrapper: {
     position: "absolute",
-    top: "12%",
-    left: "67%",
-    right: "2%",
-    height: 44,
-    overflow: "hidden",
+    top: "55%",
+    left: "25%",
+    right: "25%",
+    height: 68,
+    width: 182,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "rgba(0, 0, 0, 0.20)",
+    backgroundColor: "rgba(255, 255, 255, 0.10)",
+    justifyContent: "center",
   },
   overlayInput: {
     flex: 1,
     backgroundColor: "transparent",
-    fontFamily: SFPro.semiBold,
-    fontSize: 24,
-    color: "#000",
-    paddingHorizontal: 8,
+    fontFamily: SFPro.bold,
+    fontSize: 36,
+    color: "#D2D2D1",
+    paddingHorizontal: 12,
     letterSpacing: -0.5,
-    lineHeight: 22,
+    textAlign: "center",
   },
 
   // ── Gradient overlay ──────────────────────────────

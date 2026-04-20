@@ -46,16 +46,21 @@ export default function VmFinalScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.container}>
-        {/* Full-screen illustration */}
-        <Image
-          source={require("@/assets/images/new-design/onboarding/final-vm.png")}
-          style={styles.illustration}
-          contentFit="contain"
-        />
+        {/* Full-screen illustration with name overlay */}
+        <View style={styles.illustrationContainer}>
+          <Image
+            source={require("@/assets/images/new-design/onboarding/vm-illustration.png")}
+            style={StyleSheet.absoluteFill}
+            contentFit="contain"
+          />
+          <Text style={styles.vmNameOverlay}>
+            {name.length > 9 ? name.slice(0, 9) + "..." : name}
+          </Text>
+        </View>
 
         {/* Gradient + content overlaid at the bottom of the image */}
         <LinearGradient
-          colors={["rgba(247, 255, 243, 0.00)", "#F7FFF3"]}
+          colors={["#ffffff30", "#ffffff30"]}
           locations={[0, 0.45]}
           style={styles.gradientOverlay}
         >
@@ -105,12 +110,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
   },
-  illustration: {
+  illustrationContainer: {
     position: "absolute",
-    left: SCREEN_WIDTH * 0.2,
-    right: SCREEN_WIDTH * 0.2,
-    height: SCREEN_HEIGHT * 0.65,
-    bottom: 102,
+    left: 0,
+    right: 0,
+    height: SCREEN_HEIGHT,
+    bottom: 0,
+  },
+  vmNameOverlay: {
+    position: "absolute",
+    top: "45%",
+    left: "15%",
+    right: "0%",
+    fontFamily: SFPro.semiBold,
+    fontSize: 22,
+    color: "rgba(180, 180, 180, 0.85)",
+    letterSpacing: 1,
+    transform: [{ rotate: "25deg" }],
+    textAlign: "center",
   },
   gradientOverlay: {
     position: "absolute",

@@ -11,6 +11,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Image,
   Linking,
   SafeAreaView,
   ScrollView,
@@ -94,11 +95,24 @@ export default function OnboardingClaimScreen() {
 
         {/* Card */}
         <View style={styles.card}>
+          <Image
+            source={require("@/assets/images/new-design/onboarding/claim-card.png")}
+            style={styles.cardImage}
+            resizeMode="cover"
+          />
+          {/* Base dark gradient (image fallback with lightgray) */}
           <LinearGradient
-            colors={["#000000", "#303030"]}
-            start={{ x: 0.03, y: 0.32 }}
-            end={{ x: 0.97, y: 0.68 }}
+            colors={["#000000", "#000"]}
+            start={{ x: 1, y: 1 }}
+            end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
+          />
+          {/* Metallic top layer */}
+          <LinearGradient
+            colors={["#C6C6C6", "#838282", "#C6C6C6"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFill, { opacity: 0.3 }]}
           />
           <View style={styles.cardTopRow}>
             <View>
@@ -179,13 +193,17 @@ const styles = StyleSheet.create({
     color: "#000",
     flex: 1,
   },
+  cardImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
+  },
   card: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#606060",
-    // backgroundColor: "#000",
+    borderColor: "#C6C6C6",
     shadowColor: "#606060",
-    shadowOffset: { width: 0, height: -40 },
+    shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 1,
     shadowRadius: 0,
     elevation: 4,
