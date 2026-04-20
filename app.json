@@ -56,7 +56,15 @@
       "expo-image",
       "expo-web-browser",
       "react-native-bottom-tabs",
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#088120",
+          "sounds": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
