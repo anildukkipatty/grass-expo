@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -16,15 +16,19 @@ type NotificationData = {
 const PUSH_TOKEN_KEY = "expo_push_token";
 const EAS_PROJECT_ID = "5f83639c-9362-4793-86cd-31ab41f09788";
 
-// How foreground notifications are displayed
+// Show notifications only when the app is in the background.
+// If the app is active (foreground), suppress the banner — the user is already in the app.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async () => {
+    const isActive = AppState.currentState === "active";
+    return {
+      shouldShowAlert: !isActive,
+      shouldPlaySound: !isActive,
+      shouldSetBadge: false,
+      shouldShowBanner: !isActive,
+      shouldShowList: true,
+    };
+  },
 });
 
 async function registerForPushNotificationsAsync(): Promise<string | null> {
