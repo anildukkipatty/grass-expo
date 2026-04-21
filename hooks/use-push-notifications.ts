@@ -103,7 +103,7 @@ export function usePushNotifications() {
             params: { sessionId: data.sessionId, ...(data.serverId ? { serverId: data.serverId } : {}) },
           });
         } else if (data.type === "container_ready" || data.type === "limit_exceeded") {
-          router.push("/(tabs)/home");
+          router.replace("/(tabs)/home");
         }
       }
     );

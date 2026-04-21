@@ -299,6 +299,7 @@ export default function Chat() {
     serverUrl,
     selectedModelKey,
     agentMode,
+    permissionMode,
   ]);
 
   const goDiffs = useCallback(() => {
