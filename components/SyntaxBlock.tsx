@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
 import SyntaxHighlighter from 'react-syntax-highlighter/dist/esm/prism-light';
 import tsx from 'react-syntax-highlighter/dist/esm/languages/prism/tsx';
 import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
@@ -60,9 +60,14 @@ export function SyntaxBlock({ code, language, theme }: Props) {
 
   const renderer = ({ rows, stylesheet }: { rows: any[]; stylesheet: Record<string, any> }) => (
     <View style={[styles.container, { backgroundColor: baseBg, borderColor: colors.border }]}>
-      <Text style={[styles.text, baseColor ? { color: baseColor } : undefined]}>
-        {renderNodes(rows, stylesheet, styles.text)}
-      </Text>
+      <TextInput
+        style={[styles.text, baseColor ? { color: baseColor } : undefined]}
+        value={code}
+        editable={false}
+        multiline
+        scrollEnabled={false}
+        selectTextOnFocus
+      />
     </View>
   );
 

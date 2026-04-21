@@ -11,10 +11,12 @@ import {
   listReposStore,
   listDirStore,
   readFileStore,
+  getSessionConfigStore,
+  patchSessionPermissionModeStore,
 } from '@/store/connection-store';
 
 // Re-export types so existing importers keep working
-export type { Message, PermissionItem, Session, Repo, DirEntry, FileContentResult, RepoDetails } from '@/store/connection-store';
+export type { Message, PermissionItem, Session, Repo, DirEntry, FileContentResult, RepoDetails, PermissionMode, SessionConfig } from '@/store/connection-store';
 
 export interface UseServerResult {
   // connected: boolean;      // TODO: revisit connection health indicators
@@ -29,7 +31,8 @@ export interface UseServerResult {
   sessionsList: import('@/store/connection-store').Session[];
   repos: import('@/store/connection-store').Repo[];
   repoDetails: Map<string, import('@/store/connection-store').RepoDetails>;
-  send: (text: string, model?: string, mode?: 'plan' | 'build') => void;
+  permissionMode: import('@/store/connection-store').PermissionMode;
+  send: (text: string, model?: string, mode?: 'plan' | 'build', permissionMode?: import('@/store/connection-store').PermissionMode) => void;
   abort: () => void;
   respondPermission: (approved: boolean) => void;
   listSessions: (repoPath?: string, agent?: string) => void;
@@ -39,6 +42,8 @@ export interface UseServerResult {
   fileContent: import('@/store/connection-store').FileContentResult | null;
   listDir: (path: string, repoPath: string) => void;
   readFile: (path: string, repoPath: string) => void;
+  getSessionConfig: (sessionId: string) => Promise<import('@/store/connection-store').SessionConfig | null>;
+  patchPermissionMode: (sessionId: string | null, mode: import('@/store/connection-store').PermissionMode) => Promise<void>;
 }
 
 export function useServer(serverUrl: string | null): UseServerResult {
@@ -52,14 +57,16 @@ export function useServer(serverUrl: string | null): UseServerResult {
 
   const entry = serverUrl ? getEntry(serverUrl) : null;
 
-  const send        = useCallback((text: string, model?: string, mode?: 'plan' | 'build') => { if (serverUrl) sendMessageStore(serverUrl, text, model, mode); }, [serverUrl]);
-  const abort       = useCallback(() => { if (serverUrl) abortStore(serverUrl); }, [serverUrl]);
-  const respondPerm = useCallback((ok: boolean) => { if (serverUrl) respondPermissionStore(serverUrl, ok); }, [serverUrl]);
-  const listSess    = useCallback((repoPath?: string, agent?: string) => { if (serverUrl) listSessionsStore(serverUrl, repoPath, agent); }, [serverUrl]);
-  const initSess    = useCallback((id: string | null, agent?: string | null, rp?: string | null) => { if (serverUrl) initSessionStore(serverUrl, id, agent, rp); }, [serverUrl]);
-  const listRepos   = useCallback(() => { if (serverUrl) listReposStore(serverUrl); }, [serverUrl]);
-  const listDir     = useCallback((path: string, repoPath: string) => { if (serverUrl) listDirStore(serverUrl, path, repoPath); }, [serverUrl]);
-  const readFile    = useCallback((path: string, repoPath: string) => { if (serverUrl) readFileStore(serverUrl, path, repoPath); }, [serverUrl]);
+  const send             = useCallback((text: string, model?: string, mode?: 'plan' | 'build', permissionMode?: import('@/store/connection-store').PermissionMode) => { if (serverUrl) sendMessageStore(serverUrl, text, model, mode, permissionMode); }, [serverUrl]);
+  const abort            = useCallback(() => { if (serverUrl) abortStore(serverUrl); }, [serverUrl]);
+  const respondPerm      = useCallback((ok: boolean) => { if (serverUrl) respondPermissionStore(serverUrl, ok); }, [serverUrl]);
+  const listSess         = useCallback((repoPath?: string, agent?: string) => { if (serverUrl) listSessionsStore(serverUrl, repoPath, agent); }, [serverUrl]);
+  const initSess         = useCallback((id: string | null, agent?: string | null, rp?: string | null) => { if (serverUrl) initSessionStore(serverUrl, id, agent, rp); }, [serverUrl]);
+  const listRepos        = useCallback(() => { if (serverUrl) listReposStore(serverUrl); }, [serverUrl]);
+  const listDir          = useCallback((path: string, repoPath: string) => { if (serverUrl) listDirStore(serverUrl, path, repoPath); }, [serverUrl]);
+  const readFile         = useCallback((path: string, repoPath: string) => { if (serverUrl) readFileStore(serverUrl, path, repoPath); }, [serverUrl]);
+  const getSessionConfig = useCallback((sessionId: string) => serverUrl ? getSessionConfigStore(serverUrl, sessionId) : Promise.resolve(null), [serverUrl]);
+  const patchPermMode    = useCallback((sessionId: string, mode: import('@/store/connection-store').PermissionMode) => serverUrl ? patchSessionPermissionModeStore(serverUrl, sessionId, mode) : Promise.resolve(), [serverUrl]);
 
   return {
     // connected:       false,        // TODO: revisit connection health indicators
@@ -74,6 +81,7 @@ export function useServer(serverUrl: string | null): UseServerResult {
     sessionsList:    entry?.sessionsList    ?? [],
     repos:           entry?.repos           ?? [],
     repoDetails:     entry?.repoDetails     ?? new Map(),
+    permissionMode:  entry?.permissionMode  ?? 'ask-permissions',
     dirListing:      entry?.dirListing      ?? null,
     fileContent:     entry?.fileContent     ?? null,
     send,
@@ -84,6 +92,8 @@ export function useServer(serverUrl: string | null): UseServerResult {
     listRepos,
     listDir,
     readFile,
+    getSessionConfig,
+    patchPermissionMode: patchPermMode,
   };
 }
 

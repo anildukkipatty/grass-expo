@@ -141,11 +141,71 @@ AppState.addEventListener('change', (next) => {
 
 ---
 
+---
+
+## 8. SSE Stream Drop Clears `streaming` Flag While Agent Still Running
+
+**Location:** `store/connection-store.ts` — `openSSEStream` (lines ~446–455)
+
+**Bug:** The `streaming` flag is unconditionally set to `false` whenever the SSE `ReadableStream` reader resolves `done: true` or the fetch throws — regardless of whether the agent actually finished. This happens even when the stream drops due to a network blip or the server closing the HTTP connection for a non-terminal reason (keepalive timeout, proxy reset, etc.).
+
+```typescript
+// After the read loop exits (done or error):
+const e = _connections.get(serverKey);
+if (e) {
+  e.sseAbortController = null;
+  e.streaming = false;   // ← always set false, even on unexpected drops
+  notifyListeners(serverKey);
+}
+```
+
+**Condition that triggers it:**
+- The SSE connection drops mid-session (network blip, server keepalive timeout, Expo fetch layer closing the stream) without a `result`, `done`, `error`, or `aborted` event being received.
+- The reader loop exits cleanly (`done: true`) but no terminal SSE event was handled, so `entry.streaming` was never set false by the event handler — yet the finally block sets it false anyway.
+
+**Observed symptom:** The abort button disappears and the input becomes editable mid-session. Navigating to the sessions list and re-opening the chat restores the streaming state because `initSessionStore` hits `/sessions/:id/status`, sees `streaming: true` on the server, and re-attaches the SSE stream.
+
+**Root cause:** No distinction between "stream ended because agent finished" vs "stream ended because connection dropped."
+
+**Recommended Fix:**
+Track whether a terminal SSE event was received within `openSSEStream`. Only set `streaming = false` in the cleanup block if a terminal event was seen. If the stream ended without one and the session is still active, attempt a reconnect instead.
+
+```typescript
+let receivedTerminal = false;
+
+// In handleSSEEvent, set receivedTerminal = true on result/done/error/aborted
+// ...
+
+// Cleanup block:
+const e = _connections.get(serverKey);
+if (e) {
+  e.sseAbortController = null;
+  if (receivedTerminal) {
+    // agent genuinely finished — streaming already set false by event handler
+  } else {
+    // unexpected drop — don't clear streaming; attempt reconnect
+    if (e.currentSessionId && !controller.signal.aborted) {
+      void openSSEStream(serverKey, e.currentSessionId); // reconnect
+    } else {
+      e.streaming = false;
+      notifyListeners(serverKey);
+    }
+  }
+}
+```
+
+**Severity:** High
+
+**Priority:** P0
+
+---
+
 ## Summary
 
 | Issue | Severity | Priority |
 |-------|----------|----------|
 | SSE Stream State on App State Changes | High | P0 |
+| SSE Stream Drop Clears `streaming` Mid-Session | High | P0 |
 | Race Condition in Agent Selection | Medium | P1 |
 | No Agent Context Persistence | Medium | P1 |
 | Session Initialization Without Validation | Medium | P1 |

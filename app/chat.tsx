@@ -4,6 +4,7 @@ import { AgentTypingskeleton } from "@/components/SkeletonLoader";
 import { GrassColors } from "@/constants/theme";
 import { posthog } from "@/constants/posthog";
 import { useServer } from "@/hooks/use-server";
+import type { PermissionMode } from "@/hooks/use-server";
 import modelsJson from "@/models.json";
 import {
   closeSSEStream,
@@ -112,8 +113,20 @@ export default function Chat() {
     modelList.find((m) => m.key === selectedModelKey)?.label ??
     selectedModelKey;
   const modelSheetRef = useRef<BottomSheetModal>(null);
+  const modeSheetRef = useRef<BottomSheetModal>(null);
   const modelSnapPoints = ["75%"];
+  const modeSnapPoints = ["50%"];
   const renderModelBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+      />
+    ),
+    [],
+  );
+  const renderModeBackdrop = useCallback(
     (props: any) => (
       <BottomSheetBackdrop
         {...props}
@@ -129,6 +142,7 @@ export default function Chat() {
   const prevStreaming = useRef(false);
 
   const ws = useServer(serverUrl);
+  const permissionMode = ws.permissionMode;
 
   const [sessionLabel, setSessionLabelState] = useState<string | null>(
     getSessionLabel,
@@ -191,6 +205,22 @@ export default function Chat() {
     return () => sub.remove();
   }, [ws.messages.length]);
 
+  // For resumed sessions, fetch config once on mount and pre-populate model/mode/permissionMode.
+  // Only runs when initialSessionId is set (user opened an existing session).
+  // New sessions have no stored config so we skip the call entirely.
+  const sessionConfigFetched = useRef(false);
+  useEffect(() => {
+    if (!initialSessionId || !serverUrl || sessionConfigFetched.current) return;
+    sessionConfigFetched.current = true;
+    ws.getSessionConfig(initialSessionId).then((config) => {
+      if (!config) return;
+      if (config.model) setSelectedModelKey(config.model);
+      if (config.mode) setAgentMode(config.mode);
+      // permissionMode is already applied to the store by getSessionConfigStore; no local state needed
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Init session once on mount; close SSE stream on unmount so the server
   // buffers remaining events for replay when the user returns to this session.
   useEffect(() => {
@@ -240,7 +270,7 @@ export default function Chat() {
       mode: agentMode,
       repo_name: repoName ?? "",
     });
-    ws.send(text, selectedModelKey, agentMode);
+    ws.send(text, selectedModelKey, agentMode, permissionMode);
     // If returning to an existing thread, update timestamp now.
     // Use sdkSessionId if available, fall back to grassId.
     const threadId = ws.sdkSessionId || ws.grassId;
@@ -583,7 +613,7 @@ export default function Chat() {
               </Text>
             </TouchableOpacity>
 
-            {/* Plan/Build mode toggle pill */}
+            {/* Mode pill — opens mode/permission sheet */}
             <TouchableOpacity
               style={[
                 styles.pill,
@@ -592,7 +622,8 @@ export default function Chat() {
               hitSlop={8}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setAgentMode((m) => (m === "build" ? "plan" : "build"));
+                Keyboard.dismiss();
+                modeSheetRef.current?.present();
               }}
             >
               <Text
@@ -602,6 +633,8 @@ export default function Chat() {
                 ]}
               >
                 {agentMode === "plan" ? "Plan" : "Build"}
+                {permissionMode !== "ask-permissions" ? ` - ${permissionMode === "allow-all-edits" ? "Edits allowed" : "YOLO"}` : ""}
+                {" "}<Text style={{ fontSize: 17 }}>▾</Text>
               </Text>
             </TouchableOpacity>
 
@@ -679,6 +712,84 @@ export default function Chat() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Mode + Permission bottom sheet */}
+      <BottomSheetModal
+        ref={modeSheetRef}
+        snapPoints={modeSnapPoints}
+        enablePanDownToClose
+        backdropComponent={renderModeBackdrop}
+        backgroundStyle={{ backgroundColor: c.barBg }}
+        handleIndicatorStyle={{ backgroundColor: c.badgeText }}
+      >
+        <BottomSheetScrollView contentContainerStyle={styles.modelSheetContent}>
+          {/* Agent mode section */}
+          <Text style={[styles.modelSheetTitle, { color: c.badgeText }]}>
+            Mode
+          </Text>
+          {(["build", "plan"] as const).map((mode) => (
+            <TouchableOpacity
+              key={mode}
+              style={[
+                styles.modelRow,
+                { borderBottomColor: c.border },
+                agentMode === mode && { backgroundColor: c.accentSoft },
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setAgentMode(mode);
+              }}
+            >
+              <View>
+                <Text style={[styles.modelRowText, { color: c.text }]}>
+                  {mode === "build" ? "Build" : "Plan"}
+                </Text>
+                <Text style={[styles.modeSubtext, { color: c.badgeText }]}>
+                  {mode === "build"
+                    ? "Agent writes and edits code directly"
+                    : "Agent plans changes without editing files"}
+                </Text>
+              </View>
+              {agentMode === mode && (
+                <Text style={[styles.modelRowCheck, { color: c.accent }]}>✓</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+
+          {/* Permission mode section */}
+          <Text style={[styles.modelSheetTitle, { color: c.badgeText, marginTop: 16 }]}>
+            Permissions
+          </Text>
+          {([
+            { key: "ask-permissions", label: "Ask permissions", sub: "Agent asks before making changes" },
+            { key: "allow-all-edits", label: "Allow all edits", sub: "Agent edits files without asking" },
+            { key: "yolo", label: "YOLO", sub: "Agent runs commands freely, no confirmations" },
+          ] as const).map((item) => (
+            <TouchableOpacity
+              key={item.key}
+              style={[
+                styles.modelRow,
+                { borderBottomColor: c.border },
+                permissionMode === item.key && { backgroundColor: c.accentSoft },
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (serverUrl) {
+                  ws.patchPermissionMode(ws.grassId ?? ws.sessionId, item.key as PermissionMode);
+                }
+              }}
+            >
+              <View>
+                <Text style={[styles.modelRowText, { color: c.text }]}>{item.label}</Text>
+                <Text style={[styles.modeSubtext, { color: c.badgeText }]}>{item.sub}</Text>
+              </View>
+              {permissionMode === item.key && (
+                <Text style={[styles.modelRowCheck, { color: c.accent }]}>✓</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </BottomSheetScrollView>
+      </BottomSheetModal>
 
       {/* Model picker bottom sheet */}
       <BottomSheetModal
@@ -989,5 +1100,10 @@ const styles = StyleSheet.create({
   modelRowCheck: {
     fontSize: 18,
     fontWeight: "700",
+  },
+  modeSubtext: {
+    fontSize: 12,
+    marginTop: 2,
+    fontFamily: "ui-monospace",
   },
 });
