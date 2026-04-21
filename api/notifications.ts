@@ -19,3 +19,11 @@ export function removePushToken(token: string, authToken: string) {
     token: authToken,
   });
 }
+
+export function registerRelayToken(relayToken: string, authToken: string) {
+  return apiRequest("/notifications/relay-token", {
+    method: "POST",
+    body: { token: relayToken },
+    token: authToken,
+  });
+}
