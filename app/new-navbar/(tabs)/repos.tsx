@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { MachineCarousel, Machine } from "@/components/new-navbar/MachineCarousel";
 import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
+import { AddRepoSlider } from "@/components/new-navbar/AddRepoSlider";
 
 import AddIcon from "@/assets/images/new-design/navbar/add-icon.svg";
 import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
@@ -62,6 +63,7 @@ export default function ReposScreen() {
   const { bottom } = useSafeAreaInsets();
   const [selectedMachineId, setSelectedMachineId] = useState<string>("2");
   const [connectMoreVisible, setConnectMoreVisible] = useState(false);
+  const [addRepoVisible, setAddRepoVisible] = useState(false);
 
   return (
     <View style={styles.reposContainer}>
@@ -75,13 +77,17 @@ export default function ReposScreen() {
         visible={connectMoreVisible}
         onClose={() => setConnectMoreVisible(false)}
       />
+      <AddRepoSlider
+        visible={addRepoVisible}
+        onClose={() => setAddRepoVisible(false)}
+      />
         {/* Sticky action buttons */}
         <View style={styles.repoActionRow}>
-          <TouchableOpacity style={styles.repoActionBtn} activeOpacity={0.75}>
+          <TouchableOpacity style={styles.repoActionBtn} activeOpacity={0.75} onPress={() => setAddRepoVisible(true)}>
             <AddIcon width={30} height={30} />
             <Text style={styles.repoActionText}>Add new repo</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.repoActionBtn} activeOpacity={0.75}>
+          <TouchableOpacity style={styles.repoActionBtn} activeOpacity={0.75} onPress={() => setAddRepoVisible(true)}>
             <GitIcon width={30} height={16} />
             <Text style={styles.repoActionText}>Clone from GitHub</Text>
           </TouchableOpacity>

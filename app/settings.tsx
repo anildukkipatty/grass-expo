@@ -3,9 +3,9 @@
 // import MachineIcon from "@/assets/images/settings/machine-icon.svg";
 import BackIcon from "@/assets/images/settings/back-arrow.svg";
 import ProfileIconSvg from "@/assets/images/settings/profile-icon.svg";
+import { posthog } from "@/constants/posthog";
 import { clearAuth, getUser } from "@/store/auth-store";
 import { closeConnection, getConnectedUrls } from "@/store/connection-store";
-import { posthog } from "@/constants/posthog";
 import { clearAllThreads } from "@/store/thread-store";
 import { clearUrls } from "@/store/url-store";
 import { BlurView } from "expo-blur";
@@ -70,7 +70,7 @@ export default function SettingsScreen() {
             Alert.alert("Done", "Recent threads cleared.");
           },
         },
-      ]
+      ],
     );
   };
 
@@ -189,7 +189,10 @@ export default function SettingsScreen() {
         {/* Danger Zone */}
         <Text style={styles.sectionLabel}>DANGER ZONE</Text>
         <View style={styles.card}>
-          <TouchableOpacity style={styles.dangerRow} onPress={handleClearLocalStorage}>
+          <TouchableOpacity
+            style={styles.dangerRow}
+            onPress={handleClearLocalStorage}
+          >
             <Text style={styles.clearStorageText}>Clear local storage</Text>
           </TouchableOpacity>
           <View style={styles.divider} />

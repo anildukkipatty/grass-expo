@@ -1,5 +1,6 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
@@ -139,6 +140,7 @@ type Props = {
 export function NotificationSlider({ visible, onClose }: Props) {
   const translateY = useRef(new Animated.Value(SLIDER_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const [extraNotifs, setExtraNotifs] = useState<Notification[]>([]);
 
   const open = useCallback(() => {
     Animated.parallel([
@@ -175,6 +177,22 @@ export function NotificationSlider({ visible, onClose }: Props) {
     if (visible) {
       translateY.setValue(SLIDER_HEIGHT);
       open();
+      AsyncStorage.getItem("@grass/coming_soon_notifications").then((raw) => {
+        if (!raw) return;
+        const stored: Array<{ id: string; featureName: string; message: string; time: string }> =
+          JSON.parse(raw);
+        setExtraNotifs(
+          stored.map((n) => ({
+            id: `cs_${n.id}`,
+            repo: n.featureName,
+            branch: "coming soon",
+            message: n.message,
+            time: n.time,
+            read: false,
+            type: "yellow" as NotificationType,
+          })),
+        );
+      });
     }
   }, [visible, open, translateY]);
 
@@ -233,7 +251,7 @@ export function NotificationSlider({ visible, onClose }: Props) {
         </View>
 
         <FlatList
-          data={MOCK_NOTIFICATIONS}
+          data={[...extraNotifs, ...MOCK_NOTIFICATIONS]}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <NotificationItem item={item} />}
           showsVerticalScrollIndicator={false}

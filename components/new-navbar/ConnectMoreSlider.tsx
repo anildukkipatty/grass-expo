@@ -190,12 +190,6 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
 
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>Get more from grass</Text>
-            <Text style={styles.headerSubtitle}>
-              All optional. Set up whenever you&#39;re ready.
-            </Text>
-          </View>
           <TouchableOpacity
             onPress={close}
             style={styles.closeButton}
@@ -203,6 +197,12 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
           >
             <CloseIcon />
           </TouchableOpacity>
+          <View style={styles.headerText}>
+            <Text style={styles.headerTitle}>Get more from grass</Text>
+            <Text style={styles.headerSubtitle}>
+              All optional. Set up whenever you&#39;re ready.
+            </Text>
+          </View>
         </View>
 
         <ScrollView
@@ -222,11 +222,11 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
               footerIcons={
                 <>
                   <ClaudeIcon
-                    width={12}
-                    height={12}
-                    style={{ marginRight: -2 }}
+                    width={16}
+                    height={16}
+                    style={{ marginRight: -8, marginTop: -10 }}
                   />
-                  <OpenCodeIcon width={12} height={12} />
+                  <OpenCodeIcon width={30} height={30} />
                 </>
               }
             />
@@ -244,16 +244,16 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
               footerIcons={
                 <>
                   <AppleIcon
-                    width={22}
-                    height={22}
-                    style={{ marginRight: -10 }}
+                    width={30}
+                    height={30}
+                    style={{ marginRight: -14 }}
                   />
                   <WindowsIcon
-                    width={22}
-                    height={22}
-                    style={{ marginRight: -10 }}
+                    width={30}
+                    height={30}
+                    style={{ marginRight: -14 }}
                   />
-                  <LinuxIcon width={22} height={22} />
+                  <LinuxIcon width={30} height={30} />
                 </>
               }
             />
@@ -273,11 +273,11 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
                 footerIcons={
                   <>
                     <GithubIcon
-                      width={22}
-                      height={22}
-                      style={{ marginRight: -10 }}
+                      width={30}
+                      height={30}
+                      style={{ marginRight: -14 }}
                     />
-                    <GitLabIcon width={22} height={22} />
+                    <GitLabIcon width={30} height={30} />
                   </>
                 }
               />
@@ -289,7 +289,7 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
                 subtitle={"Coming in v2"}
                 // footerText={"Fine-grained\npermissions per repo"}
                 style={{ flex: 1 }}
-                footerIcons={<LockIcon width={22} height={22} />}
+                footerIcons={<LockIcon width={30} height={30} />}
               />
             </View>
           </View>
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    maxHeight: SCREEN_HEIGHT * 0.88,
+    maxHeight: SCREEN_HEIGHT * 0.95,
     backgroundColor: "#FFF",
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
@@ -332,6 +332,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 10,
     paddingBottom: 16,
+    // marginBottom: ,
     backgroundColor: "#FFF",
   },
   dragger: {
@@ -341,21 +342,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#CCC",
   },
   header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 16,
+    paddingBottom: 10,
   },
   headerText: {
-    flex: 1,
-    gap: 4,
+    gap: 8,
   },
   headerTitle: {
     fontFamily: SFPro.bold,
     fontSize: 28,
-    lineHeight: 31,
+    lineHeight: 32,
     color: "#000",
     letterSpacing: -0.5,
   },
@@ -373,7 +370,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f2f2f2",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 2,
+    alignSelf: "flex-end",
   },
   // closeX: {
   //   fontSize: 13,
@@ -395,8 +392,8 @@ const styles = StyleSheet.create({
   },
   cardTop: {
     paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
     backgroundColor: "#FFF",
     gap: 8,
   },
@@ -420,14 +417,16 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   cardBottom: {
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    // paddingVertical: 12,
     backgroundColor: "#f2f2f2",
   },
   footerIcons: {
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
     gap: 0,
@@ -442,21 +441,21 @@ const styles = StyleSheet.create({
   cardTopWithImage: {
     flexDirection: "row",
     paddingLeft: 16,
-    paddingTop: 18,
-    paddingBottom: 14,
+    // paddingTop: 18,
+    // paddingBottom: 14,
     backgroundColor: "#FFF",
     gap: 8,
     height: 140,
     overflow: "hidden",
   },
   cardTopLeft: {
+    paddingVertical: 16,
     flex: 1,
-    gap: 8,
-    justifyContent: "center",
+    justifyContent: "space-between",
   },
   cardImage: {
     flex: 1,
-    height: "120%",
+    height: "100%",
   },
   footerText: {
     fontFamily: SFPro.semiBold,

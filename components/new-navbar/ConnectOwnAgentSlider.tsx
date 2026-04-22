@@ -20,22 +20,26 @@ import {
   View,
 } from "react-native";
 
+import ClaudeTransparentIcon from "@/assets/images/new-design/connect-more/claude-transparent.svg";
 import ClaudeIcon from "@/assets/images/new-design/connect-more/claude.svg";
 import CopyIcon from "@/assets/images/new-design/connect-more/copy-icon.svg";
 import LogoIcon from "@/assets/images/new-design/connect-more/logo.svg";
-import OpenCodeIcon from "@/assets/images/new-design/connect-more/open-code.svg";
+import OpenCodeIcon from "@/assets/images/new-design/connect-more/opencode-transparent.svg";
 import SecureIcon from "@/assets/images/new-design/connect-more/secure.svg";
+import SuccessMark from "@/assets/images/new-design/connect-more/success-mark.svg";
 import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 
 import { SFPro } from "@/constants/theme";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
 const CLOSE_THRESHOLD = 80;
 const SKELETON_DURATION = 5000;
 
 const CLAUDE_AUTH_URL = "claude.ai/oauth/device?code=GRSS";
 const TABS = ["Claude Code", "Opencode"] as const;
 type Tab = (typeof TABS)[number];
+type Step = "form" | "connected";
 
 type Props = {
   visible: boolean;
@@ -71,11 +75,14 @@ function SkeletonBox({
 export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const successTranslateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+
   const [activeTab, setActiveTab] = useState<Tab>("Claude Code");
   const [authCode, setAuthCode] = useState("");
   const [authError, setAuthError] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [step, setStep] = useState<Step>("form");
   const authInputRef = useRef<TextInput>(null);
   const skeletonTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -115,10 +122,12 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
   useEffect(() => {
     if (visible) {
       translateY.setValue(SCREEN_HEIGHT);
+      successTranslateY.setValue(SHEET_HEIGHT);
       setActiveTab("Claude Code");
       setAuthCode("");
       setAuthError(false);
       setIsLoading(true);
+      setStep("form");
       open();
       skeletonTimer.current = setTimeout(() => {
         setIsLoading(false);
@@ -127,7 +136,18 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
     return () => {
       if (skeletonTimer.current) clearTimeout(skeletonTimer.current);
     };
-  }, [visible, open, translateY]);
+  }, [visible, open, translateY, successTranslateY]);
+
+  const slideSuccessIn = useCallback(() => {
+    setStep("connected");
+    successTranslateY.setValue(SHEET_HEIGHT);
+    Animated.spring(successTranslateY, {
+      toValue: 0,
+      useNativeDriver: true,
+      damping: 20,
+      stiffness: 180,
+    }).start();
+  }, [successTranslateY]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -166,9 +186,11 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       return;
     }
     setAuthError(false);
-  }, [authCode]);
+    slideSuccessIn();
+  }, [authCode, slideSuccessIn]);
 
   const agentLabel = activeTab === "Claude Code" ? "Claude" : "Opencode";
+  const isGreenStep = step === "connected";
 
   if (!visible) return null;
 
@@ -195,21 +217,32 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
         pointerEvents="box-none"
       >
         <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-          <LinearGradient
-            colors={[
-              "#FFF",
-              "rgba(255,255,255,0.90)",
-              "rgba(255,255,255,0.00)",
-            ]}
-            locations={[0.2862, 0.7975, 1]}
-            style={StyleSheet.absoluteFillObject}
-            pointerEvents="none"
-          />
+          {!isGreenStep && (
+            <LinearGradient
+              colors={[
+                "#FFF",
+                "rgba(255,255,255,0.90)",
+                "rgba(255,255,255,0.00)",
+              ]}
+              locations={[0.2862, 0.7975, 1]}
+              style={StyleSheet.absoluteFillObject}
+              pointerEvents="none"
+            />
+          )}
 
           {/* Drag handle */}
           <View style={styles.dragArea} {...panResponder.panHandlers}>
-            <View style={styles.dragger} />
+            <View style={[styles.dragger, isGreenStep && styles.draggerOnGreen]} />
           </View>
+
+          {/* Close button – top right */}
+          <TouchableOpacity
+            onPress={close}
+            style={[styles.closeButton, isGreenStep && styles.closeButtonTranslucent]}
+            hitSlop={8}
+          >
+            <CloseIcon />
+          </TouchableOpacity>
 
           {/* Header */}
           <TouchableWithoutFeedback
@@ -223,13 +256,6 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                   All optional. Set up whenever you&#39;re ready.
                 </Text>
               </View>
-              <TouchableOpacity
-                onPress={close}
-                style={styles.closeButton}
-                hitSlop={8}
-              >
-                <CloseIcon />
-              </TouchableOpacity>
             </View>
           </TouchableWithoutFeedback>
 
@@ -257,7 +283,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                       activeOpacity={0.7}
                     >
                       {tab === "Claude Code" ? (
-                        <ClaudeIcon width={18} height={18} />
+                        <ClaudeTransparentIcon width={18} height={18} />
                       ) : (
                         <OpenCodeIcon width={18} height={18} />
                       )}
@@ -421,7 +447,13 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 {isLoading ? (
                   <SkeletonBox height={52} borderRadius={50} />
                 ) : (
-                  <View style={styles.connectButtonWrap}>
+                  <View
+                    style={[
+                      styles.connectButtonWrap,
+                      authCode.trim().length === 0 &&
+                        styles.connectButtonWrapNoShadow,
+                    ]}
+                  >
                     <TouchableOpacity
                       style={[
                         styles.connectButton,
@@ -452,6 +484,48 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
               <Text style={styles.learnMoreText}>Learn more →</Text>
             </TouchableOpacity>
           </ScrollView>
+
+          {/* ── Green success overlay — slides up from bottom ── */}
+          <Animated.View
+            style={[
+              styles.successOverlay,
+              { transform: [{ translateY: successTranslateY }] },
+            ]}
+            pointerEvents={isGreenStep ? "auto" : "none"}
+          >
+            {step === "connected" && (
+              <View style={styles.greenContent}>
+                <View style={styles.greenCenter}>
+                  <SuccessMark width={192} height={244} />
+                  <Text style={styles.greenTitle}>Agent connected</Text>
+                  <Text style={styles.greenSubtitle}>
+                    Claude Code is ready to run on your Mac.
+                  </Text>
+                </View>
+                <View style={styles.greenFooter}>
+                  <TouchableOpacity
+                    style={styles.primaryButton}
+                    onPress={close}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.primaryButtonText}>Start a session</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.addAnotherButton}
+                    onPress={() => {
+                      successTranslateY.setValue(SHEET_HEIGHT);
+                      setStep("form");
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.addAnotherButtonText}>
+                      Connect another
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </Animated.View>
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
@@ -470,7 +544,7 @@ const styles = StyleSheet.create({
   },
   sheet: {
     width: "100%",
-    maxHeight: SCREEN_HEIGHT * 0.92,
+    height: SHEET_HEIGHT,
     backgroundColor: "#FFF",
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
@@ -480,7 +554,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 10,
     paddingBottom: 10,
-    backgroundColor: "#FFF",
+    backgroundColor: "transparent",
+    marginBottom: 20,
   },
   dragger: {
     width: 36,
@@ -488,16 +563,15 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     backgroundColor: "#CCC",
   },
+  draggerOnGreen: {
+    backgroundColor: "rgba(255, 255, 255, 0.40)",
+  },
   header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 20,
   },
   headerText: {
-    flex: 1,
     gap: 4,
   },
   headerTitle: {
@@ -515,13 +589,19 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   closeButton: {
+    position: "absolute",
+    top: 14,
+    right: 16,
+    zIndex: 10,
     width: 44,
     height: 44,
     borderRadius: 294,
     backgroundColor: "#EBEBEB",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 2,
+  },
+  closeButtonTranslucent: {
+    backgroundColor: "rgba(255, 255, 255, 0.30)",
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -546,8 +626,10 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   tab: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -615,10 +697,9 @@ const styles = StyleSheet.create({
   stepDesc: {
     fontFamily: SFPro.regular,
     fontSize: 15,
-    color: "808080",
+    color: "#808080",
     lineHeight: 20,
     letterSpacing: -0.2,
-    // paddingLeft: 34,
   },
   skeletonDescGroup: {
     gap: 6,
@@ -661,6 +742,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: "#000",
     letterSpacing: -0.5,
+    textAlign: "center",
   },
   openBrowserButton: {
     flex: 1,
@@ -678,6 +760,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#FFF",
     letterSpacing: -0.2,
+    textAlign: "center",
   },
   // Auth input (single box)
   authInput: {
@@ -710,6 +793,11 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
     marginTop: 4,
+  },
+  connectButtonWrapNoShadow: {
+    shadowColor: "transparent",
+    shadowRadius: 0,
+    elevation: 0,
   },
   connectButton: {
     borderRadius: 50,
@@ -758,5 +846,69 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#3D841E",
     letterSpacing: -0.2,
+  },
+  // Green success overlay
+  successOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#3D841E",
+  },
+  greenContent: {
+    flex: 1,
+    paddingBottom: 40,
+  },
+  greenCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    gap: 16,
+  },
+  greenTitle: {
+    fontFamily: SFPro.bold,
+    fontSize: 32,
+    color: "#FFF",
+    textAlign: "center",
+    letterSpacing: -0.5,
+  },
+  greenSubtitle: {
+    fontFamily: SFPro.regular,
+    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.80)",
+    textAlign: "center",
+    letterSpacing: -0.2,
+    lineHeight: 22,
+  },
+  greenFooter: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  primaryButton: {
+    borderRadius: 50,
+    backgroundColor: "#FFF",
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  primaryButtonText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 16,
+    color: "#3D841E",
+    letterSpacing: -0.3,
+  },
+  addAnotherButton: {
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: "#FFF",
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  addAnotherButtonText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 16,
+    color: "#FFF",
+    letterSpacing: -0.3,
   },
 });

@@ -5,10 +5,12 @@ import {
   Animated,
   Dimensions,
   Image,
+  Linking,
   Modal,
   PanResponder,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
@@ -106,8 +108,9 @@ function PreviewCards() {
       opacity: op0,
       scale: 0.84,
       zIndex: 1,
-      top: 0,
-      blur: 2,
+      top: -6,
+      isFront: false,
+      hasBlur: false,
     },
     {
       translateY: anim1,
@@ -115,23 +118,43 @@ function PreviewCards() {
       scale: 0.92,
       zIndex: 2,
       top: 30,
-      blur: 1,
+      isFront: false,
+      hasBlur: true,
     },
-    { translateY: anim2, opacity: op2, scale: 1, zIndex: 3, top: 60, blur: 0 },
+    {
+      translateY: anim2,
+      opacity: op2,
+      scale: 1,
+      zIndex: 3,
+      top: 70,
+      isFront: true,
+      hasBlur: true,
+    },
   ];
 
   return (
     <View style={previewStyles.container}>
       {PREVIEW_CARDS.map((card, i) => {
-        const { translateY, opacity, scale, zIndex, top, blur } = anims[i];
+        const { translateY, opacity, scale, zIndex, top, isFront, hasBlur } =
+          anims[i];
         return (
           <Animated.View
             key={i}
             style={[
               previewStyles.card,
+              isFront || hasBlur
+                ? previewStyles.cardFront
+                : previewStyles.cardBack,
               { transform: [{ translateY }, { scale }], opacity, zIndex, top },
             ]}
           >
+            {hasBlur && (
+              <BlurView
+                intensity={18}
+                tint="light"
+                style={StyleSheet.absoluteFillObject}
+              />
+            )}
             <View style={previewStyles.logoWrap}>
               <NotifLogo width={20} height={12} />
             </View>
@@ -144,13 +167,6 @@ function PreviewCards() {
                 {card.message}
               </Text>
             </View>
-            {blur > 0 && (
-              <BlurView
-                intensity={blur * 4}
-                tint="light"
-                style={StyleSheet.absoluteFillObject}
-              />
-            )}
           </Animated.View>
         );
       })}
@@ -160,26 +176,33 @@ function PreviewCards() {
 
 const previewStyles = StyleSheet.create({
   container: {
-    height: 210,
+    height: 200,
     marginHorizontal: 16,
     marginTop: 28,
   },
   card: {
     position: "absolute",
+    height: 80,
     left: 0,
     right: 0,
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "rgba(0, 0, 0, 0.10)",
-    borderRadius: 19.135,
-    borderWidth: 0.957,
+    borderRadius: 19,
+    borderWidth: 1,
     borderColor: "#ECECEC",
     padding: 12,
     gap: 10,
+    overflow: "hidden",
+  },
+  cardBack: {
+    backgroundColor: "rgba(0, 0, 0, 0.10)",
+  },
+  cardFront: {
+    backgroundColor: "rgba(0, 0, 0, 0.10)",
   },
   logoWrap: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 10,
     backgroundColor: "#FFF",
     justifyContent: "center",
@@ -203,9 +226,9 @@ const previewStyles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   cardTime: {
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.semiBold,
     fontSize: 13,
-    color: "#8E8E93",
+    color: "#606060",
   },
   cardMsg: {
     fontFamily: SFPro.regular,
@@ -278,6 +301,9 @@ export function NotificationPermissionSlider({ visible, onClose }: Props) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const [enabling, setEnabling] = useState(false);
+  const [isGranted, setIsGranted] = useState<boolean | null>(null);
+  const [isDenied, setIsDenied] = useState(false);
+  const [notifToggle, setNotifToggle] = useState(true);
 
   const open = useCallback(() => {
     Animated.parallel([
@@ -312,6 +338,12 @@ export function NotificationPermissionSlider({ visible, onClose }: Props) {
 
   useEffect(() => {
     if (visible) {
+      Notifications.getPermissionsAsync().then(({ status }) => {
+        const granted = status === "granted";
+        setIsGranted(granted);
+        setNotifToggle(granted);
+        setIsDenied(status === "denied");
+      });
       translateY.setValue(SCREEN_HEIGHT);
       open();
     }
@@ -341,11 +373,19 @@ export function NotificationPermissionSlider({ visible, onClose }: Props) {
 
   const handleEnable = async () => {
     if (enabling) return;
+
+    if (isDenied) {
+      Linking.openSettings();
+      return;
+    }
+
     setEnabling(true);
     try {
       const { status } = await Notifications.requestPermissionsAsync();
       if (status === "granted") {
-        close();
+        setIsGranted(true);
+        setNotifToggle(true);
+        setIsDenied(false);
         await Notifications.scheduleNotificationAsync({
           content: {
             title: "Grass",
@@ -357,7 +397,9 @@ export function NotificationPermissionSlider({ visible, onClose }: Props) {
             seconds: 1,
           },
         });
+        close();
       } else {
+        setIsDenied(status === "denied");
         close();
       }
     } finally {
@@ -384,6 +426,7 @@ export function NotificationPermissionSlider({ visible, onClose }: Props) {
         {/* Drag handle */}
         <View style={styles.dragArea} {...panResponder.panHandlers}>
           <View style={styles.dragger} />
+          <Text style={styles.sheetTitle}>Notifications</Text>
         </View>
 
         {/* Close button */}
@@ -396,54 +439,88 @@ export function NotificationPermissionSlider({ visible, onClose }: Props) {
           contentContainerStyle={styles.content}
           bounces={false}
         >
-          {/* Preview notification cards */}
-          <PreviewCards />
-
-          {/* Intro text */}
-          <View style={styles.introSection}>
-            <Text style={styles.introducing}>INTRODUCING</Text>
-            <Text style={styles.mainTitle}>Notifications</Text>
-          </View>
-
-          {/* Feature rows */}
-          <View style={styles.features}>
-            <FeatureRow
-              icon={<LoopIcon width={28} height={23} />}
-              title="Stay in the loop"
-              subtitle="Know the moment your agent finishes, stalls, or needs you."
-            />
-            <FeatureRow
-              icon={
-                <Image
-                  source={require("@/assets/images/new-design/notification/real-time.png")}
-                  style={{ width: 28, height: 28 }}
-                  resizeMode="contain"
+          {isGranted ? (
+            /* ── Already granted: show toggle ── */
+            <View style={styles.toggleSection}>
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleLeft}>
+                  <NotificationIcon width={22} height={22} />
+                  <Text style={styles.toggleLabel}>Push Notifications</Text>
+                </View>
+                <Switch
+                  value={notifToggle}
+                  onValueChange={(val) => {
+                    if (!val) {
+                      Linking.openSettings();
+                    }
+                    setNotifToggle(val);
+                  }}
+                  trackColor={{ false: "#E5E5EA", true: "#3D841E" }}
+                  thumbColor="#FFF"
                 />
-              }
-              title="Real-time"
-              subtitle="Know the moment your agent finishes, stalls, or needs you."
-            />
-            <FeatureRow
-              icon={<SignalIcon width={28} height={24} />}
-              title="You pick the signal"
-              subtitle="Know the moment your agent finishes, stalls, or needs you."
-            />
-          </View>
+              </View>
+              <Text style={styles.toggleSubLabel}>
+                Notifications are enabled. To turn them off, use the toggle
+                above — it will open your device Settings.
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* Preview notification cards */}
+              <PreviewCards />
 
-          {/* Actions */}
-          <View style={styles.actions}>
-            <TouchableOpacity
-              style={[styles.enableBtn, enabling && styles.enableBtnDisabled]}
-              onPress={handleEnable}
-              activeOpacity={0.85}
-            >
-              <NotificationIcon width={18} height={19} fill="#FFF" />
-              <Text style={styles.enableText}>Enable</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={close} activeOpacity={0.7}>
-              <Text style={styles.notNow}>Not now</Text>
-            </TouchableOpacity>
-          </View>
+              {/* Intro text */}
+              <View style={styles.introSection}>
+                <Text style={styles.introducing}>INTRODUCING</Text>
+                <Text style={styles.mainTitle}>Notifications</Text>
+              </View>
+
+              {/* Feature rows */}
+              <View style={styles.features}>
+                <FeatureRow
+                  icon={<LoopIcon width={28} height={23} />}
+                  title="Stay in the loop"
+                  subtitle="Know the moment your agent finishes, stalls, or needs you."
+                />
+                <FeatureRow
+                  icon={
+                    <Image
+                      source={require("@/assets/images/new-design/notification/real-time.png")}
+                      style={{ width: 28, height: 28 }}
+                      resizeMode="contain"
+                    />
+                  }
+                  title="Real-time"
+                  subtitle="Know the moment your agent finishes, stalls, or needs you."
+                />
+                <FeatureRow
+                  icon={<SignalIcon width={28} height={24} />}
+                  title="You pick the signal"
+                  subtitle="Know the moment your agent finishes, stalls, or needs you."
+                />
+              </View>
+
+              {/* Actions */}
+              <View style={styles.actions}>
+                <TouchableOpacity
+                  style={[
+                    styles.enableBtn,
+                    enabling && styles.enableBtnDisabled,
+                  ]}
+                  onPress={handleEnable}
+                  activeOpacity={0.85}
+                >
+                  <NotificationIcon width={18} height={19} fill="#FFF" />
+                  <Text style={styles.enableText}>
+                    {isDenied ? "Enable" : "Enable"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={close} activeOpacity={0.7}>
+                  <Text style={styles.notNow}>Not now</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </ScrollView>
       </Animated.View>
     </Modal>
@@ -469,13 +546,21 @@ const styles = StyleSheet.create({
   dragArea: {
     alignItems: "center",
     paddingTop: 12,
-    paddingBottom: 6,
+    paddingBottom: 10,
+    gap: 8,
   },
   dragger: {
     width: 36,
     height: 5,
     borderRadius: 100,
     backgroundColor: "#CCC",
+  },
+  sheetTitle: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 17,
+    color: "#000",
+    letterSpacing: -0.3,
+    marginTop: 15,
   },
   closeBtn: {
     position: "absolute",
@@ -544,6 +629,40 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: "#000",
     letterSpacing: -0.3,
+  },
+  toggleSection: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    gap: 12,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#DFDFDF",
+    backgroundColor: "#F9F9F9",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  toggleLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  toggleLabel: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 17,
+    color: "#000",
+    letterSpacing: -0.3,
+  },
+  toggleSubLabel: {
+    fontFamily: SFPro.regular,
+    fontSize: 14,
+    color: "#808080",
+    lineHeight: 20,
+    letterSpacing: -0.2,
   },
 });
 

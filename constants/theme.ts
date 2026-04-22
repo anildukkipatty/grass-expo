@@ -82,6 +82,13 @@ export const NationalPark = {
   extraBold:  'NationalPark-ExtraBold',
 } as const;
 
+export const SFMono = {
+  regular:  'SFMono-Regular',
+  medium:   'SFMono-Medium',
+  semiBold: 'SFMono-Semibold',
+  bold:     'SFMono-Bold',
+} as const;
+
 export const SFPro = {
   regular:        'SFProText-Regular',
   medium:         'SFProText-Medium',

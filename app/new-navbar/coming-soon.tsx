@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
@@ -31,10 +32,11 @@ export default function ComingSoonScreen() {
       const { status } = await Notifications.requestPermissionsAsync();
       if (status !== "granted") return;
       const featureName = title ?? "This feature";
+      const notifMessage = `${featureName} is launching in the next version — we'll ping you the moment it's live.`;
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "Grass",
-          body: `${featureName} is launching in the next version — we'll ping you the moment it's live.`,
+          body: notifMessage,
           sound: true,
         },
         trigger: {
@@ -42,6 +44,18 @@ export default function ComingSoonScreen() {
           seconds: 1,
         },
       });
+      const raw = await AsyncStorage.getItem("@grass/coming_soon_notifications");
+      const existing = raw ? JSON.parse(raw) : [];
+      existing.unshift({
+        id: Date.now().toString(),
+        featureName,
+        message: notifMessage,
+        time: "Just now",
+      });
+      await AsyncStorage.setItem(
+        "@grass/coming_soon_notifications",
+        JSON.stringify(existing),
+      );
       setNotified(true);
     } finally {
       setLoading(false);

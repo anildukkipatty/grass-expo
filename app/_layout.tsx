@@ -21,7 +21,7 @@ if (ErrorUtils) {
   });
 }
 
-import { GrassColors, NationalPark, DMMono, SFPro } from "@/constants/theme";
+import { GrassColors, NationalPark, DMMono, SFPro, SFMono } from "@/constants/theme";
 import { posthog } from "@/constants/posthog";
 import { PostHogProvider } from "posthog-react-native";
 import { useTheme } from "@/store/theme-store";
@@ -105,6 +105,10 @@ export default function RootLayout() {
     [SFPro.displayMedium]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Medium.otf"),
     [SFPro.displaySemiBold]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Semibold.otf"),
     [SFPro.displayBold]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Bold.otf"),
+    [SFMono.regular]: require("../assets/fonts/SF-Mono/SF-Mono-Regular.otf"),
+    [SFMono.medium]: require("../assets/fonts/SF-Mono/SF-Mono-Medium.otf"),
+    [SFMono.semiBold]: require("../assets/fonts/SF-Mono/SF-Mono-Semibold.otf"),
+    [SFMono.bold]: require("../assets/fonts/SF-Mono/SF-Mono-Bold.otf"),
   });
 
   useEffect(() => {

@@ -6,7 +6,6 @@ import NotificationIcon from "@/assets/images/new-design/navbar/notifcation.svg"
 import UserIcon from "@/assets/images/new-design/navbar/user-icon.svg";
 import LogoIcon from "@/assets/images/new-design/onboarding/logo.svg";
 import { SFPro } from "@/constants/theme";
-import { NewChatSlider } from "./NewChatSlider";
 import { NotificationSlider } from "./NotificationSlider";
 import {
   NotificationPermissionSlider,
@@ -21,7 +20,6 @@ type Props = {
 export function NavbarHeader({ alignItems = "center" }: Props) {
   const [notifVisible, setNotifVisible] = useState(false);
   const [permSliderVisible, setPermSliderVisible] = useState(false);
-  const [newChatVisible, setNewChatVisible] = useState(false);
 
   useEffect(() => {
     shouldShowNotificationReminder().then((show) => {
@@ -48,12 +46,6 @@ export function NavbarHeader({ alignItems = "center" }: Props) {
         <View style={styles.rightActions}>
           <TouchableOpacity
             style={styles.iconWrap}
-            onPress={() => setNewChatVisible(true)}
-          >
-            <Text style={styles.plusIcon}>+</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconWrap}
             onPress={() => setNotifVisible(true)}
           >
             <NotificationIcon width={28} height={28} />
@@ -61,10 +53,6 @@ export function NavbarHeader({ alignItems = "center" }: Props) {
           </TouchableOpacity>
         </View>
       </View>
-      <NewChatSlider
-        visible={newChatVisible}
-        onClose={() => setNewChatVisible(false)}
-      />
       <NotificationSlider
         visible={notifVisible}
         onClose={() => setNotifVisible(false)}
@@ -119,10 +107,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
-  plusIcon: {
-    fontSize: 26,
-    color: "#000",
-    lineHeight: 30,
-    fontFamily: SFPro.regular,
-  },
+
 });

@@ -1,7 +1,9 @@
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,28 +12,36 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { posthog } from "@/constants/posthog";
+import { clearAuth, getUser } from "@/store/auth-store";
+import { closeConnection, getConnectedUrls } from "@/store/connection-store";
+import { clearAllThreads } from "@/store/thread-store";
+import { clearUrls } from "@/store/url-store";
+
 import BackButton from "@/assets/images/new-design/chat/back-button.svg";
 import RightArrow from "@/assets/images/new-design/onboarding/right-arrow-head.svg";
 import AddMachineIcon from "@/assets/images/new-design/settings/add-machine.svg";
 import ContactIcon from "@/assets/images/new-design/settings/contact.svg";
+import DeleteIcon from "@/assets/images/new-design/settings/delete.svg";
 import DocumentIcon from "@/assets/images/new-design/settings/document.svg";
 import EmailIcon from "@/assets/images/new-design/settings/email.svg";
 import ExternalLinkIcon from "@/assets/images/new-design/settings/external-link.svg";
 import FeatureIcon from "@/assets/images/new-design/settings/feature.svg";
 import InviteFriendsIcon from "@/assets/images/new-design/settings/invite-friends.svg";
 import LicenceIcon from "@/assets/images/new-design/settings/licence.svg";
+import MachineIcon from "@/assets/images/new-design/settings/machine.svg";
 import NotificationIcon from "@/assets/images/new-design/settings/notification-icon.svg";
 import PrivacyIcon from "@/assets/images/new-design/settings/privacy.svg";
 import RateIcon from "@/assets/images/new-design/settings/rate.svg";
 import ReportBugIcon from "@/assets/images/new-design/settings/report-a-bug.svg";
+import SignOutIcon from "@/assets/images/new-design/settings/sign-out.svg";
 import TOSIcon from "@/assets/images/new-design/settings/TOS.svg";
 import VmTimeIcon from "@/assets/images/new-design/settings/vm-time.svg";
 import XIcon from "@/assets/images/new-design/settings/x.svg";
 
 import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
+import { NotificationPermissionSlider } from "@/components/new-navbar/NotificationPermissionSlider";
 import { SFPro } from "@/constants/theme";
-
-const ChevronRight = () => <Text style={styles.chevron}>›</Text>;
 
 type SectionRowProps = {
   icon: React.ReactNode;
@@ -41,6 +51,7 @@ type SectionRowProps = {
   showChevron?: boolean;
   isLast?: boolean;
   onPress?: () => void;
+  labelColor?: string;
 };
 
 function SectionRow({
@@ -51,6 +62,7 @@ function SectionRow({
   showChevron = true,
   isLast,
   onPress,
+  labelColor,
 }: SectionRowProps) {
   return (
     <TouchableOpacity
@@ -62,12 +74,7 @@ function SectionRow({
         {icon}
         <View style={styles.rowTextWrap}>
           <Text
-            style={[
-              styles.rowLabel,
-              {
-                color: label === "Notification Settings" ? "black" : "9f9f9f",
-              },
-            ]}
+            style={[styles.rowLabel, labelColor ? { color: labelColor } : {}]}
           >
             {label}
           </Text>
@@ -126,15 +133,53 @@ function MachineRow({
 export default function SettingsScreen() {
   const { top, bottom } = useSafeAreaInsets();
   const [connectMoreVisible, setConnectMoreVisible] = useState(false);
+  const [notifPermVisible, setNotifPermVisible] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    getUser().then((u) => setUserEmail(u?.email ?? null));
+  }, []);
+
+  const handleSignOut = () => {
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          posthog.capture("user_logged_out");
+          posthog.reset();
+          const connectedUrls = getConnectedUrls();
+          connectedUrls.forEach((url) => closeConnection(url));
+          await clearUrls();
+          await clearAuth();
+          router.dismissAll();
+          router.replace("/welcome");
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteAccount = () => {
+    const email = userEmail ?? "unknown";
+    const to = "deleteacc@codeongrass.com";
+    const subject = encodeURIComponent("Account Deletion Request");
+    const body = encodeURIComponent(
+      `Hi Grass team,\n\nI would like to request the deletion of my account.\n\nAccount email: ${email}\n\nPlease confirm once the account has been removed.\n\nThank you.`,
+    );
+    Linking.openURL(`mailto:${to}?subject=${subject}&body=${body}`);
+  };
 
   return (
     <View style={[styles.screen, { paddingTop: top }]}>
       {/* ── Header ── */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} hitSlop={8}>
           <BackButton />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings & Profile</Text>
+        <View style={styles.headerTitleWrap} pointerEvents="none">
+          <Text style={styles.headerTitle}>Settings & Profile</Text>
+        </View>
       </View>
 
       <ScrollView
@@ -194,7 +239,7 @@ export default function SettingsScreen() {
             <SectionRow
               icon={
                 <View style={styles.iconBgTeal}>
-                  <EmailIcon width={20} height={18} />
+                  <EmailIcon width={15} height={18} />
                 </View>
               }
               label="Email"
@@ -203,7 +248,7 @@ export default function SettingsScreen() {
             <SectionRow
               icon={
                 <View style={styles.iconBgTeal}>
-                  <VmTimeIcon width={16} height={18} />
+                  <VmTimeIcon width={15} height={18} />
                 </View>
               }
               label="VM Time"
@@ -212,11 +257,13 @@ export default function SettingsScreen() {
             <SectionRow
               icon={
                 <View style={styles.iconBgTeal}>
-                  <NotificationIcon width={16} height={18} />
+                  <NotificationIcon width={15} height={18} />
                 </View>
               }
               label="Notification Settings"
+              labelColor="#000"
               isLast
+              onPress={() => setNotifPermVisible(true)}
             />
           </View>
 
@@ -225,10 +272,11 @@ export default function SettingsScreen() {
           <View style={styles.card}>
             <MachineRow
               icon={
-                <Image
-                  source={require("@/assets/images/new-design/settings/machine.png")}
-                  style={styles.machineIcon}
-                />
+                // <Image
+                //   source={require("@/assets/images/new-design/settings/machine.svg")}
+                //   style={styles.machineIcon}
+                // />
+                <MachineIcon />
               }
               label="Son of Anton"
               sublabel="Your virtual machine"
@@ -255,7 +303,7 @@ export default function SettingsScreen() {
             <MachineRow
               icon={
                 <View style={styles.iconBgSupport}>
-                  <DocumentIcon width={18} height={18} />
+                  <DocumentIcon width={15} height={18} />
                 </View>
               }
               label="Documentation"
@@ -264,7 +312,7 @@ export default function SettingsScreen() {
             <MachineRow
               icon={
                 <View style={styles.iconBgSupport}>
-                  <ReportBugIcon width={15} height={18} />
+                  <ReportBugIcon width={13} height={18} />
                 </View>
               }
               label="Report a bug"
@@ -286,7 +334,7 @@ export default function SettingsScreen() {
             <MachineRow
               icon={
                 <View style={styles.iconBgSupport}>
-                  <ContactIcon width={18} height={18} />
+                  <ContactIcon width={15} height={18} />
                 </View>
               }
               label="Support"
@@ -300,7 +348,7 @@ export default function SettingsScreen() {
             <MachineRow
               icon={
                 <View style={styles.iconBgLegal}>
-                  <PrivacyIcon width={16} height={18} />
+                  <PrivacyIcon width={15} height={18} />
                 </View>
               }
               label="Privacy Policy"
@@ -318,7 +366,7 @@ export default function SettingsScreen() {
             <MachineRow
               icon={
                 <View style={styles.iconBgLegal}>
-                  <LicenceIcon width={18} height={18} />
+                  <LicenceIcon width={15} height={18} />
                 </View>
               }
               label="Open Source Licenses"
@@ -350,6 +398,32 @@ export default function SettingsScreen() {
             />
           </View>
 
+          {/* ── Danger Zone ── */}
+          <Text style={styles.sectionHeader}>Danger Zone</Text>
+          <View style={styles.dangerCard}>
+            <SectionRow
+              icon={
+                <View style={styles.iconBgDanger}>
+                  <SignOutIcon width={15} height={18} />
+                </View>
+              }
+              label="Sign Out"
+              labelColor="#000"
+              onPress={handleSignOut}
+            />
+            <SectionRow
+              icon={
+                <View style={styles.iconBgDanger}>
+                  <DeleteIcon width={15} height={18} />
+                </View>
+              }
+              label="Delete Account"
+              labelColor="#000"
+              isLast
+              onPress={handleDeleteAccount}
+            />
+          </View>
+
           {/* ── Footer ── */}
           <View style={styles.footer}>
             <Text style={styles.footerTagline}>
@@ -366,6 +440,11 @@ export default function SettingsScreen() {
           resizeMode="cover"
         />
       </ScrollView>
+
+      <NotificationPermissionSlider
+        visible={notifPermVisible}
+        onClose={() => setNotifPermVisible(false)}
+      />
     </View>
   );
 }
@@ -385,9 +464,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
   },
   backBtn: {
+    width: 36,
+    height: 36,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 8,
+    backgroundColor: "#f2f2f2",
+    borderRadius: 50,
+    zIndex: 1,
+  },
+  headerTitleWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
   },
   headerTitle: {
     fontFamily: SFPro.bold,
@@ -405,8 +494,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 4,
-    marginTop: 4,
+    marginBottom: 10,
+    marginTop: 10,
   },
   profileText: {
     flex: 1,
@@ -416,9 +505,9 @@ const styles = StyleSheet.create({
     fontFamily: SFPro.semiBold,
     fontSize: 20,
     color: "#000",
-    lineHeight: 34,
+    lineHeight: 25,
     letterSpacing: -0.5,
-    marginBottom: 4,
+    marginBottom: 5,
   },
   profileEmail: {
     fontFamily: SFPro.medium,
@@ -537,20 +626,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowLabel: {
-    fontFamily: SFPro.medium,
+    fontFamily: SFPro.semiBold,
     fontSize: 17,
     color: "#9F9F9F",
   },
   rowSublabel: {
-    fontFamily: SFPro.medium,
+    fontFamily: SFPro.semiBold,
     fontSize: 17,
     color: "#000",
     marginTop: 2,
-  },
-  chevron: {
-    fontSize: 22,
-    color: "#C0C0C0",
-    lineHeight: 24,
   },
 
   // Icon backgrounds
@@ -559,8 +643,8 @@ const styles = StyleSheet.create({
     height: ICON_BG_SIZE,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#5DCAA5",
-    backgroundColor: "#E1F5EE",
+    borderColor: "#85B7EB",
+    backgroundColor: "#E6F1FB",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -600,8 +684,8 @@ const styles = StyleSheet.create({
     height: ICON_BG_SIZE,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#F0997B",
-    backgroundColor: "#FAECE7",
+    borderColor: "#72C44E",
+    backgroundColor: "#E3FDD7",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -609,6 +693,24 @@ const styles = StyleSheet.create({
     width: ICON_BG_SIZE,
     height: ICON_BG_SIZE,
     borderRadius: 10,
+    objectFit: "cover",
+  },
+  dangerCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#DFDFDF",
+    backgroundColor: "#transparent",
+    overflow: "hidden",
+  },
+  iconBgDanger: {
+    width: ICON_BG_SIZE,
+    height: ICON_BG_SIZE,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#C20000",
+    backgroundColor: "#FFDCDC",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   // Footer
