@@ -19,6 +19,7 @@ export type { Message, PermissionItem, Session, Repo, DirEntry, FileContentResul
 export interface UseServerResult {
   // connected: boolean;      // TODO: revisit connection health indicators
   // reconnecting: boolean;   // TODO: revisit connection health indicators
+  sessionLoading: boolean;
   streaming: boolean;
   messages: import('@/store/connection-store').Message[];
   activity: { label: string } | null;
@@ -64,6 +65,7 @@ export function useServer(serverUrl: string | null): UseServerResult {
   return {
     // connected:       false,        // TODO: revisit connection health indicators
     // reconnecting:    false,        // TODO: revisit connection health indicators
+    sessionLoading:  entry?.sessionLoading  ?? false,
     streaming:       entry?.streaming       ?? false,
     messages:        entry?.messages        ?? [],
     activity:        entry?.activity        ?? null,

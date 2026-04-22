@@ -31,6 +31,7 @@ import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   FlatList,
   Image,
@@ -421,6 +422,13 @@ export default function Chat() {
           <View style={[styles.contextFill, { backgroundColor: '#4ade80' }]} />
         </View>
       </View> */}
+
+      {/* Session history loader */}
+      {ws.sessionLoading && (
+        <View style={styles.sessionLoader}>
+          <ActivityIndicator size="large" color={c.accent} />
+        </View>
+      )}
 
       {/* Messages */}
       <KeyboardAvoidingView
@@ -847,6 +855,12 @@ const styles = StyleSheet.create({
   },
 
   // Messages
+  sessionLoader: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
   messageList: {
     paddingVertical: 12,
     flexGrow: 1,

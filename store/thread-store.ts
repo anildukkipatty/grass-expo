@@ -67,6 +67,17 @@ export async function upsertThread(thread: Thread): Promise<void> {
   await persist();
 }
 
+export async function findThreadById(sessionId: string): Promise<Thread | null> {
+  await load();
+  for (const list of Object.values(_map)) {
+    const thread = list.find(t =>
+      t.grassId === sessionId || t.sdkSessionId === sessionId
+    );
+    if (thread) return thread;
+  }
+  return null;
+}
+
 export async function clearAllThreads(): Promise<void> {
   _map = {};
   notify();

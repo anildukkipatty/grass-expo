@@ -6,6 +6,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { getToken } from "@/store/auth-store";
 import { registerPushToken } from "@/api/notifications";
+import { findThreadById } from "@/store/thread-store";
 
 type NotificationData = {
   type: "permission" | "task_complete" | "container_ready" | "limit_exceeded";
@@ -26,7 +27,7 @@ Notifications.setNotificationHandler({
       shouldPlaySound: !isActive,
       shouldSetBadge: false,
       shouldShowBanner: !isActive,
-      shouldShowList: true,
+      shouldShowList: !isActive,
     };
   },
 });
@@ -62,6 +63,12 @@ export function usePushNotifications() {
   useEffect(() => {
     if (Platform.OS === "web") return;
 
+    const appStateListener = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        Notifications.dismissAllNotificationsAsync();
+      }
+    });
+
     let cancelled = false;
 
     (async () => {
@@ -91,17 +98,28 @@ export function usePushNotifications() {
 
     // Fires when the user taps a notification — navigate to the relevant screen
     responseListener.current = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
+      async (response) => {
         const data = response.notification.request.content.data as NotificationData | undefined;
         if (!data?.type) return;
 
         if (data.type === "permission") {
           router.push("/(tabs)/perms");
         } else if (data.type === "task_complete" && data.sessionId) {
-          router.push({
-            pathname: "/chat",
-            params: { sessionId: data.sessionId, ...(data.serverId ? { serverId: data.serverId } : {}) },
-          });
+          const thread = await findThreadById(data.sessionId);
+          if (thread) {
+            router.push({
+              pathname: "/chat",
+              params: {
+                serverUrl: thread.serverUrl,
+                sessionId: thread.grassId,
+                repoName: thread.repo,
+                repoPath: thread.repoPath,
+                agent: thread.tool,
+              },
+            });
+          } else {
+            router.push("/(tabs)/home");
+          }
         } else if (data.type === "container_ready" || data.type === "limit_exceeded") {
           router.push("/(tabs)/home");
         }
@@ -110,6 +128,7 @@ export function usePushNotifications() {
 
     return () => {
       cancelled = true;
+      appStateListener.remove();
       notificationListener.current?.remove();
       responseListener.current?.remove();
     };

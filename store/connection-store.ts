@@ -88,6 +88,7 @@ interface ConnectionEntry {
   diffs: string | null;
   dirListing: DirEntry[] | null;
   fileContent: FileContentResult | null;
+  sessionLoading: boolean;
   cloneStatus: { cloning: boolean; creating: boolean; error: string | null };
   serverCwd: string | null;
   serverVersion: string | null;
@@ -340,7 +341,12 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
     if (last && last.role === 'assistant' && !last.complete) {
       entry.messages = [...prev.slice(0, -1), { ...last, content, seq }];
     } else {
-      entry.messages = [...prev, { role: 'assistant', content, complete: false, msgId: nextMsgId(entry), seq }];
+      // Guard against SSE replay arriving after history loaded the same message as complete.
+      // This can happen when buffered SSE chunks are processed after closeSSEStream is called.
+      const alreadyComplete = prev.some(m => m.role === 'assistant' && m.complete && m.content === content);
+      if (!alreadyComplete) {
+        entry.messages = [...prev, { role: 'assistant', content, complete: false, msgId: nextMsgId(entry), seq }];
+      }
     }
     notifyListeners(serverUrl);
     return;
@@ -573,6 +579,7 @@ export function openConnection(serverUrl: string) {
     diffs: null,
     dirListing: null,
     fileContent: null,
+    sessionLoading: false,
     cloneStatus: { cloning: false, creating: false, error: null },
     serverCwd: null,
     serverVersion: null,
@@ -611,6 +618,7 @@ export function openConnectionWithKey(key: string, realUrl: string) {
     diffs: null,
     dirListing: null,
     fileContent: null,
+    sessionLoading: false,
     cloneStatus: { cloning: false, creating: false, error: null },
     serverCwd: null,
     serverVersion: null,
@@ -893,6 +901,10 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
   const key = resolveServerKey(serverUrl);
   const entry = _connections.get(key);
   if (!entry) return;
+  // Cancel any SSE re-attached by the AppState foreground handler before history loads.
+  // Without this, replayed SSE assistant events arrive after history (all complete:true),
+  // see the last message as complete, and append a duplicate incomplete copy.
+  closeSSEStream(serverUrl);
   entry.currentSessionId = id;
   entry.sessionId = id;
   entry.sdkSessionId = null;
@@ -900,6 +912,7 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
   if (repoPath !== undefined) entry.currentRepoPath = repoPath ?? null;
   entry.messages = [];
   entry.activity = null;
+  entry.sessionLoading = !!id;
   notifyListeners(key);
 
   if (id) {
@@ -943,9 +956,13 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
           }
         }
         entry.messages = expanded;
+        entry.sessionLoading = false;
         notifyListeners(key);
       }
-    } catch { /* ignore */ }
+    } catch {
+      entry.sessionLoading = false;
+      notifyListeners(key);
+    }
 
     // Check if the server is still actively streaming for this session.
     // If so, set streaming=true immediately (so UI shows abort button / disabled input)
