@@ -60,7 +60,7 @@ export function SyntaxBlock({ code, language, theme }: Props) {
 
   const renderer = ({ rows, stylesheet }: { rows: any[]; stylesheet: Record<string, any> }) => (
     <View style={[styles.container, { backgroundColor: baseBg, borderColor: colors.border }]}>
-      <Text style={[styles.text, baseColor ? { color: baseColor } : undefined]}>
+      <Text selectable style={[styles.text, baseColor ? { color: baseColor } : undefined]}>
         {renderNodes(rows, stylesheet, styles.text)}
       </Text>
     </View>

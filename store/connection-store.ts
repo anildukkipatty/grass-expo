@@ -64,6 +64,8 @@ export type FileContentResult = {
   size: number;
 };
 
+export type PermissionMode = 'ask-permissions' | 'allow-all-edits' | 'yolo';
+
 interface ConnectionEntry {
   // Identity
   baseUrl: string;
@@ -94,6 +96,7 @@ interface ConnectionEntry {
   serverVersion: string | null;
   clientVersionRange: string | null;
   versionCompatible: boolean | null;  // null = not yet checked
+  permissionMode: PermissionMode;
 
   // TODO: Revisit connection health indicators
   // connected: boolean;
@@ -585,6 +588,7 @@ export function openConnection(serverUrl: string) {
     serverVersion: null,
     clientVersionRange: null,
     versionCompatible: null,
+    permissionMode: 'ask-permissions',
     msgCounter: 0,
     listeners: new Set(),
   };
@@ -624,6 +628,7 @@ export function openConnectionWithKey(key: string, realUrl: string) {
     serverVersion: null,
     clientVersionRange: null,
     versionCompatible: null,
+    permissionMode: 'ask-permissions',
     msgCounter: 0,
     listeners: new Set(),
   };
@@ -666,7 +671,7 @@ export function getConnectedUrls(): string[] {
 
 // --- Chat ---
 
-export async function sendMessageStore(serverUrl: string, text: string, model?: string, mode?: 'plan' | 'build') {
+export async function sendMessageStore(serverUrl: string, text: string, model?: string, mode?: 'plan' | 'build', permissionMode?: PermissionMode) {
   const key = resolveServerKey(serverUrl);
   const entry = _connections.get(key);
   if (!entry || !text.trim()) return;
@@ -687,6 +692,7 @@ export async function sendMessageStore(serverUrl: string, text: string, model?: 
         ...(entry.currentSessionId ? { sessionId: entry.currentSessionId } : {}),
         ...(model ? { model } : {}),
         ...(mode ? { mode } : {}),
+        ...(permissionMode ? { permissionMode } : {}),
       }),
     });
     const json = await res.json() as { sessionId?: string };
@@ -737,6 +743,58 @@ export async function respondPermissionStore(serverUrl: string, approved: boolea
       body: JSON.stringify({ toolUseID: current.toolUseID, approved }),
     });
   } catch { /* ignore */ }
+}
+
+export interface SessionConfig {
+  model: string | null;
+  mode: 'plan' | 'build' | null;
+  permissionMode: PermissionMode | null;
+}
+
+export async function getSessionConfigStore(serverUrl: string, sessionId: string): Promise<SessionConfig | null> {
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
+  if (!entry) return null;
+  try {
+    const res = await fetch(`${entry.baseUrl}/sessions/${encodeURIComponent(sessionId)}/config`);
+    if (!res.ok) return null;
+    const json = await res.json() as { model?: string | null; mode?: 'plan' | 'build' | null; permissionMode?: PermissionMode | null };
+    if (_connections.has(key) && json.permissionMode) {
+      entry.permissionMode = json.permissionMode;
+      notifyListeners(key);
+    }
+    return {
+      model: json.model ?? null,
+      mode: json.mode ?? null,
+      permissionMode: json.permissionMode ?? null,
+    };
+  } catch { return null; }
+}
+
+export async function patchSessionPermissionModeStore(serverUrl: string, sessionId: string | null, permissionMode: PermissionMode): Promise<void> {
+  const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
+  if (!entry) return;
+  // Optimistically update local state and clear pending permissions if auto-approving
+  entry.permissionMode = permissionMode;
+  if (permissionMode !== 'ask-permissions') {
+    entry.permissionQueue = [];
+  }
+  notifyListeners(key);
+  // Also clear global permissions SSE queue for this server optimistically
+  const pEntry = _permissionsSSE.get(key);
+  if (pEntry && permissionMode !== 'ask-permissions') {
+    pEntry.permissions = [];
+    notifyPermissionsListeners(key);
+  }
+  if (!sessionId) return;
+  try {
+    await fetch(`${entry.baseUrl}/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ permissionMode }),
+    });
+  } catch { /* ignore — local state already updated */ }
 }
 
 // --- Health ---
