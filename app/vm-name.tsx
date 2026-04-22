@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     fontFamily: SFPro.bold,
     fontSize: 36,
-    color: "#D2D2D1",
+    color: "#999995",
     paddingHorizontal: 12,
     letterSpacing: -0.5,
     textAlign: "center",

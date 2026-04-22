@@ -1,9 +1,7 @@
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
-  Alert,
   Image,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,12 +9,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-import { posthog } from "@/constants/posthog";
-import { clearAuth, getUser } from "@/store/auth-store";
-import { closeConnection, getConnectedUrls } from "@/store/connection-store";
-import { clearAllThreads } from "@/store/thread-store";
-import { clearUrls } from "@/store/url-store";
 
 import BackButton from "@/assets/images/new-design/chat/back-button.svg";
 import RightArrow from "@/assets/images/new-design/onboarding/right-arrow-head.svg";
@@ -40,6 +32,7 @@ import VmTimeIcon from "@/assets/images/new-design/settings/vm-time.svg";
 import XIcon from "@/assets/images/new-design/settings/x.svg";
 
 import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
+import { LogoutSlider } from "@/components/new-navbar/LogoutSlider";
 import { NotificationPermissionSlider } from "@/components/new-navbar/NotificationPermissionSlider";
 import { SFPro } from "@/constants/theme";
 
@@ -134,40 +127,14 @@ export default function SettingsScreen() {
   const { top, bottom } = useSafeAreaInsets();
   const [connectMoreVisible, setConnectMoreVisible] = useState(false);
   const [notifPermVisible, setNotifPermVisible] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    getUser().then((u) => setUserEmail(u?.email ?? null));
-  }, []);
+  const [logoutVisible, setLogoutVisible] = useState(false);
 
   const handleSignOut = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          posthog.capture("user_logged_out");
-          posthog.reset();
-          const connectedUrls = getConnectedUrls();
-          connectedUrls.forEach((url) => closeConnection(url));
-          await clearUrls();
-          await clearAuth();
-          router.dismissAll();
-          router.replace("/welcome");
-        },
-      },
-    ]);
+    setLogoutVisible(true);
   };
 
   const handleDeleteAccount = () => {
-    const email = userEmail ?? "unknown";
-    const to = "deleteacc@codeongrass.com";
-    const subject = encodeURIComponent("Account Deletion Request");
-    const body = encodeURIComponent(
-      `Hi Grass team,\n\nI would like to request the deletion of my account.\n\nAccount email: ${email}\n\nPlease confirm once the account has been removed.\n\nThank you.`,
-    );
-    Linking.openURL(`mailto:${to}?subject=${subject}&body=${body}`);
+    router.push("/new-navbar/delete-account");
   };
 
   return (
@@ -339,6 +306,7 @@ export default function SettingsScreen() {
               }
               label="Support"
               isLast
+              onPress={() => router.push("/new-navbar/support")}
             />
           </View>
 
@@ -444,6 +412,10 @@ export default function SettingsScreen() {
       <NotificationPermissionSlider
         visible={notifPermVisible}
         onClose={() => setNotifPermVisible(false)}
+      />
+      <LogoutSlider
+        visible={logoutVisible}
+        onClose={() => setLogoutVisible(false)}
       />
     </View>
   );

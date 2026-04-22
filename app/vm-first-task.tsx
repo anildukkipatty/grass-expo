@@ -46,7 +46,7 @@ export default function VmFirstTaskScreen() {
 
   const handleSubmit = () => {
     if (!task.trim()) return;
-    router.replace("/(tabs)/home" as any);
+    router.replace("/new-navbar" as any);
   };
 
   return (

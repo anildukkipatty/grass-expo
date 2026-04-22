@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 
 export default function Index() {
-  const [route, setRoute] = useState<"/(tabs)/home" | "/new-navbar" | null>(
+  const [route, setRoute] = useState<"/onboarding" | "/new-navbar" | null>(
     null,
   );
 
   useEffect(() => {
     getToken().then((token) => {
-      setRoute(!token ? "/(tabs)/home" : "/new-navbar");
+      setRoute(token ? "/new-navbar" : "/onboarding");
     });
   }, []);
 
