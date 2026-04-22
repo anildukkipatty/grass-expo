@@ -38,6 +38,7 @@ export function AddRepoSlider({ visible, onClose }: Props) {
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const successTranslateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
 
+  const scrollRef = useRef<ScrollView>(null);
   const [repoUrl, setRepoUrl] = useState("");
   const [step, setStep] = useState<Step>("input");
 
@@ -153,11 +154,7 @@ export function AddRepoSlider({ visible, onClose }: Props) {
         </Animated.View>
       </TouchableWithoutFeedback>
 
-      <KeyboardAvoidingView
-        style={styles.kavContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        pointerEvents="box-none"
-      >
+      <View style={styles.kavContainer} pointerEvents="box-none">
         <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
           {!isGreenStep && (
             <LinearGradient
@@ -187,55 +184,69 @@ export function AddRepoSlider({ visible, onClose }: Props) {
             <CloseIcon />
           </TouchableOpacity>
 
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            onScrollBeginDrag={Keyboard.dismiss}
-            contentContainerStyle={styles.scrollContent}
+          <KeyboardAvoidingView
+            style={styles.kavInner}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={0}
           >
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.headerText}>
-                <Text style={styles.headerTitle}>Add a repository</Text>
-                <Text style={styles.headerSubtitle}>
-                  Paste a Git clone URL. No login needed for public repos.
-                </Text>
-              </View>
-            </View>
+            <ScrollView
+              ref={scrollRef}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              onScrollBeginDrag={Keyboard.dismiss}
+              contentContainerStyle={styles.scrollContent}
+            >
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+                <View>
+                  {/* Header */}
+                  <View style={styles.header}>
+                    <View style={styles.headerText}>
+                      <Text style={styles.headerTitle}>Add a repository</Text>
+                      <Text style={styles.headerSubtitle}>
+                        Paste a Git clone URL. No login needed for public repos.
+                      </Text>
+                    </View>
+                  </View>
 
-            {/* Content */}
-            <View style={styles.content}>
-              <View style={styles.urlCard}>
-                <Text style={styles.inputLabel}>Repository URL</Text>
-                <TextInput
-                  style={styles.input}
-                  value={repoUrl}
-                  onChangeText={setRepoUrl}
-                  placeholder="Paste link here"
-                  placeholderTextColor="#B0B0B0"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.button,
-                    !repoUrl.trim() && styles.buttonDisabled,
-                  ]}
-                  activeOpacity={0.85}
-                  disabled={!repoUrl.trim()}
-                  onPress={() => {
-                    if (repoUrl.trim()) {
-                      Keyboard.dismiss();
-                      slideSuccessIn("added");
-                    }
-                  }}
-                >
-                  <Text style={styles.buttonText}>Add repo</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
+                  {/* Content */}
+                  <View style={styles.content}>
+                    <View style={styles.urlCard}>
+                      <Text style={styles.inputLabel}>Repository URL</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={repoUrl}
+                        onChangeText={setRepoUrl}
+                        placeholder="Paste link here"
+                        placeholderTextColor="#B0B0B0"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        keyboardType="url"
+                        onFocus={() => {
+                          setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+                        }}
+                      />
+                      <TouchableOpacity
+                        style={[
+                          styles.button,
+                          !repoUrl.trim() && styles.buttonDisabled,
+                        ]}
+                        activeOpacity={0.85}
+                        disabled={!repoUrl.trim()}
+                        onPress={() => {
+                          if (repoUrl.trim()) {
+                            Keyboard.dismiss();
+                            slideSuccessIn("added");
+                          }
+                        }}
+                      >
+                        <Text style={styles.buttonText}>Add repo</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </ScrollView>
+          </KeyboardAvoidingView>
 
           {/* ── Green success overlay — slides up from bottom ── */}
           <Animated.View
@@ -324,7 +335,7 @@ export function AddRepoSlider({ visible, onClose }: Props) {
             )}
           </Animated.View>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -341,7 +352,8 @@ const styles = StyleSheet.create({
   },
   sheet: {
     width: "100%",
-    height: SHEET_HEIGHT,
+    flex: 1,
+    maxHeight: SHEET_HEIGHT,
     backgroundColor: "#FFF",
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
@@ -377,6 +389,9 @@ const styles = StyleSheet.create({
   },
   closeButtonTranslucent: {
     backgroundColor: "rgba(255, 255, 255, 0.30)",
+  },
+  kavInner: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
