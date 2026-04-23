@@ -1,4 +1,18 @@
-import { ErrorUtils } from "react-native";
+import { GrassColors, NationalPark, DMMono,SFPro, SFMono  } from "@/constants/theme";
+import { posthog } from "@/constants/posthog";
+import { PostHogProvider } from "posthog-react-native";
+import { useTheme } from "@/store/theme-store";
+import { getUser, setAuthErrorHandler, clearAuth } from "@/store/auth-store";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
+import { useFonts } from "expo-font";
+import { Stack, usePathname, useRouter } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useRef } from "react";
+import { Platform, Text, TextInput, View, ErrorUtils } from "react-native";
+import { Image } from "expo-image";
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 // Catch unhandled JS exceptions before they propagate to native and cause SIGABRT.
 // This fires for both fatal and non-fatal errors; log them so Crashlytics / Metro
@@ -21,19 +35,6 @@ if (ErrorUtils) {
   });
 }
 
-import { GrassColors, NationalPark, DMMono, SFPro, SFMono } from "@/constants/theme";
-import { posthog } from "@/constants/posthog";
-import { PostHogProvider } from "posthog-react-native";
-import { useTheme } from "@/store/theme-store";
-import { getUser, setAuthErrorHandler, clearAuth } from "@/store/auth-store";
-import { useFonts } from "expo-font";
-import { Stack, usePathname, useRouter } from "expo-router";
-import * as SplashScreen from "expo-splash-screen";
-import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef } from "react";
-import { Text, TextInput } from "react-native";
-import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -63,6 +64,7 @@ function useScreenTracking() {
 
 export default function RootLayout() {
   useScreenTracking();
+  usePushNotifications();
   const router = useRouter();
 
   // Sign out automatically when any API call returns 401 Unauthorized.

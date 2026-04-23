@@ -90,6 +90,12 @@ function makeFenceRules(theme: 'light' | 'dark') {
         <SyntaxBlock key={node.key} code={content} language={language} theme={theme} />
       );
     },
+    text: (node: any, children: any, parent: any, styles: any) => (
+      <Text key={node.key} selectable style={styles.text}>{node.content}</Text>
+    ),
+    textgroup: (node: any, children: any, parent: any, styles: any) => (
+      <Text key={node.key} selectable style={styles.textgroup}>{children}</Text>
+    ),
   };
 }
 
@@ -119,7 +125,7 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
         style={[styles.toolRow, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
       >
         <Text style={[styles.toolIcon, { color: c.badgeText }]}>{icon}</Text>
-        <Text style={[styles.toolLabel, { color: c.badgeText }]} numberOfLines={1}>{content}</Text>
+        <Text selectable style={[styles.toolLabel, { color: c.badgeText }]} numberOfLines={1}>{content}</Text>
       </Animated.View>
     );
   }
@@ -134,8 +140,8 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
           { backgroundColor: c.userBubble, borderColor: c.userBubbleBorder, opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
         ]}
       >
-        <Text style={[styles.text, { color: c.userBubbleText }]}>{content}</Text>
-        {badge ? <Text style={[styles.badge, { color: c.badgeText }]}>{badge}</Text> : null}
+        <Text selectable style={[styles.text, { color: c.userBubbleText }]}>{content}</Text>
+        {badge ? <Text selectable style={[styles.badge, { color: c.badgeText }]}>{badge}</Text> : null}
       </Animated.View>
     );
   }
@@ -150,7 +156,7 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
           { backgroundColor: c.errorBubble, borderColor: c.errorText, opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
         ]}
       >
-        <Text style={[styles.text, { color: c.errorText }]}>{content}</Text>
+        <Text selectable style={[styles.text, { color: c.errorText }]}>{content}</Text>
       </Animated.View>
     );
   }
@@ -163,7 +169,7 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
       <Markdown style={markdownStyles(theme)} rules={fenceRules}>
         {content}
       </Markdown>
-      {badge ? <Text style={[styles.badge, { color: c.badgeText }]}>{badge}</Text> : null}
+      {badge ? <Text selectable style={[styles.badge, { color: c.badgeText }]}>{badge}</Text> : null}
     </Animated.View>
   );
 }

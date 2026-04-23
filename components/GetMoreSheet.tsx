@@ -32,7 +32,8 @@ import { NationalPark } from "@/constants/theme";
 import { posthog } from "@/constants/posthog";
 import { getToken } from "@/store/auth-store";
 import { cloneRepoStore, getEntry } from "@/store/connection-store";
-import { saveUrl } from "@/store/url-store";
+import { saveUrl, isRelayUrl } from "@/store/url-store";
+import { registerRelayToken } from "@/api/notifications";
 import { Ionicons } from "@expo/vector-icons";
 import {
   BottomSheetBackdrop,
@@ -606,6 +607,18 @@ export function GetMoreSheet({
     if (!confirmed) return;
 
     await saveUrl(normalizedUrl);
+
+    if (isRelayUrl(normalizedUrl)) {
+      const relayTokenMatch = normalizedUrl.match(/\/s\/([^/?#]+)/);
+      const relayToken = relayTokenMatch?.[1];
+      if (relayToken) {
+        const authToken = await getToken();
+        if (authToken) {
+          registerRelayToken(relayToken, authToken).catch(() => {});
+        }
+      }
+    }
+
     setScannedQr(normalizedUrl);
     await onUrlDetected?.(normalizedUrl);
     onClose();
