@@ -56,7 +56,7 @@ export default function VmReadyScreen() {
                 <TouchableOpacity
                   style={styles.button}
                   activeOpacity={0.85}
-                  onPress={() => router.push("/vm-name" as any)}
+                  onPress={() => router.push("/onboarding/vm-name" as any)}
                 >
                   <Text style={styles.buttonText}>Give them a name</Text>
                 </TouchableOpacity>

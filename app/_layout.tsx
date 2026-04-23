@@ -138,24 +138,19 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
-<Stack.Screen
+        <Stack.Screen
           name="(tabs)"
           options={{ headerShown: false, animation: "none" }}
         />
         <Stack.Screen name="machines" options={{ headerShown: false }} />
         <Stack.Screen name="welcome" options={{ headerShown: false }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-        <Stack.Screen name="onboarding-claim" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="folders" options={{ headerShown: false }} />
         <Stack.Screen name="agent-picker" options={{ headerShown: false }} />
         <Stack.Screen name="project" options={{ headerShown: false }} />
         <Stack.Screen name="sessions" options={{ headerShown: false }} />
         <Stack.Screen name="chat" options={{ headerShown: false }} />
         <Stack.Screen name="new-navbar" options={{ headerShown: false }} />
-        <Stack.Screen name="vm-ready" options={{ headerShown: false }} />
-        <Stack.Screen name="vm-name" options={{ headerShown: false }} />
-        <Stack.Screen name="vm-final" options={{ headerShown: false }} />
-        <Stack.Screen name="vm-first-task" options={{ headerShown: false }} />
         <Stack.Screen name="push-commit" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen

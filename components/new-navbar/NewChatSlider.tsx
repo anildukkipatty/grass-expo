@@ -73,7 +73,7 @@ export function NewChatSlider({ visible, onClose }: Props) {
     ]).start();
   }, [translateY, backdropOpacity]);
 
-  const close = useCallback(() => {
+  const close = useCallback((onComplete?: () => void) => {
     Animated.parallel([
       Animated.timing(translateY, {
         toValue: SCREEN_HEIGHT,
@@ -85,7 +85,10 @@ export function NewChatSlider({ visible, onClose }: Props) {
         duration: 250,
         useNativeDriver: true,
       }),
-    ]).start(() => onClose());
+    ]).start(() => {
+      onClose();
+      onComplete?.();
+    });
   }, [translateY, backdropOpacity, onClose]);
 
   useEffect(() => {
@@ -184,8 +187,7 @@ export function NewChatSlider({ visible, onClose }: Props) {
           style={styles.ctaButton}
           activeOpacity={0.85}
           onPress={() => {
-            close();
-            router.push("/new-navbar/chat-list");
+            close(() => router.push("/new-navbar/chat-list"));
           }}
         >
           <Text style={styles.ctaText}>Start new chat</Text>

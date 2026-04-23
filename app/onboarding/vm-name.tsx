@@ -110,7 +110,7 @@ export default function VmNameScreen() {
                       disabled={!vmName.trim()}
                       onPress={() =>
                         router.push({
-                          pathname: "/vm-final" as any,
+                          pathname: "/onboarding/vm-final" as any,
                           params: { vmName: vmName.trim() },
                         })
                       }
@@ -141,7 +141,7 @@ export default function VmNameScreen() {
                   disabled={!vmName.trim()}
                   onPress={() =>
                     router.push({
-                      pathname: "/vm-final" as any,
+                      pathname: "/onboarding/vm-final" as any,
                       params: { vmName: vmName.trim() },
                     })
                   }

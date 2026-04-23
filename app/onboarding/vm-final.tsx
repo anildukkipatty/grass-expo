@@ -88,7 +88,7 @@ export default function VmFinalScreen() {
                     activeOpacity={0.85}
                     onPress={() =>
                       router.push({
-                        pathname: "/vm-first-task" as any,
+                        pathname: "/onboarding/vm-first-task" as any,
                         params: { vmName: name },
                       })
                     }

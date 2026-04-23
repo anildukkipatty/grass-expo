@@ -5,7 +5,7 @@ import LogoIcon from "@/assets/images/new-design/onboarding/logo.svg";
 import MobileIcon from "@/assets/images/new-design/onboarding/mobile-icon.svg";
 import SecretIcon from "@/assets/images/new-design/onboarding/secret.svg";
 import VmIcon from "@/assets/images/new-design/onboarding/vm-icon.svg";
-import { OnboardingAuthSheet } from "@/components/OnboardingAuthSheet";
+import { OnboardingAuthSheet } from "@/components/onboarding/OnboardingAuthSheet";
 import { SFPro } from "@/constants/theme";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -47,7 +47,7 @@ export default function OnboardingClaimScreen() {
   const [authVisible, setAuthVisible] = useState(false);
 
   const handleVerified = (_type: "new" | "old") => {
-    router.replace("/vm-ready" as any);
+    router.replace("/onboarding/vm-ready" as any);
   };
 
   return (

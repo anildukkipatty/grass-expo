@@ -1,5 +1,5 @@
 import LogoIcon from "@/assets/images/new-design/onboarding/logo.svg";
-import { OnboardingAuthSheet } from "@/components/OnboardingAuthSheet";
+import { OnboardingAuthSheet } from "@/components/onboarding/OnboardingAuthSheet";
 import { SFPro } from "@/constants/theme";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -17,7 +17,7 @@ export default function OnboardingScreen() {
   const [loginVisible, setLoginVisible] = useState(false);
 
   const handleVerified = (_type: "new" | "old") => {
-    router.replace("/vm-ready" as any);
+    router.replace("/onboarding/vm-ready" as any);
   };
 
   return (
@@ -43,7 +43,7 @@ export default function OnboardingScreen() {
           <TouchableOpacity
             style={styles.button}
             activeOpacity={0.85}
-            onPress={() => router.push("/onboarding-claim" as any)}
+            onPress={() => router.push("/onboarding/claim" as any)}
           >
             <Text style={styles.buttonText}>Get Started</Text>
           </TouchableOpacity>
