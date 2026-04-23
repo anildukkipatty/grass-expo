@@ -14,6 +14,8 @@ export default function NewNavbarLayout() {
         <Stack.Screen name="chat-list" options={{ headerShown: false }} />
         <Stack.Screen name="support" options={{ headerShown: false }} />
         <Stack.Screen name="delete-account" options={{ headerShown: false }} />
+        <Stack.Screen name="chat" options={{ headerShown: false }} />
+        <Stack.Screen name="diffs" options={{ headerShown: false }} />
       </Stack>
     </NavbarProvider>
   );

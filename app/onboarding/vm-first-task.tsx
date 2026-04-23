@@ -51,8 +51,6 @@ export default function VmFirstTaskScreen() {
     const trimmed = task.trim();
     if (!trimmed) return;
     posthog.capture("first_task_submitted", { task: trimmed });
-    // Warm up the cached primary VM URL before opening the connection,
-    // so resolveServerKey is consistent between openConnection and useServer.
     await refreshPrimaryVmUrl();
     openConnection(serverUrl);
     router.replace({

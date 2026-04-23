@@ -215,9 +215,7 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
         </Animated.View>
       </TouchableWithoutFeedback>
 
-      <Animated.View
-        style={[styles.sheet, { transform: [{ translateY }] }]}
-      >
+      <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
         {!isGreenStep && (
           <LinearGradient
             colors={[
@@ -375,23 +373,32 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
                     contentContainerStyle={styles.iconSelectorContent}
                     keyboardShouldPersistTaps="handled"
                   >
-                    {ICONS.map((IconComp, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={[
-                          styles.iconItem,
-                          selectedIconIndex === index &&
-                            styles.iconItemSelected,
-                        ]}
-                        onPress={() => {
-                          Keyboard.dismiss();
-                          setSelectedIconIndex(index);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <IconComp width={50} height={50} />
-                      </TouchableOpacity>
-                    ))}
+                    {ICONS.map((IconComp, index) => {
+                      const isSelected = selectedIconIndex === index;
+                      return (
+                        <View key={index} style={styles.iconWrapper}>
+                          <TouchableOpacity
+                            style={[
+                              styles.iconItem,
+                              isSelected && styles.iconItemSelected,
+                            ]}
+                            onPress={() => {
+                              Keyboard.dismiss();
+                              setSelectedIconIndex(index);
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            {isSelected ? (
+                              <View style={styles.iconInnerCircle}>
+                                <IconComp width={60} height={60} />
+                              </View>
+                            ) : (
+                              <IconComp width={44} height={44} />
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
                   </ScrollView>
 
                   <View style={styles.nameInputContainer}>
@@ -473,7 +480,7 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
               <View style={styles.greenCenter}>
                 <View style={styles.readyIconGlow}>
                   <View style={styles.readyIconCircle}>
-                    <SelectedIconComponent width={72} height={72} />
+                    <SelectedIconComponent width={60} height={60} />
                   </View>
                 </View>
                 <Text style={styles.greenTitle}>Ready to go</Text>
@@ -561,7 +568,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   headerText: {
-    flex: 1,
     gap: 4,
   },
   headerTitle: {
@@ -722,13 +728,13 @@ const styles = StyleSheet.create({
   },
   greenContent: {
     flex: 1,
-    paddingBottom: 40,
+    // paddingBottom: 40,
   },
   greenCenter: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 32,
+    // paddingHorizontal: 32,
     gap: 16,
   },
   greenTitle: {
@@ -777,16 +783,16 @@ const styles = StyleSheet.create({
   },
   // Ready icon
   readyIconGlow: {
-    width: 200,
-    height: 200,
+    width: 80,
+    height: 80,
     borderRadius: 100,
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
   readyIconCircle: {
-    width: 140,
-    height: 140,
+    width: 80,
+    height: 80,
     borderRadius: 70,
     backgroundColor: "#FFF",
     alignItems: "center",
@@ -800,22 +806,41 @@ const styles = StyleSheet.create({
   },
   iconSelectorContent: {
     paddingVertical: 8,
-    gap: 12,
+    gap: 4,
   },
-  iconItem: {
-    width: 72,
-    height: 72,
-    borderRadius: 80,
-    borderWidth: 4,
-    borderColor: "transparent",
+  iconWrapper: {
+    width: 120,
+    height: 120,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F5F5F5",
+  },
+  iconItem: {
+    width: 90,
+    height: 90,
+    borderRadius: "50%",
+    borderWidth: 4,
+    borderColor: "transparent",
+    backgroundColor: "#E3FDD7",
     overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
   },
   iconItemSelected: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 4,
     borderColor: "#3D841E",
-    backgroundColor: "rgba(61, 132, 30, 0.08)",
+    backgroundColor: "#FFF",
+  },
+  iconInnerCircle: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: "#E3FDD7",
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
   },
   nameInputContainer: {
     gap: 6,

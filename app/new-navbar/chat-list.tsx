@@ -78,7 +78,7 @@ export default function ChatListScreen() {
           activeOpacity={0.7}
           onPress={() => router.back()}
         >
-          <BackButtonIcon width={24} height={24} />
+          <BackButtonIcon width={40} height={40} />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
@@ -185,8 +185,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   headerBtn: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 100,
     backgroundColor: "#F2F2F2",
     alignItems: "center",
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   repoName: {
-    fontFamily: SFPro.semiBold,
+    fontFamily: SFPro.bold,
     fontSize: 17,
     color: "#000",
     letterSpacing: -0.4,
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   branchName: {
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.semiBold,
     fontSize: 13,
     color: "#808080",
     letterSpacing: -0.2,
@@ -286,17 +286,18 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   chatTitle: {
-    fontFamily: SFPro.medium,
+    fontFamily: SFPro.semiBold,
     fontSize: 17,
     color: "#000",
-    letterSpacing: -0.4,
+    letterSpacing: -0.5,
     lineHeight: 22,
   },
   chatTime: {
-    fontFamily: SFPro.regular,
-    fontSize: 14,
+    fontFamily: SFPro.medium,
+    fontSize: 15,
     color: "#808080",
-    letterSpacing: -0.2,
+    letterSpacing: -0.5,
+    lineHeight: 20,
   },
 
   emptyState: {
