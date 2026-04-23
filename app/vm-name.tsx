@@ -203,9 +203,10 @@ const styles = StyleSheet.create({
   overlayInput: {
     flex: 1,
     backgroundColor: "transparent",
-    fontFamily: SFPro.bold,
-    fontSize: 36,
-    color: "#999995",
+    fontFamily: SFPro.semiBold,
+    fontSize: 20,
+    color: "#000",
+    lineHeight: 25,
     paddingHorizontal: 12,
     letterSpacing: -0.5,
     textAlign: "center",

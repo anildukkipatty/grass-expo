@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   loginRow: {
-    marginBottom: 28,
+    marginBottom: 40,
   },
   loginText: {
     fontFamily: SFPro.semiBold,

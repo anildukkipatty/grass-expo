@@ -46,7 +46,7 @@ export default function VmFirstTaskScreen() {
 
   const handleSubmit = () => {
     if (!task.trim()) return;
-    router.replace("/new-navbar" as any);
+    router.replace("/new-navbar/chat-list" as any);
   };
 
   return (

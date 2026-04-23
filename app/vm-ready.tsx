@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: SCREEN_WIDTH * 0,
     right: SCREEN_WIDTH * 0,
-    height: SCREEN_HEIGHT * 1,
+    height: SCREEN_HEIGHT * 1.3,
     bottom: 0,
   },
   gradientOverlay: {
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     bottom: 16,
-    height: SCREEN_HEIGHT * 0.55,
+    height: SCREEN_HEIGHT * 0.5,
     justifyContent: "flex-end",
     borderRadius: 24,
     overflow: "hidden",
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16,
-    // paddingBottom: 50,
+    paddingBottom: 50,
     alignItems: "center",
   },
   badgeRow: {

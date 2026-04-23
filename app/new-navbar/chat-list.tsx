@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ScrollView,
@@ -10,20 +11,22 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BackButtonIcon from "@/assets/images/new-design/chat/back-button.svg";
-import ChatGptIcon from "@/assets/images/new-design/chat/chatGPT.svg";
-import ChatGptActiveIcon from "@/assets/images/new-design/chat/chatGPT-active.svg";
+// import ChatGptIcon from "@/assets/images/new-design/chat/chatGPT.svg";
+// import ChatGptActiveIcon from "@/assets/images/new-design/chat/chatGPT-active.svg";
 import ClaudeIcon from "@/assets/images/new-design/chat/claude.svg";
-import ClaudeActiveIcon from "@/assets/images/new-design/chat/claude-active.svg";
+// import ClaudeActiveIcon from "@/assets/images/new-design/chat/claude-active.svg";
+import ClaudeLightModeIcon from "@/assets/images/new-design/chat/claude-light-mode.svg";
 import DiffButtonIcon from "@/assets/images/new-design/chat/diff-button.svg";
-import GeminiIcon from "@/assets/images/new-design/chat/gemini.svg";
-import GeminiActiveIcon from "@/assets/images/new-design/chat/gemini-active.svg";
-import MetaIcon from "@/assets/images/new-design/chat/meta.svg";
-import MetaActiveIcon from "@/assets/images/new-design/chat/meta-active.svg";
+// import GeminiIcon from "@/assets/images/new-design/chat/gemini.svg";
+// import GeminiActiveIcon from "@/assets/images/new-design/chat/gemini-active.svg";
+// import MetaIcon from "@/assets/images/new-design/chat/meta.svg";
+// import MetaActiveIcon from "@/assets/images/new-design/chat/meta-active.svg";
 import OpenCodeIcon from "@/assets/images/new-design/chat/opencode.svg";
-import OpenCodeActiveIcon from "@/assets/images/new-design/chat/opencode-active.svg";
+// import OpenCodeActiveIcon from "@/assets/images/new-design/chat/opencode-active.svg";
+import OpenCodeLightNodeIcon from "@/assets/images/new-design/chat/opencode-light-node.svg";
 import SearchIcon from "@/assets/images/new-design/chat/search-icon.svg";
-import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
 import CompletedIcon from "@/assets/images/new-design/navbar/completed-icon.svg";
+import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
 import ProgressIcon from "@/assets/images/new-design/navbar/progress-icon.svg";
 import WaitingIcon from "@/assets/images/new-design/navbar/waiting-for-completion-icon.svg";
 
@@ -31,7 +34,7 @@ import { SFPro } from "@/constants/theme";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AgentKey = "claude" | "chatgpt" | "gemini" | "meta" | "opencode";
+type AgentKey = "claude" | "opencode";
 type ThreadStatus = "completed" | "progress" | "waiting" | null;
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
@@ -39,17 +42,17 @@ type ThreadStatus = "completed" | "progress" | "waiting" | null;
 const REPO_NAME = "grass-welcome";
 const BRANCH_NAME = "main";
 
-const AGENTS: {
-  key: AgentKey;
-  Icon: React.FC<{ width: number; height: number }>;
-  ActiveIcon: React.FC<{ width: number; height: number }>;
-}[] = [
-  { key: "chatgpt", Icon: ChatGptIcon, ActiveIcon: ChatGptActiveIcon },
-  { key: "claude", Icon: ClaudeIcon, ActiveIcon: ClaudeActiveIcon },
-  { key: "meta", Icon: MetaIcon, ActiveIcon: MetaActiveIcon },
-  { key: "gemini", Icon: GeminiIcon, ActiveIcon: GeminiActiveIcon },
-  { key: "opencode", Icon: OpenCodeIcon, ActiveIcon: OpenCodeActiveIcon },
-];
+// const AGENTS: {
+//   key: AgentKey;
+//   Icon: React.FC<{ width: number; height: number }>;
+//   ActiveIcon: React.FC<{ width: number; height: number }>;
+// }[] = [
+//   { key: "chatgpt", Icon: ChatGptIcon, ActiveIcon: ChatGptActiveIcon },
+//   { key: "claude", Icon: ClaudeIcon, ActiveIcon: ClaudeActiveIcon },
+//   { key: "meta", Icon: MetaIcon, ActiveIcon: MetaActiveIcon },
+//   { key: "gemini", Icon: GeminiIcon, ActiveIcon: GeminiActiveIcon },
+//   { key: "opencode", Icon: OpenCodeIcon, ActiveIcon: OpenCodeActiveIcon },
+// ];
 
 const CHATS: {
   id: string;
@@ -58,18 +61,75 @@ const CHATS: {
   time: string;
   status: ThreadStatus;
 }[] = [
-  { id: "1", agent: "chatgpt", title: "Fixed broken link in footer", time: "3m", status: "waiting" },
-  { id: "2", agent: "claude", title: "Improve error handling in API", time: "4m", status: "completed" },
-  { id: "3", agent: "gemini", title: "Add unit tests for data models", time: "10m", status: "progress" },
-  { id: "4", agent: "meta", title: "Update dependencies to latest versions", time: "20m", status: null },
-  { id: "5", agent: "opencode", title: "Implement user authentication flow", time: "30m", status: null },
-  { id: "6", agent: "chatgpt", title: "Optimize database queries for speed", time: "1h", status: null },
-  { id: "7", agent: "claude", title: "Design new landing page layout", time: "2h", status: null },
-  { id: "8", agent: "gemini", title: "Fixed broken link in footer", time: "Yesterday", status: null },
-  { id: "9", agent: "meta", title: "Improve error handling in API", time: "Yesterday", status: null },
+  {
+    id: "1",
+    agent: "opencode",
+    title: "Fixed broken link in footer",
+    time: "3m",
+    status: "waiting",
+  },
+  {
+    id: "2",
+    agent: "claude",
+    title: "Improve error handling in API",
+    time: "4m",
+    status: "completed",
+  },
+  {
+    id: "3",
+    agent: "opencode",
+    title: "Add unit tests for data models",
+    time: "10m",
+    status: "progress",
+  },
+  {
+    id: "4",
+    agent: "claude",
+    title: "Update dependencies to latest versions",
+    time: "20m",
+    status: null,
+  },
+  {
+    id: "5",
+    agent: "opencode",
+    title: "Implement user authentication flow",
+    time: "30m",
+    status: null,
+  },
+  {
+    id: "6",
+    agent: "claude",
+    title: "Optimize database queries for speed",
+    time: "1h",
+    status: null,
+  },
+  {
+    id: "7",
+    agent: "claude",
+    title: "Design new landing page layout",
+    time: "2h",
+    status: null,
+  },
+  {
+    id: "8",
+    agent: "opencode",
+    title: "Fixed broken link in footer",
+    time: "Yesterday",
+    status: null,
+  },
+  {
+    id: "9",
+    agent: "claude",
+    title: "Improve error handling in API",
+    time: "Yesterday",
+    status: null,
+  },
 ];
 
-const STATUS_ICON: Record<NonNullable<ThreadStatus>, React.FC<{ width: number; height: number }>> = {
+const STATUS_ICON: Record<
+  NonNullable<ThreadStatus>,
+  React.FC<{ width: number; height: number }>
+> = {
   completed: CompletedIcon,
   progress: ProgressIcon,
   waiting: WaitingIcon,
@@ -79,12 +139,15 @@ const STATUS_ICON: Record<NonNullable<ThreadStatus>, React.FC<{ width: number; h
 
 export default function ChatListScreen() {
   const { top } = useSafeAreaInsets();
-  const [selectedAgent, setSelectedAgent] = useState<AgentKey | null>(null);
+  const router = useRouter();
+  const [selectedAgent, setSelectedAgent] = useState<AgentKey>("claude");
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredChats = CHATS.filter((c) => {
-    const matchesAgent = selectedAgent ? c.agent === selectedAgent : true;
-    const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesAgent = c.agent === selectedAgent;
+    const matchesSearch = c.title
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
     return matchesAgent && matchesSearch;
   });
 
@@ -92,8 +155,12 @@ export default function ChatListScreen() {
     <View style={[styles.container, { paddingTop: top }]}>
       {/* ── Header ── */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7}>
-          <BackButtonIcon width={20} height={20} />
+        <TouchableOpacity
+          style={styles.headerBtn}
+          activeOpacity={0.7}
+          onPress={() => router.push("/new-navbar/(tabs)")}
+        >
+          <BackButtonIcon width={24} height={24} />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
@@ -109,25 +176,43 @@ export default function ChatListScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Agent filter row ── */}
-      <View style={styles.agentRow}>
-        {AGENTS.map(({ key, Icon, ActiveIcon }) => {
-          const isSelected = selectedAgent === key;
-          const DisplayIcon = isSelected ? ActiveIcon : Icon;
-          return (
-            <TouchableOpacity
-              key={key}
-              style={[
-                styles.agentIconWrap,
-                isSelected && styles.agentIconWrapSelected,
-              ]}
-              activeOpacity={0.7}
-              onPress={() => setSelectedAgent(isSelected ? null : key)}
-            >
-              <DisplayIcon width={isSelected ? 52 : 28} height={isSelected ? 52 : 28} />
-            </TouchableOpacity>
-          );
-        })}
+      {/* ── Agent tab toggle ── */}
+      <View style={styles.agentTabRow}>
+        {/* Claude tab */}
+        <TouchableOpacity
+          style={[
+            styles.agentTab,
+            selectedAgent === "claude"
+              ? styles.claudeActiveTab
+              : styles.inactiveTab,
+          ]}
+          activeOpacity={0.85}
+          onPress={() => setSelectedAgent("claude")}
+        >
+          {selectedAgent === "claude" ? (
+            <ClaudeLightModeIcon width={24} height={24} />
+          ) : (
+            <ClaudeIcon width={24} height={24} />
+          )}
+        </TouchableOpacity>
+
+        {/* OpenCode tab */}
+        <TouchableOpacity
+          style={[
+            styles.agentTab,
+            selectedAgent === "opencode"
+              ? styles.openCodeActiveTab
+              : styles.inactiveTab,
+          ]}
+          activeOpacity={0.85}
+          onPress={() => setSelectedAgent("opencode")}
+        >
+          {selectedAgent === "opencode" ? (
+            <OpenCodeLightNodeIcon width={24} height={24} />
+          ) : (
+            <OpenCodeIcon width={24} height={24} />
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* ── Search bar ── */}
@@ -215,28 +300,36 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
 
-  // Agent filter row
-  agentRow: {
+  // Agent tab toggle
+  agentTabRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    gap: 8,
   },
-  agentIconWrap: {
-    width: 52,
-    height: 52,
+  agentTab: {
+    flex: 1,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  claudeActiveTab: {
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.50)",
+    backgroundColor: "#E47152",
+  },
+  openCodeActiveTab: {
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.50)",
+    backgroundColor: "#000000",
+  },
+  inactiveTab: {
     borderRadius: 50,
     borderWidth: 1,
     borderColor: "#DFDFDF",
     backgroundColor: "rgba(255, 255, 255, 0.40)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  agentIconWrapSelected: {
-    borderColor: "transparent",
-    backgroundColor: "transparent",
   },
 
   // Search bar

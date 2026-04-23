@@ -53,9 +53,11 @@ export default function VmFinalScreen() {
             style={StyleSheet.absoluteFill}
             contentFit="contain"
           />
-          <Text style={styles.vmNameOverlay}>
-            {name.length > 9 ? name.slice(0, 9) + "..." : name}
-          </Text>
+          <View style={styles.vmNameOverlayWrapper}>
+            <Text style={styles.vmNameOverlay}>
+              {name.length > 9 ? name.slice(0, 9) + "..." : name}
+            </Text>
+          </View>
         </View>
 
         {/* Gradient + content overlaid at the bottom of the image */}
@@ -114,27 +116,34 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    height: SCREEN_HEIGHT,
+    height: SCREEN_HEIGHT * 1.3,
     bottom: 0,
   },
-  vmNameOverlay: {
+  vmNameOverlayWrapper: {
     position: "absolute",
-    top: "45%",
-    left: "15%",
-    right: "0%",
-    fontFamily: SFPro.semiBold,
-    fontSize: 22,
-    color: "rgba(180, 180, 180, 0.85)",
-    letterSpacing: 1,
-    transform: [{ rotate: "25deg" }],
+    top: "47%",
+    left: "10%",
+    right: "-5%",
+    transform: [{ rotate: "30deg" }],
+    // opacity: 0.38,
+  },
+  vmNameOverlay: {
+    fontFamily: SFPro.bold,
+    fontSize: 17,
+    color: "#d2d2d1",
+    letterSpacing: -0.5,
+    lineHeight: 22,
     textAlign: "center",
+    textShadowColor: "rgba(255, 255, 255, 0.6)",
+    textShadowOffset: { width: 0.5, height: 0.5 },
+    textShadowRadius: 1,
   },
   gradientOverlay: {
     position: "absolute",
     left: 16,
     right: 16,
     bottom: 16,
-    height: SCREEN_HEIGHT * 0.55,
+    height: SCREEN_HEIGHT * 0.3,
     justifyContent: "flex-end",
     borderRadius: 24,
     overflow: "hidden",

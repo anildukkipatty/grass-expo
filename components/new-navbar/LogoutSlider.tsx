@@ -114,7 +114,7 @@ export function LogoutSlider({ visible, onClose }: Props) {
     ]).start(() => {
       onClose();
       router.dismissAll();
-      router.replace("/welcome");
+      router.replace("/onboarding");
     });
   };
 
