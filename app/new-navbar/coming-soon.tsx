@@ -9,16 +9,6 @@ import BackButton from "@/assets/images/new-design/back-arrow.svg";
 import NotifyIcon from "@/assets/images/new-design/settings/notify.svg";
 import { SFPro } from "@/constants/theme";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
 export default function ComingSoonScreen() {
   const { title } = useLocalSearchParams<{ title: string }>();
   const { top, bottom } = useSafeAreaInsets();

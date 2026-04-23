@@ -4,6 +4,7 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   Keyboard,
@@ -20,20 +21,24 @@ import {
   View,
 } from "react-native";
 
+import { posthog } from "@/constants/posthog";
 import { SFPro } from "@/constants/theme";
+import { cloneRepoStore, getEntry } from "@/store/connection-store";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
 const CLOSE_THRESHOLD = 80;
 
-type Step = "input" | "added" | "cloned";
+type Step = "input" | "cloned";
 
 type Props = {
   visible: boolean;
   onClose: () => void;
+  serverUrl?: string;
+  onRepoAdded?: () => void;
 };
 
-export function AddRepoSlider({ visible, onClose }: Props) {
+export function AddRepoSlider({ visible, onClose, serverUrl, onRepoAdded }: Props) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const successTranslateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
@@ -41,6 +46,8 @@ export function AddRepoSlider({ visible, onClose }: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const [repoUrl, setRepoUrl] = useState("");
   const [step, setStep] = useState<Step>("input");
+  const [isCloning, setIsCloning] = useState(false);
+  const [cloneError, setCloneError] = useState<string | null>(null);
 
   const open = useCallback(() => {
     Animated.parallel([
@@ -80,23 +87,22 @@ export function AddRepoSlider({ visible, onClose }: Props) {
       successTranslateY.setValue(SHEET_HEIGHT);
       setRepoUrl("");
       setStep("input");
+      setIsCloning(false);
+      setCloneError(null);
       open();
     }
   }, [visible, open, translateY, successTranslateY]);
 
-  const slideSuccessIn = useCallback(
-    (nextStep: "added" | "cloned") => {
-      setStep(nextStep);
-      successTranslateY.setValue(SHEET_HEIGHT);
-      Animated.spring(successTranslateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        damping: 20,
-        stiffness: 180,
-      }).start();
-    },
-    [successTranslateY],
-  );
+  const slideSuccessIn = useCallback(() => {
+    setStep("cloned");
+    successTranslateY.setValue(SHEET_HEIGHT);
+    Animated.spring(successTranslateY, {
+      toValue: 0,
+      useNativeDriver: true,
+      damping: 20,
+      stiffness: 180,
+    }).start();
+  }, [successTranslateY]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -133,7 +139,29 @@ export function AddRepoSlider({ visible, onClose }: Props) {
     return clean || "repo";
   })();
 
-  const isGreenStep = step === "added" || step === "cloned";
+  async function handleAddRepo() {
+    const url = repoUrl.trim();
+    if (!url) return;
+    if (!serverUrl) {
+      setCloneError("No machine selected. Please select a machine first.");
+      return;
+    }
+    Keyboard.dismiss();
+    setIsCloning(true);
+    setCloneError(null);
+    await cloneRepoStore(serverUrl, url);
+    const entry = getEntry(serverUrl);
+    setIsCloning(false);
+    if (entry?.cloneStatus.error) {
+      setCloneError(entry.cloneStatus.error);
+    } else {
+      posthog.capture("repo_cloned", { source: "manual_url" });
+      onRepoAdded?.();
+      slideSuccessIn();
+    }
+  }
+
+  const isGreenStep = step === "cloned";
 
   if (!visible) return null;
 
@@ -215,7 +243,10 @@ export function AddRepoSlider({ visible, onClose }: Props) {
                       <TextInput
                         style={styles.input}
                         value={repoUrl}
-                        onChangeText={setRepoUrl}
+                        onChangeText={(t) => {
+                          setRepoUrl(t);
+                          setCloneError(null);
+                        }}
                         placeholder="Paste link here"
                         placeholderTextColor="#B0B0B0"
                         autoCapitalize="none"
@@ -225,21 +256,25 @@ export function AddRepoSlider({ visible, onClose }: Props) {
                           setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
                         }}
                       />
+
+                      {cloneError ? (
+                        <Text style={styles.errorText}>{cloneError}</Text>
+                      ) : null}
+
                       <TouchableOpacity
                         style={[
                           styles.button,
-                          !repoUrl.trim() && styles.buttonDisabled,
+                          (!repoUrl.trim() || isCloning) && styles.buttonDisabled,
                         ]}
                         activeOpacity={0.85}
-                        disabled={!repoUrl.trim()}
-                        onPress={() => {
-                          if (repoUrl.trim()) {
-                            Keyboard.dismiss();
-                            slideSuccessIn("added");
-                          }
-                        }}
+                        disabled={!repoUrl.trim() || isCloning}
+                        onPress={handleAddRepo}
                       >
-                        <Text style={styles.buttonText}>Add repo</Text>
+                        {isCloning ? (
+                          <ActivityIndicator color="#FFF" size="small" />
+                        ) : (
+                          <Text style={styles.buttonText}>Add repo</Text>
+                        )}
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -256,49 +291,6 @@ export function AddRepoSlider({ visible, onClose }: Props) {
             ]}
             pointerEvents={isGreenStep ? "auto" : "none"}
           >
-            {/* ── Repo added ── */}
-            {step === "added" && (
-              <View style={styles.greenContent}>
-                <View style={styles.greenCenter}>
-                  <SuccessMark width={192} height={244} />
-                  <Text style={styles.greenTitle}>Repo added</Text>
-                  <View style={styles.repoPillRow}>
-                    <View style={styles.repoPill}>
-                      <Text style={styles.repoPillText}>{repoFullName}</Text>
-                    </View>
-                    <Text style={styles.greenSubtitle}>
-                      is ready. Start a session anytime.
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.greenFooter}>
-                  <TouchableOpacity
-                    style={styles.primaryButton}
-                    onPress={() => slideSuccessIn("cloned")}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.primaryButtonText}>
-                      Start a session
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.addAnotherButton}
-                    onPress={() => {
-                      successTranslateY.setValue(SHEET_HEIGHT);
-                      setStep("input");
-                      setRepoUrl("");
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.addAnotherButtonText}>
-                      Connect another
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {/* ── Repo cloned ── */}
             {step === "cloned" && (
               <View style={styles.greenContent}>
                 <View style={styles.greenCenter}>
@@ -306,10 +298,10 @@ export function AddRepoSlider({ visible, onClose }: Props) {
                   <Text style={styles.greenTitle}>Repo cloned</Text>
                   <View style={styles.repoPillRow}>
                     <View style={styles.repoPill}>
-                      <Text style={styles.repoPillText}>{repoName}</Text>
+                      <Text style={styles.repoPillText}>{repoFullName}</Text>
                     </View>
                     <Text style={styles.greenSubtitle}>
-                      is on your sandbox.{"\n"}Ready when you are.
+                      is on your machine.{"\n"}Ready when you are.
                     </Text>
                   </View>
                 </View>
@@ -319,15 +311,20 @@ export function AddRepoSlider({ visible, onClose }: Props) {
                     onPress={close}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.primaryButtonText}>Open session</Text>
+                    <Text style={styles.primaryButtonText}>Done</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.addAnotherButton}
-                    onPress={close}
+                    onPress={() => {
+                      successTranslateY.setValue(SHEET_HEIGHT);
+                      setStep("input");
+                      setRepoUrl("");
+                      setCloneError(null);
+                    }}
                     activeOpacity={0.85}
                   >
                     <Text style={styles.addAnotherButtonText}>
-                      Back to repos
+                      Add another
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -451,6 +448,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#000",
   },
+  errorText: {
+    fontFamily: SFPro.medium,
+    fontSize: 13,
+    color: "#841E1E",
+    lineHeight: 18,
+  },
   button: {
     borderRadius: 50,
     borderWidth: 2,
@@ -464,6 +467,7 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     borderColor: "#9F9F9F",
     backgroundColor: "#DFDFDF",
+    elevation: 0,
   },
   buttonText: {
     fontFamily: SFPro.semiBold,

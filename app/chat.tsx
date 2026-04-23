@@ -146,7 +146,7 @@ export default function Chat() {
   const permissionMode = ws.permissionMode;
 
   const [sessionLabel, setSessionLabelState] = useState<string | null>(
-    getSessionLabel,
+    initialSessionId ? getSessionLabel() : null,
   );
   useEffect(() => subscribeSessionLabel(setSessionLabelState), []);
 

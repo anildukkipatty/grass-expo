@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ScrollView,
@@ -11,145 +11,63 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BackButtonIcon from "@/assets/images/new-design/chat/back-button.svg";
-// import ChatGptIcon from "@/assets/images/new-design/chat/chatGPT.svg";
-// import ChatGptActiveIcon from "@/assets/images/new-design/chat/chatGPT-active.svg";
 import ClaudeIcon from "@/assets/images/new-design/chat/claude.svg";
-// import ClaudeActiveIcon from "@/assets/images/new-design/chat/claude-active.svg";
 import ClaudeLightModeIcon from "@/assets/images/new-design/chat/claude-light-mode.svg";
 import DiffButtonIcon from "@/assets/images/new-design/chat/diff-button.svg";
-// import GeminiIcon from "@/assets/images/new-design/chat/gemini.svg";
-// import GeminiActiveIcon from "@/assets/images/new-design/chat/gemini-active.svg";
-// import MetaIcon from "@/assets/images/new-design/chat/meta.svg";
-// import MetaActiveIcon from "@/assets/images/new-design/chat/meta-active.svg";
 import OpenCodeIcon from "@/assets/images/new-design/chat/opencode.svg";
-// import OpenCodeActiveIcon from "@/assets/images/new-design/chat/opencode-active.svg";
 import OpenCodeLightNodeIcon from "@/assets/images/new-design/chat/opencode-light-node.svg";
 import SearchIcon from "@/assets/images/new-design/chat/search-icon.svg";
-import CompletedIcon from "@/assets/images/new-design/navbar/completed-icon.svg";
 import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
-import ProgressIcon from "@/assets/images/new-design/navbar/progress-icon.svg";
-import WaitingIcon from "@/assets/images/new-design/navbar/waiting-for-completion-icon.svg";
 
 import { SFPro } from "@/constants/theme";
+import { posthog } from "@/constants/posthog";
+import { useNavbar } from "@/contexts/navbar-context";
+import { formatRelativeTime } from "@/store/thread-store";
+import { setSessionLabel } from "@/store/session-label-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type AgentKey = "claude" | "opencode";
-type ThreadStatus = "completed" | "progress" | "waiting" | null;
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const REPO_NAME = "grass-welcome";
-const BRANCH_NAME = "main";
-
-// const AGENTS: {
-//   key: AgentKey;
-//   Icon: React.FC<{ width: number; height: number }>;
-//   ActiveIcon: React.FC<{ width: number; height: number }>;
-// }[] = [
-//   { key: "chatgpt", Icon: ChatGptIcon, ActiveIcon: ChatGptActiveIcon },
-//   { key: "claude", Icon: ClaudeIcon, ActiveIcon: ClaudeActiveIcon },
-//   { key: "meta", Icon: MetaIcon, ActiveIcon: MetaActiveIcon },
-//   { key: "gemini", Icon: GeminiIcon, ActiveIcon: GeminiActiveIcon },
-//   { key: "opencode", Icon: OpenCodeIcon, ActiveIcon: OpenCodeActiveIcon },
-// ];
-
-const CHATS: {
-  id: string;
-  agent: AgentKey;
-  title: string;
-  time: string;
-  status: ThreadStatus;
-}[] = [
-  {
-    id: "1",
-    agent: "opencode",
-    title: "Fixed broken link in footer",
-    time: "3m",
-    status: "waiting",
-  },
-  {
-    id: "2",
-    agent: "claude",
-    title: "Improve error handling in API",
-    time: "4m",
-    status: "completed",
-  },
-  {
-    id: "3",
-    agent: "opencode",
-    title: "Add unit tests for data models",
-    time: "10m",
-    status: "progress",
-  },
-  {
-    id: "4",
-    agent: "claude",
-    title: "Update dependencies to latest versions",
-    time: "20m",
-    status: null,
-  },
-  {
-    id: "5",
-    agent: "opencode",
-    title: "Implement user authentication flow",
-    time: "30m",
-    status: null,
-  },
-  {
-    id: "6",
-    agent: "claude",
-    title: "Optimize database queries for speed",
-    time: "1h",
-    status: null,
-  },
-  {
-    id: "7",
-    agent: "claude",
-    title: "Design new landing page layout",
-    time: "2h",
-    status: null,
-  },
-  {
-    id: "8",
-    agent: "opencode",
-    title: "Fixed broken link in footer",
-    time: "Yesterday",
-    status: null,
-  },
-  {
-    id: "9",
-    agent: "claude",
-    title: "Improve error handling in API",
-    time: "Yesterday",
-    status: null,
-  },
-];
-
-const STATUS_ICON: Record<
-  NonNullable<ThreadStatus>,
-  React.FC<{ width: number; height: number }>
-> = {
-  completed: CompletedIcon,
-  progress: ProgressIcon,
-  waiting: WaitingIcon,
-};
-
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ChatListScreen() {
   const { top } = useSafeAreaInsets();
   const router = useRouter();
+  const { repoName, repoPath } = useLocalSearchParams<{ repoName?: string; repoPath?: string }>();
+  const { threads, repos } = useNavbar();
   const [selectedAgent, setSelectedAgent] = useState<AgentKey>("claude");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredChats = CHATS.filter((c) => {
-    const matchesAgent = c.agent === selectedAgent;
-    const matchesSearch = c.title
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    return matchesAgent && matchesSearch;
+  // Find branch from repos list
+  const matchedRepo = repos?.find((r) => r.path === repoPath || r.name === repoName);
+  const branchName = matchedRepo?.branch ?? null;
+
+  // Filter threads: by repoPath (if given), by agent tab, by search
+  const filteredThreads = threads.filter((t) => {
+    if (repoPath && t.repoPath !== repoPath) return false;
+    const isClaudeAgent = t.tool === "claude-code" || t.tool === "claude";
+    if (selectedAgent === "claude" && !isClaudeAgent) return false;
+    if (selectedAgent === "opencode" && t.tool !== "opencode") return false;
+    if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
   });
+
+  function handleThreadTap(thread: typeof threads[0]) {
+    posthog.capture("thread_resumed", { agent: thread.tool, repo_name: thread.repo });
+    setSessionLabel(thread.title);
+    router.push({
+      pathname: "/chat",
+      params: {
+        serverUrl: thread.serverUrl,
+        sessionId: thread.grassId,
+        repoName: thread.repo,
+        repoPath: thread.repoPath,
+        agent: thread.tool,
+      },
+    });
+  }
+
+  const displayRepoName = repoName ?? matchedRepo?.name ?? "Threads";
 
   return (
     <View style={[styles.container, { paddingTop: top }]}>
@@ -158,17 +76,19 @@ export default function ChatListScreen() {
         <TouchableOpacity
           style={styles.headerBtn}
           activeOpacity={0.7}
-          onPress={() => router.push("/new-navbar/(tabs)")}
+          onPress={() => router.back()}
         >
           <BackButtonIcon width={24} height={24} />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.repoName}>{REPO_NAME}</Text>
-          <View style={styles.branchRow}>
-            <GitBranchIcon width={14} height={14} />
-            <Text style={styles.branchName}>{BRANCH_NAME}</Text>
-          </View>
+          <Text style={styles.repoName}>{displayRepoName}</Text>
+          {branchName && (
+            <View style={styles.branchRow}>
+              <GitBranchIcon width={14} height={14} />
+              <Text style={styles.branchName}>{branchName}</Text>
+            </View>
+          )}
         </View>
 
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7}>
@@ -178,13 +98,10 @@ export default function ChatListScreen() {
 
       {/* ── Agent tab toggle ── */}
       <View style={styles.agentTabRow}>
-        {/* Claude tab */}
         <TouchableOpacity
           style={[
             styles.agentTab,
-            selectedAgent === "claude"
-              ? styles.claudeActiveTab
-              : styles.inactiveTab,
+            selectedAgent === "claude" ? styles.claudeActiveTab : styles.inactiveTab,
           ]}
           activeOpacity={0.85}
           onPress={() => setSelectedAgent("claude")}
@@ -196,13 +113,10 @@ export default function ChatListScreen() {
           )}
         </TouchableOpacity>
 
-        {/* OpenCode tab */}
         <TouchableOpacity
           style={[
             styles.agentTab,
-            selectedAgent === "opencode"
-              ? styles.openCodeActiveTab
-              : styles.inactiveTab,
+            selectedAgent === "opencode" ? styles.openCodeActiveTab : styles.inactiveTab,
           ]}
           activeOpacity={0.85}
           onPress={() => setSelectedAgent("opencode")}
@@ -227,26 +141,29 @@ export default function ChatListScreen() {
         />
       </View>
 
-      {/* ── Chat list ── */}
+      {/* ── Thread list ── */}
       <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-        {filteredChats.map((chat) => {
-          const StatusIcon = chat.status ? STATUS_ICON[chat.status] : null;
-          return (
+        {filteredThreads.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No threads found</Text>
+          </View>
+        ) : (
+          filteredThreads.map((thread) => (
             <TouchableOpacity
-              key={chat.id}
+              key={thread.grassId}
               style={styles.chatItem}
               activeOpacity={0.7}
+              onPress={() => handleThreadTap(thread)}
             >
               <View style={styles.chatInfo}>
                 <Text style={styles.chatTitle} numberOfLines={1}>
-                  {chat.title}
+                  {thread.title}
                 </Text>
-                <Text style={styles.chatTime}>{chat.time}</Text>
+                <Text style={styles.chatTime}>{formatRelativeTime(thread.time)}</Text>
               </View>
-              {StatusIcon && <StatusIcon width={22} height={20} />}
             </TouchableOpacity>
-          );
-        })}
+          ))
+        )}
       </ScrollView>
     </View>
   );
@@ -260,7 +177,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
 
-  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -300,7 +216,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
 
-  // Agent tab toggle
   agentTabRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
@@ -332,7 +247,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.40)",
   },
 
-  // Search bar
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -354,7 +268,6 @@ const styles = StyleSheet.create({
     padding: 0,
   },
 
-  // Chat list
   list: {
     flex: 1,
     paddingHorizontal: 16,
@@ -385,4 +298,12 @@ const styles = StyleSheet.create({
     color: "#808080",
     letterSpacing: -0.2,
   },
+
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 60,
+    gap: 12,
+  },
+  emptyText: { fontFamily: SFPro.medium, fontSize: 17, color: "#808080" },
 });

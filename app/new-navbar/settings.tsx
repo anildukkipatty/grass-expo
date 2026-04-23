@@ -1,5 +1,6 @@
+import { getVmName } from "@/store/vm-metadata-store";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Image,
   ScrollView,
@@ -35,6 +36,9 @@ import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
 import { LogoutSlider } from "@/components/new-navbar/LogoutSlider";
 import { NotificationPermissionSlider } from "@/components/new-navbar/NotificationPermissionSlider";
 import { SFPro } from "@/constants/theme";
+import { extractHost, useNavbar } from "@/contexts/navbar-context";
+import { getUser } from "@/store/auth-store";
+import { getAllVmMetadata } from "@/store/vm-metadata-store";
 
 type SectionRowProps = {
   icon: React.ReactNode;
@@ -124,10 +128,27 @@ function MachineRow({
 }
 
 export default function SettingsScreen() {
-  const { top, bottom } = useSafeAreaInsets();
+  const { top } = useSafeAreaInsets();
+  const { vmUrls, primaryVmUrl } = useNavbar();
   const [connectMoreVisible, setConnectMoreVisible] = useState(false);
   const [notifPermVisible, setNotifPermVisible] = useState(false);
   const [logoutVisible, setLogoutVisible] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [grassVmName, setGrassVmName] = useState<string | null>(null);
+  const [vmMetadataMap, setVmMetadataMap] = useState<Record<string, { name: string; iconIndex: number }>>({});
+
+  useEffect(() => {
+    getUser().then((u) => setUserEmail(u?.email ?? null));
+    getVmName().then(setGrassVmName);
+    getAllVmMetadata().then(setVmMetadataMap);
+  }, []);
+
+  const displayName = userEmail ? userEmail.split("@")[0] : "—";
+
+  function vmDisplayName(url: string): string {
+    if (url === primaryVmUrl) return grassVmName ?? extractHost(url);
+    return vmMetadataMap[url]?.name ?? extractHost(url);
+  }
 
   const handleSignOut = () => {
     setLogoutVisible(true);
@@ -157,8 +178,8 @@ export default function SettingsScreen() {
           {/* ── Profile ── */}
           <View style={styles.profileRow}>
             <View style={styles.profileText}>
-              <Text style={styles.profileName}>Charlie{"\n"}Rodrigues</Text>
-              <Text style={styles.profileEmail}>charlierod112@gmail.com</Text>
+              <Text style={styles.profileName}>{displayName}</Text>
+              <Text style={styles.profileEmail}>{userEmail ?? "—"}</Text>
             </View>
             <Image
               source={require("@/assets/images/new-design/settings/profile-icon.png")}
@@ -173,7 +194,7 @@ export default function SettingsScreen() {
               style={styles.serverImage}
               resizeMode="cover"
             />
-            <Text style={styles.serverNameOverlay}>Son of Anton</Text>
+            <Text style={styles.serverNameOverlay}>{grassVmName ?? "My Machine"}</Text>
           </View>
 
           {/* ── Referral ── */}
@@ -210,7 +231,7 @@ export default function SettingsScreen() {
                 </View>
               }
               label="Email"
-              sublabel="charlierod112@gmail.com"
+              sublabel={userEmail ?? "—"}
             />
             <SectionRow
               icon={
@@ -237,17 +258,14 @@ export default function SettingsScreen() {
           {/* ── Machines ── */}
           <Text style={styles.sectionHeader}>Machines</Text>
           <View style={styles.card}>
-            <MachineRow
-              icon={
-                // <Image
-                //   source={require("@/assets/images/new-design/settings/machine.svg")}
-                //   style={styles.machineIcon}
-                // />
-                <MachineIcon />
-              }
-              label="Son of Anton"
-              sublabel="Your virtual machine"
-            />
+            {vmUrls.map((url) => (
+              <MachineRow
+                key={url}
+                icon={<MachineIcon />}
+                label={vmDisplayName(url)}
+                sublabel={url === primaryVmUrl ? "Your virtual machine" : "Custom machine"}
+              />
+            ))}
             <MachineRow
               icon={
                 <View style={styles.iconBgAddMachine}>

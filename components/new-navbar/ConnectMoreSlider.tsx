@@ -15,6 +15,7 @@ import {
 } from "react-native";
 
 import { AddRepoSlider } from "./AddRepoSlider";
+import { ConfigureGitAccessSlider } from "./ConfigureGitAccessSlider";
 import { ConnectLaptopSlider } from "./ConnectLaptopSlider";
 import { ConnectOwnAgentSlider } from "./ConnectOwnAgentSlider";
 
@@ -24,7 +25,6 @@ import ClaudeIcon from "@/assets/images/new-design/connect-more/claude.svg";
 import GitLabIcon from "@/assets/images/new-design/connect-more/gitLab.svg";
 import GithubIcon from "@/assets/images/new-design/connect-more/github.svg";
 import LinuxIcon from "@/assets/images/new-design/connect-more/linux.svg";
-import LockIcon from "@/assets/images/new-design/connect-more/lock.svg";
 import OpenCodeIcon from "@/assets/images/new-design/connect-more/open-code.svg";
 import WindowsIcon from "@/assets/images/new-design/connect-more/windows.svg";
 import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
@@ -96,6 +96,7 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
   const [ownAgentVisible, setOwnAgentVisible] = useState(false);
   const [laptopVisible, setLaptopVisible] = useState(false);
   const [addRepoVisible, setAddRepoVisible] = useState(false);
+  const [gitAccessVisible, setGitAccessVisible] = useState(false);
 
   const open = useCallback(() => {
     Animated.parallel([
@@ -283,15 +284,18 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
               />
             </TouchableOpacity>
 
-            <View style={styles.halfCardWrapper}>
+            <TouchableOpacity
+              style={styles.halfCardWrapper}
+              onPress={() => setGitAccessVisible(true)}
+              activeOpacity={0.85}
+            >
               <ConnectCard
                 title={"Configure\nGit Access"}
-                subtitle={"Coming in v2"}
-                // footerText={"Fine-grained\npermissions per repo"}
+                subtitle={"GitHub OAuth\nfor your VM"}
                 style={{ flex: 1 }}
-                footerIcons={<LockIcon width={30} height={30} />}
+                footerIcons={<GithubIcon width={30} height={30} />}
               />
-            </View>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </Animated.View>
@@ -307,6 +311,10 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
       <AddRepoSlider
         visible={addRepoVisible}
         onClose={() => setAddRepoVisible(false)}
+      />
+      <ConfigureGitAccessSlider
+        visible={gitAccessVisible}
+        onClose={() => setGitAccessVisible(false)}
       />
     </Modal>
   );

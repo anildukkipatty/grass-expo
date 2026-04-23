@@ -103,7 +103,7 @@ export function usePushNotifications() {
         if (!data?.type) return;
 
         if (data.type === "permission") {
-          router.push("/(tabs)/perms");
+          router.push("/new-navbar/(tabs)/permissions");
         } else if (data.type === "task_complete" && data.sessionId) {
           const thread = await findThreadById(data.sessionId);
           if (thread) {

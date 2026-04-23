@@ -17,6 +17,7 @@ import { SFPro } from "@/constants/theme";
 import { clearAuth } from "@/store/auth-store";
 import { closeConnection, getConnectedUrls } from "@/store/connection-store";
 import { clearUrls } from "@/store/url-store";
+import { clearAllVmMetadata } from "@/store/vm-metadata-store";
 
 import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 import LogoutIcon from "@/assets/images/new-design/settings/logout.svg";
@@ -99,6 +100,7 @@ export function LogoutSlider({ visible, onClose }: Props) {
     const connectedUrls = getConnectedUrls();
     connectedUrls.forEach((url) => closeConnection(url));
     await clearUrls();
+    await clearAllVmMetadata();
     await clearAuth();
     Animated.parallel([
       Animated.timing(translateY, {

@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -7,10 +9,15 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
+import { useFocusEffect } from "expo-router";
 import { MachineCarousel, Machine } from "@/components/new-navbar/MachineCarousel";
 import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
 import { AddRepoSlider } from "@/components/new-navbar/AddRepoSlider";
+import { CloneFromGithubSlider } from "@/components/new-navbar/CloneFromGithubSlider";
+import { ConfigureGitAccessSlider } from "@/components/new-navbar/ConfigureGitAccessSlider";
+import { extractHost, useNavbar } from "@/contexts/navbar-context";
+import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
+import { VM_ICONS } from "@/constants/vm-icons";
 
 import AddIcon from "@/assets/images/new-design/navbar/add-icon.svg";
 import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
@@ -18,89 +25,190 @@ import GitIcon from "@/assets/images/new-design/navbar/git-icon.svg";
 
 import { SFPro } from "@/constants/theme";
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── Static pool for VMs without saved metadata ────────────────────────────────
 
-const REPOS: { id: string; name: string; branch: string; language: string }[] = [
-  { id: "1", name: "Grass-welcome", branch: "main", language: "Python" },
-  { id: "2", name: "api-server", branch: "dev", language: "Markdown" },
-  { id: "3", name: "grocery-tracker", branch: "main", language: "Swift" },
-];
-
-const MACHINES: Machine[] = [
+const VM_STYLES: { borderColor: string; backgroundColor: string; image: ReturnType<typeof require> }[] = [
   {
-    id: "1",
-    name: "Son of Anton",
     image: require("@/assets/images/new-design/navbar/dummy-profile-icons/profile-one.png"),
     borderColor: "#72C44E",
     backgroundColor: "#E3FDD7",
   },
   {
-    id: "2",
-    name: "Sam's Mac...",
     image: require("@/assets/images/new-design/navbar/dummy-profile-icons/profile-two.png"),
     borderColor: "#D8A4E8",
     backgroundColor: "#f0c5e8",
   },
   {
-    id: "3",
-    name: "iMac",
     image: require("@/assets/images/new-design/navbar/dummy-profile-icons/profile-three.png"),
     borderColor: "#BDBDBD",
     backgroundColor: "#D9D9D9",
   },
-  {
-    id: "4",
-    name: "Da...",
-    image: require("@/assets/images/new-design/navbar/dummy-profile-icons/profile-one.png"),
-    borderColor: "#A0C4E8",
-    backgroundColor: "#E3FDD7",
-  },
+];
+
+const CUSTOM_VM_COLORS: { borderColor: string; backgroundColor: string }[] = [
+  { borderColor: "#72C44E", backgroundColor: "#E3FDD7" },
+  { borderColor: "#D8A4E8", backgroundColor: "#f0c5e8" },
+  { borderColor: "#A0C4E8", backgroundColor: "#DCF0FC" },
+  { borderColor: "#F4A460", backgroundColor: "#FFF0E0" },
+  { borderColor: "#BDBDBD", backgroundColor: "#D9D9D9" },
 ];
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ReposScreen() {
   const { bottom } = useSafeAreaInsets();
-  const [selectedMachineId, setSelectedMachineId] = useState<string>("2");
-  const [connectMoreVisible, setConnectMoreVisible] = useState(false);
+  const [connectMoreVisible, setConnectMoreVisible] = React.useState(false);
   const [addRepoVisible, setAddRepoVisible] = useState(false);
+  const [cloneGithubVisible, setCloneGithubVisible] = useState(false);
+  const [gitAccessVisible, setGitAccessVisible] = useState(false);
+
+  const [vmMetadataMap, setVmMetadataMap] = useState<Record<string, { name: string; iconIndex: number }>>({});
+  const [grassVmName, setGrassVmName] = useState<string | null>(null);
+
+  const {
+    vmUrls,
+    activeVmTab,
+    setActiveVmTab,
+    primaryVmUrl,
+    repos,
+    reposLoading,
+    refreshRepos,
+    setPendingRepo,
+  } = useNavbar();
+
+  // Reload stored names + icons whenever the VM list changes or tab is focused
+  useEffect(() => {
+    getAllVmMetadata().then(setVmMetadataMap);
+    getVmName().then(setGrassVmName);
+  }, [vmUrls]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshRepos();
+      getAllVmMetadata().then(setVmMetadataMap);
+      getVmName().then(setGrassVmName);
+    }, [refreshRepos]),
+  );
+
+  // Shimmer animation for skeleton
+  const shimmerAnim = useRef(new Animated.Value(0.5)).current;
+  React.useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.timing(shimmerAnim, { toValue: 0.4, duration: 800, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  // Map vmUrls → Machine[] using stored name/icon when available
+  const machines: Machine[] = vmUrls.map((url, i) => {
+    const meta = vmMetadataMap[url];
+    if (meta) {
+      return {
+        id: url,
+        name: meta.name,
+        SvgIcon: VM_ICONS[meta.iconIndex] ?? VM_ICONS[0],
+        ...CUSTOM_VM_COLORS[i % CUSTOM_VM_COLORS.length],
+      };
+    }
+    const isPrimary = url === primaryVmUrl;
+    return {
+      id: url,
+      name: isPrimary && grassVmName ? grassVmName : extractHost(url),
+      ...VM_STYLES[i % VM_STYLES.length],
+    };
+  });
+
+  const selectedMachineId = vmUrls[activeVmTab] ?? undefined;
 
   return (
     <View style={styles.reposContainer}>
       <MachineCarousel
-        machines={MACHINES}
+        machines={machines}
         selectedId={selectedMachineId}
-        onSelect={setSelectedMachineId}
+        onSelect={(id) => {
+          const idx = vmUrls.indexOf(id);
+          if (idx >= 0) setActiveVmTab(idx);
+        }}
         onAddNew={() => setConnectMoreVisible(true)}
       />
       <ConnectMoreSlider
         visible={connectMoreVisible}
         onClose={() => setConnectMoreVisible(false)}
       />
+
+      {/* Sticky action buttons */}
+      <View style={styles.repoActionRow}>
+        <TouchableOpacity
+          style={styles.repoActionBtn}
+          activeOpacity={0.75}
+          onPress={() => setAddRepoVisible(true)}
+        >
+          <AddIcon width={30} height={30} />
+          <Text style={styles.repoActionText}>Add new repo</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.repoActionBtn}
+          activeOpacity={0.75}
+          onPress={() => setCloneGithubVisible(true)}
+        >
+          <GitIcon width={30} height={16} />
+          <Text style={styles.repoActionText}>Clone from GitHub</Text>
+        </TouchableOpacity>
+      </View>
+
       <AddRepoSlider
         visible={addRepoVisible}
         onClose={() => setAddRepoVisible(false)}
+        serverUrl={selectedMachineId}
+        onRepoAdded={refreshRepos}
       />
-        {/* Sticky action buttons */}
-        <View style={styles.repoActionRow}>
-          <TouchableOpacity style={styles.repoActionBtn} activeOpacity={0.75} onPress={() => setAddRepoVisible(true)}>
-            <AddIcon width={30} height={30} />
-            <Text style={styles.repoActionText}>Add new repo</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.repoActionBtn} activeOpacity={0.75} onPress={() => setAddRepoVisible(true)}>
-            <GitIcon width={30} height={16} />
-            <Text style={styles.repoActionText}>Clone from GitHub</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Scrollable repo list */}
-        <ScrollView
-          style={styles.repoScrollList}
-          contentContainerStyle={{ paddingBottom: bottom + 80 + 16 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {REPOS.map((repo) => (
-            <TouchableOpacity key={repo.id} style={styles.repoItem} activeOpacity={0.7}>
+      <CloneFromGithubSlider
+        visible={cloneGithubVisible}
+        onClose={() => setCloneGithubVisible(false)}
+        serverUrl={selectedMachineId}
+        existingRepos={repos}
+        onRepoAdded={refreshRepos}
+        onConfigureGitAccess={() => setGitAccessVisible(true)}
+      />
+      <ConfigureGitAccessSlider
+        visible={gitAccessVisible}
+        onClose={() => setGitAccessVisible(false)}
+      />
+      {/* Scrollable repo list */}
+      <ScrollView
+        style={styles.repoScrollList}
+        contentContainerStyle={{ paddingBottom: bottom + 80 + 16 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={reposLoading} onRefresh={refreshRepos} />
+        }
+      >
+        {reposLoading && repos.length === 0 ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <View key={i} style={styles.repoItem}>
+              <View style={styles.repoInfo}>
+                <Animated.View style={[styles.skeletonBar, styles.skeletonBarLong, { opacity: shimmerAnim }]} />
+                <Animated.View style={[styles.skeletonBar, styles.skeletonBarShort, { opacity: shimmerAnim }]} />
+              </View>
+              <Animated.View style={[styles.skeletonBadge, { opacity: shimmerAnim }]} />
+            </View>
+          ))
+        ) : repos.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>No repos found</Text>
+          </View>
+        ) : (
+          repos.map((repo) => (
+            <TouchableOpacity
+              key={repo.id}
+              style={styles.repoItem}
+              activeOpacity={0.7}
+              onPress={() => setPendingRepo(repo)}
+            >
               <View style={styles.repoInfo}>
                 <Text style={styles.repoName}>{repo.name}</Text>
                 <View style={styles.repoBranchRow}>
@@ -108,12 +216,23 @@ export default function ReposScreen() {
                   <Text style={styles.repoBranchText}>{repo.branch}</Text>
                 </View>
               </View>
-              <View style={styles.repoLanguageBadge}>
-                <Text style={styles.repoLanguageText}>{repo.language}</Text>
-              </View>
+              {repo.badge ? (
+                <View style={[
+                  styles.repoLanguageBadge,
+                  repo.badgeType === "green" && styles.repoLanguageBadgeGreen,
+                ]}>
+                  <Text style={[
+                    styles.repoLanguageText,
+                    repo.badgeType === "green" && styles.repoLanguageTextGreen,
+                  ]}>
+                    {repo.badge}
+                  </Text>
+                </View>
+              ) : null}
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+          ))
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -141,6 +260,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   repoActionText: {
     fontFamily: SFPro.medium,
@@ -148,6 +268,7 @@ const styles = StyleSheet.create({
     color: "#000",
     lineHeight: 20,
     letterSpacing: -0.3,
+    marginLeft: 6,
   },
   repoScrollList: {
     flex: 1,
@@ -161,6 +282,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F2F2F2",
   },
   repoInfo: {
+    flex: 1,
     gap: 4,
   },
   repoName: {
@@ -189,6 +311,12 @@ const styles = StyleSheet.create({
     borderColor: "#DFDFDF",
     backgroundColor: "#F2F2F2",
     paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  repoLanguageBadgeGreen: {
+    borderColor: "#72C44E",
+    backgroundColor: "#E3FDD7",
   },
   repoLanguageText: {
     fontFamily: SFPro.medium,
@@ -196,5 +324,38 @@ const styles = StyleSheet.create({
     color: "#9F9F9F",
     lineHeight: 18,
     letterSpacing: -0.3,
+  },
+  repoLanguageTextGreen: {
+    color: "#4A8C2A",
+  },
+  emptyWrap: {
+    alignItems: "center",
+    paddingVertical: 48,
+  },
+  emptyText: {
+    fontFamily: SFPro.regular,
+    fontSize: 15,
+    color: "#808080",
+    textAlign: "center",
+  },
+  skeletonBar: {
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#E8E8E8",
+    marginBottom: 8,
+  },
+  skeletonBarLong: {
+    width: "55%",
+  },
+  skeletonBarShort: {
+    width: "30%",
+    marginBottom: 0,
+  },
+  skeletonBadge: {
+    width: 60,
+    height: 24,
+    borderRadius: 50,
+    backgroundColor: "#E8E8E8",
+    marginLeft: 8,
   },
 });

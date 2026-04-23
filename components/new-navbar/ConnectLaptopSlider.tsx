@@ -23,21 +23,15 @@ import {
 
 import CopyIcon from "@/assets/images/new-design/connect-more/copy-icon.svg";
 import SecureIcon from "@/assets/images/new-design/connect-more/secure.svg";
-import SI1 from "@/assets/images/new-design/connect-more/selection-icons/Mask group-1.svg";
-import SI2 from "@/assets/images/new-design/connect-more/selection-icons/Mask group-2.svg";
-import SI3 from "@/assets/images/new-design/connect-more/selection-icons/Mask group-3.svg";
-import SI4 from "@/assets/images/new-design/connect-more/selection-icons/Mask group-4.svg";
-import SI5 from "@/assets/images/new-design/connect-more/selection-icons/Mask group-5.svg";
-import SI6 from "@/assets/images/new-design/connect-more/selection-icons/Mask group-6.svg";
-import SI7 from "@/assets/images/new-design/connect-more/selection-icons/Mask group-7.svg";
-import SI8 from "@/assets/images/new-design/connect-more/selection-icons/Mask group-8.svg";
-import SI9 from "@/assets/images/new-design/connect-more/selection-icons/Mask group-9.svg";
-import SI0 from "@/assets/images/new-design/connect-more/selection-icons/Mask group.svg";
-import SIOne from "@/assets/images/new-design/connect-more/selection-icons/one.svg";
 import SuccessMark from "@/assets/images/new-design/connect-more/success-mark.svg";
 import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 
 import { SFMono, SFPro } from "@/constants/theme";
+import { VM_ICONS } from "@/constants/vm-icons";
+import { orderVmUrls, useNavbar } from "@/contexts/navbar-context";
+import { openConnectionWithKey } from "@/store/connection-store";
+import { saveUrl } from "@/store/url-store";
+import { setVmMetadata } from "@/store/vm-metadata-store";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
@@ -46,7 +40,7 @@ const COMMAND = "npx grass start";
 
 type Step = "scan" | "paired" | "setup" | "ready";
 
-const ICONS = [SI0, SI1, SI2, SI3, SI4, SI5, SI6, SI7, SI8, SI9, SIOne];
+const ICONS = VM_ICONS;
 
 type Props = {
   visible: boolean;
@@ -59,11 +53,14 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
   const successTranslateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
 
   const [copied, setCopied] = useState(false);
+  const { vmUrls, setVmUrls, primaryVmUrl } = useNavbar();
+
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [step, setStep] = useState<Step>("scan");
   const [machineName, setMachineName] = useState("");
   const [selectedIconIndex, setSelectedIconIndex] = useState(0);
+  const [scannedUrl, setScannedUrl] = useState("");
 
   const open = useCallback(() => {
     Animated.parallel([
@@ -311,6 +308,7 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
                       barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
                       onBarcodeScanned={(result) => {
                         if (result.data) {
+                          setScannedUrl(result.data);
                           setCameraEnabled(false);
                           slideSuccessIn("paired");
                         }
@@ -417,11 +415,17 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
                         ? styles.saveButtonActive
                         : styles.saveButtonInactive,
                     ]}
-                    onPress={() => {
-                      if (machineName.trim()) {
-                        Keyboard.dismiss();
-                        slideSuccessIn("ready");
+                    onPress={async () => {
+                      if (!machineName.trim()) return;
+                      Keyboard.dismiss();
+                      const url = scannedUrl.trim();
+                      if (url) {
+                        await saveUrl(url);
+                        await setVmMetadata(url, { name: machineName.trim(), iconIndex: selectedIconIndex });
+                        openConnectionWithKey(url, url);
+                        setVmUrls(orderVmUrls([...vmUrls, url], primaryVmUrl));
                       }
+                      slideSuccessIn("ready");
                     }}
                     activeOpacity={machineName.trim() ? 0.85 : 1}
                   >

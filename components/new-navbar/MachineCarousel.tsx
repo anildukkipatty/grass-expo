@@ -11,11 +11,15 @@ import {
 import AddNewIcon from "@/assets/images/new-design/navbar/add-new-icon.svg";
 import SelectedIcon from "@/assets/images/new-design/navbar/selected-icon.svg";
 import { SFPro } from "@/constants/theme";
+import type { VmIconComponent } from "@/constants/vm-icons";
 
 export type Machine = {
   id: string;
   name: string;
-  image: ReturnType<typeof require>;
+  /** PNG image source — used for Grass managed VM */
+  image?: ReturnType<typeof require>;
+  /** SVG icon component — used for custom user-added VMs */
+  SvgIcon?: VmIconComponent;
   borderColor: string;
   backgroundColor: string;
 };
@@ -68,7 +72,11 @@ export function MachineCarousel({
               ]}
             >
               <View style={styles.ringInner}>
-                <Image source={machine.image} style={styles.image} />
+                {machine.SvgIcon ? (
+                  <machine.SvgIcon width={62} height={62} />
+                ) : machine.image ? (
+                  <Image source={machine.image} style={styles.image} />
+                ) : null}
                 {isSelected && (
                   <View style={styles.selectedOverlay}>
                     <SelectedIcon width={26} height={19} />

@@ -1,7 +1,8 @@
 import { SFPro } from "@/constants/theme";
+import { setVmName as saveVmName } from "@/store/vm-metadata-store";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
@@ -20,6 +21,8 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function VmNameScreen() {
   const router = useRouter();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const isRename = mode === "rename";
   const [vmName, setVmName] = useState("");
   const inputRef = useRef<TextInput>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -108,12 +111,18 @@ export default function VmNameScreen() {
                       ]}
                       activeOpacity={0.85}
                       disabled={!vmName.trim()}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/onboarding/vm-final" as any,
-                          params: { vmName: vmName.trim() },
-                        })
-                      }
+                      onPress={async () => {
+                        const name = vmName.trim();
+                        await saveVmName(name);
+                        if (isRename) {
+                          router.replace("/new-navbar/(tabs)" as any);
+                        } else {
+                          router.push({
+                            pathname: "/onboarding/vm-final" as any,
+                            params: { vmName: name },
+                          });
+                        }
+                      }}
                     >
                       <Text style={styles.buttonText}>Hire</Text>
                     </TouchableOpacity>
@@ -139,12 +148,14 @@ export default function VmNameScreen() {
                   ]}
                   activeOpacity={0.85}
                   disabled={!vmName.trim()}
-                  onPress={() =>
+                  onPress={async () => {
+                    const name = vmName.trim();
+                    await saveVmName(name);
                     router.push({
                       pathname: "/onboarding/vm-final" as any,
-                      params: { vmName: vmName.trim() },
-                    })
-                  }
+                      params: { vmName: name },
+                    });
+                  }}
                 >
                   <Text style={styles.buttonText}>Hire</Text>
                 </TouchableOpacity>

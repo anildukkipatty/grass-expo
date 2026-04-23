@@ -2,7 +2,6 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import NotificationIcon from "@/assets/images/new-design/navbar/notifcation.svg";
 import UserIcon from "@/assets/images/new-design/navbar/user-icon.svg";
 import LogoIcon from "@/assets/images/new-design/onboarding/logo.svg";
 import { SFPro } from "@/constants/theme";
@@ -44,13 +43,13 @@ export function NavbarHeader({ alignItems = "center" }: Props) {
           <Text style={styles.title}>Grass</Text>
         </View>
         <View style={styles.rightActions}>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={styles.iconWrap}
             onPress={() => setNotifVisible(true)}
           >
             <NotificationIcon width={28} height={28} />
             <View style={styles.notifBadge} />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </View>
       <NotificationSlider
@@ -106,6 +105,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    width: 40,
   },
 
 });

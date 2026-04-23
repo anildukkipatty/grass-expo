@@ -1,3 +1,4 @@
+import { getVmName } from "@/store/vm-metadata-store";
 import LogoIcon from "@/assets/images/new-design/onboarding/logo.svg";
 import { OnboardingAuthSheet } from "@/components/onboarding/OnboardingAuthSheet";
 import { SFPro } from "@/constants/theme";
@@ -16,8 +17,18 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const [loginVisible, setLoginVisible] = useState(false);
 
-  const handleVerified = (_type: "new" | "old") => {
-    router.replace("/onboarding/vm-ready" as any);
+  const handleVerified = async (type: "new" | "old") => {
+    const existingName = await getVmName();
+    if (type === "old" || existingName) {
+      // Always run heartbeat/container check in vm-final before going to dashboard.
+      // vm-final routes old users straight to /new-navbar/(tabs) after provisioning.
+      router.replace({
+        pathname: "/onboarding/vm-final" as any,
+        params: { vmName: existingName ?? "" },
+      });
+    } else {
+      router.replace("/onboarding/vm-ready" as any);
+    }
   };
 
   return (

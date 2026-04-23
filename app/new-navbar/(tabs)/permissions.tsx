@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -16,148 +16,86 @@ import GitIcon from "@/assets/images/new-design/navbar/git-icon.svg";
 import PermissionIcon from "@/assets/images/new-design/navbar/permission-icon.svg";
 
 import { SFPro } from "@/constants/theme";
+import { useNavbar } from "@/contexts/navbar-context";
+import {
+  getPermissions,
+  GlobalPermissionItem,
+  respondGlobalPermission,
+  subscribeToPermissions,
+} from "@/store/connection-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type PermissionType =
-  | "BASH"
-  | "WRITE FILE"
-  | "READ FILE"
-  | "GIT"
-  | "CREATE FILE"
-  | "DELETE FILE"
-  | "NETWORK";
 
 type DiffLine = { type: "add" | "remove" | "context"; content: string };
 
 type Permission = {
   id: string;
-  type: PermissionType;
+  type: string;
   time: string;
   command: string;
   origin: { initials: string; color: string; name: string; agent: string };
   diff?: DiffLine[];
 };
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── Mapping ──────────────────────────────────────────────────────────────────
 
-const PERMISSIONS: Permission[] = [
-  {
-    id: "1",
-    type: "BASH",
-    time: "2m ago",
-    command: "npm run test -- --coverage",
+const TOOL_TYPE_MAP: Record<string, string> = {
+  Bash: "BASH",
+  Write: "WRITE FILE",
+  Edit: "EDIT FILE",
+  Read: "READ FILE",
+  Glob: "READ FILE",
+  Grep: "READ FILE",
+  AskUserQuestion: "NETWORK",
+};
+
+function mapPermission(item: GlobalPermissionItem & { serverUrl: string }): Permission {
+  const type = TOOL_TYPE_MAP[item.toolName] ?? item.toolName.toUpperCase();
+
+  const command = String(
+    item.input?.command ??
+    item.input?.file_path ??
+    item.input?.path ??
+    item.input?.description ??
+    item.input?.prompt ??
+    item.toolName
+  );
+
+  let diff: DiffLine[] | undefined;
+  if (item.toolName === "Edit" && item.input?.old_string && item.input?.new_string) {
+    const removes = String(item.input.old_string).split("\n").slice(0, 4).map(l => ({ type: "remove" as const, content: `- ${l}` }));
+    const adds = String(item.input.new_string).split("\n").slice(0, 4).map(l => ({ type: "add" as const, content: `+ ${l}` }));
+    diff = [...removes, ...adds].slice(0, 8);
+  } else if (item.toolName === "Write" && item.input?.content) {
+    diff = String(item.input.content).split("\n").slice(0, 6).map(l => ({ type: "add" as const, content: `+ ${l}` }));
+  }
+
+  const repoShort = item.repoName?.slice(0, 2).toUpperCase() ?? "AI";
+
+  return {
+    id: item.toolUseID,
+    type,
+    time: "",
+    command,
     origin: {
-      initials: "SK",
+      initials: repoShort,
       color: "#72C44E",
-      name: "Sahil",
-      agent: "Claude Mythos",
+      name: item.repoName ?? "Agent",
+      agent: item.toolName,
     },
-  },
-  {
-    id: "2",
-    type: "WRITE FILE",
-    time: "2m ago",
-    command: "src/utils/auth.ts",
-    origin: {
-      initials: "SJ",
-      color: "#D8A4E8",
-      name: "You",
-      agent: "Claude Mythos",
-    },
-    diff: [
-      { type: "add", content: "+ import jwt from 'jsonwebtoken';" },
-      { type: "add", content: "+ interface TokenPayload {" },
-      { type: "add", content: "+   userId: string;" },
-    ],
-  },
-  {
-    id: "3",
-    type: "GIT",
-    time: "5m ago",
-    command: "git push origin main --force",
-    origin: {
-      initials: "AY",
-      color: "#F4A261",
-      name: "Ayyappa",
-      agent: "Gemini 2.0",
-    },
-  },
-  {
-    id: "4",
-    type: "CREATE FILE",
-    time: "8m ago",
-    command: "src/components/Modal.tsx",
-    origin: {
-      initials: "SK",
-      color: "#72C44E",
-      name: "Sahil",
-      agent: "Claude Mythos",
-    },
-    diff: [
-      { type: "add", content: "+ import React from 'react';" },
-      { type: "add", content: "+ export function Modal({ children }) {" },
-      { type: "add", content: "+   return <View>{children}</View>;" },
-    ],
-  },
-  {
-    id: "5",
-    type: "BASH",
-    time: "12m ago",
-    command: "rm -rf node_modules && npm i",
-    origin: { initials: "SJ", color: "#D8A4E8", name: "You", agent: "GPT-4o" },
-  },
-  {
-    id: "6",
-    type: "DELETE FILE",
-    time: "15m ago",
-    command: "src/legacy/old-auth.ts",
-    origin: {
-      initials: "AY",
-      color: "#F4A261",
-      name: "Ayyappa",
-      agent: "Claude Mythos",
-    },
-    diff: [
-      { type: "remove", content: "- export const legacyAuth = () => {" },
-      { type: "remove", content: "-   // deprecated method" },
-      { type: "remove", content: "- };" },
-    ],
-  },
-  {
-    id: "7",
-    type: "NETWORK",
-    time: "20m ago",
-    command: "POST api.revise.network/deploy",
-    origin: {
-      initials: "SK",
-      color: "#72C44E",
-      name: "Sahil",
-      agent: "Opencode",
-    },
-  },
-  {
-    id: "8",
-    type: "READ FILE",
-    time: "22m ago",
-    command: ".env.production",
-    origin: {
-      initials: "SJ",
-      color: "#D8A4E8",
-      name: "You",
-      agent: "Claude Mythos",
-    },
-  },
-];
+    diff,
+  };
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getCommandIcon(type: PermissionType) {
+function getCommandIcon(type: string) {
   switch (type) {
     case "GIT":
       return <GitIcon width={18} height={18} />;
     case "CREATE FILE":
     case "WRITE FILE":
+    case "EDIT FILE":
     case "READ FILE":
     case "DELETE FILE":
       return <FolderIcon width={18} height={18} />;
@@ -204,7 +142,7 @@ function PermissionCard({
         <View style={styles.typeBadge}>
           <Text style={styles.typeBadgeText}>{item.type}</Text>
         </View>
-        <Text style={styles.cardTime}>{item.time}</Text>
+        {!!item.time && <Text style={styles.cardTime}>{item.time}</Text>}
       </View>
 
       {/* Command row */}
@@ -291,29 +229,43 @@ function PermissionCard({
 
 export default function PermissionsScreen() {
   const { bottom } = useSafeAreaInsets();
-  const [permissions, setPermissions] = useState(PERMISSIONS);
+  const { selectedVmUrl } = useNavbar();
+  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const rawMap = useRef<Map<string, GlobalPermissionItem & { serverUrl: string }>>(new Map());
+
+  useEffect(() => {
+    if (!selectedVmUrl) {
+      setPermissions([]);
+      rawMap.current = new Map();
+      return;
+    }
+
+    const collect = () => {
+      const items = getPermissions(selectedVmUrl).map((p) => ({
+        ...p,
+        serverUrl: selectedVmUrl,
+      }));
+      rawMap.current = new Map(items.map((i) => [i.toolUseID, i]));
+      setPermissions(items.map(mapPermission));
+    };
+
+    const unsub = subscribeToPermissions(selectedVmUrl, collect);
+    collect();
+    return unsub;
+  }, [selectedVmUrl]);
 
   function handleApprove(id: string) {
-    setPermissions((prev) => prev.filter((p) => p.id !== id));
+    const raw = rawMap.current.get(id);
+    if (raw) respondGlobalPermission(raw.serverUrl, raw.sessionId, raw.toolUseID, true);
   }
 
   function handleDeny(id: string) {
-    setPermissions((prev) => prev.filter((p) => p.id !== id));
+    const raw = rawMap.current.get(id);
+    if (raw) respondGlobalPermission(raw.serverUrl, raw.sessionId, raw.toolUseID, false);
   }
 
   return (
     <View style={styles.container}>
-      {/* ── Section header ── */}
-      {/* <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionHeader}>Pending permissions</Text>
-        {permissions.length > 0 && (
-          <View style={styles.pendingBadge}>
-            <Text style={styles.pendingBadgeText}>{permissions.length}</Text>
-          </View>
-        )}
-      </View> */}
-
-      {/* ── Permission cards ── */}
       <ScrollView
         style={styles.cardList}
         contentContainerStyle={{ paddingBottom: bottom + 24, gap: 12 }}
@@ -344,28 +296,8 @@ export default function PermissionsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
 
-  // Section header
-  sectionHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 4,
-    marginBottom: 4,
-    paddingHorizontal: 16,
-  },
-  sectionHeader: { fontFamily: SFPro.semiBold, fontSize: 17, color: "#000" },
-  pendingBadge: {
-    backgroundColor: "#841E1E",
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  pendingBadgeText: { fontFamily: SFPro.semiBold, fontSize: 12, color: "#FFF" },
-
-  // Card list
   cardList: { flex: 1, paddingHorizontal: 16 },
 
-  // Permission card
   card: {
     borderRadius: 15,
     borderWidth: 1,
@@ -379,7 +311,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
 
-  // Type badge + top row
   cardTopRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   typeBadge: {
     borderRadius: 30,
@@ -397,7 +328,6 @@ const styles = StyleSheet.create({
   },
   cardTime: { fontFamily: SFPro.regular, fontSize: 13, color: "#808080" },
 
-  // Command row
   commandRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -428,7 +358,6 @@ const styles = StyleSheet.create({
   },
   codeSymbol: { fontFamily: SFPro.semiBold, fontSize: 13, color: "#555" },
 
-  // Origin
   originRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   originLabel: { fontFamily: SFPro.semiBold, fontSize: 15, color: "#000" },
   originAvatar: {
@@ -448,7 +377,6 @@ const styles = StyleSheet.create({
   originNameBold: { fontFamily: SFPro.semiBold, color: "#000" },
   originAgent: { fontFamily: SFPro.semiBold, color: "#000" },
 
-  // Diff
   diffContainer: {
     borderRadius: 10,
     borderWidth: 1,
@@ -481,7 +409,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
 
-  // Action buttons
   actionRow: { flexDirection: "row", gap: 10 },
   denyBtn: {
     flex: 1,
@@ -505,7 +432,6 @@ const styles = StyleSheet.create({
   },
   actionBtnText: { fontFamily: SFPro.semiBold, fontSize: 17, color: "#FFF" },
 
-  // Empty state
   emptyState: {
     alignItems: "center",
     justifyContent: "center",

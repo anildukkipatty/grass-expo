@@ -1,6 +1,7 @@
 import { isSandboxUsageLimitError } from "@/api/client";
 import { heartbeat, signedPreviewUrl } from "@/api/containers";
 import { clearAuth, getToken } from "@/store/auth-store";
+import { clearAllVmMetadata } from "@/store/vm-metadata-store";
 import {
   closeConnection,
   getConnectedUrls,
@@ -440,18 +441,18 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         }
 
         setVmRunning(false);
-        router.replace("/container-setup");
+        router.replace("/onboarding/vm-final" as any);
       } finally {
         grassLimitRecheckInFlightRef.current = false;
       }
     })();
   }, [router]);
 
-  // GrassVM tab selected but VM appears down → confirm with heartbeat before container-setup.
+  // GrassVM tab selected but VM appears down → confirm with heartbeat before vm-final.
   // Usage limit (403) blocks Grass only in-app; no setup screen.
   useEffect(() => {
     if (!tabRestored) return;
-    if (pathname === "/container-setup") return;
+    if (pathname === "/onboarding/vm-final") return;
     if (grassSandboxBlockedByUsageLimit) return;
     if (isGrassSetupNavigationSuppressed()) return;
     if (!primaryVmUrl || selectedVmUrl !== primaryVmUrl) return;
@@ -506,7 +507,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        router.replace("/container-setup");
+        router.replace("/onboarding/vm-final" as any);
       } finally {
         if (!cancelled) setGrassVmChecking(false);
       }
@@ -579,7 +580,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         setGrassSandboxBlockedByUsageLimit(false);
         setVmRunning(false);
         if (wasOnGrassVm) {
-          router.replace("/container-setup");
+          router.replace("/onboarding/vm-final" as any);
         }
       } else {
         setGrassSandboxBlockedByUsageLimit(false);
@@ -789,6 +790,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
           const connectedUrls = getConnectedUrls();
           connectedUrls.forEach((url) => closeConnection(url));
           await clearUrls();
+          await clearAllVmMetadata();
           setVmUrls([]);
           setPrimaryVmUrl(undefined);
           setActiveVmTab(0);

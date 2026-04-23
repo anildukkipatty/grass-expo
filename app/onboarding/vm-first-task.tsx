@@ -1,3 +1,6 @@
+import { openConnection } from "@/store/connection-store";
+import { refreshPrimaryVmUrl } from "@/store/url-store";
+import { posthog } from "@/constants/posthog";
 import GitIcon from "@/assets/images/new-design/onboarding/git.svg";
 import NextIcon from "@/assets/images/new-design/onboarding/next.svg";
 import RightArrowIcon from "@/assets/images/new-design/onboarding/right-arrow-head.svg";
@@ -40,13 +43,29 @@ const SUGGESTED_TASKS = [
 
 export default function VmFirstTaskScreen() {
   const router = useRouter();
-  const { vmName } = useLocalSearchParams<{ vmName: string }>();
+  const { vmName, serverUrl } = useLocalSearchParams<{ vmName: string; serverUrl: string }>();
   const name = vmName || "Your VM";
   const [task, setTask] = useState("");
 
-  const handleSubmit = () => {
-    if (!task.trim()) return;
-    router.replace("/new-navbar/chat-list" as any);
+  const handleSubmit = async () => {
+    const trimmed = task.trim();
+    if (!trimmed) return;
+    posthog.capture("first_task_submitted", { task: trimmed });
+    // Warm up the cached primary VM URL before opening the connection,
+    // so resolveServerKey is consistent between openConnection and useServer.
+    await refreshPrimaryVmUrl();
+    openConnection(serverUrl);
+    router.replace({
+      pathname: "/chat" as any,
+      params: {
+        serverUrl,
+        agent: "opencode",
+        repoPath: "/home/daytona/start/repo/grass-demo",
+        repoName: "grass-demo",
+        initialOnboarding: "true",
+        initialMessage: trimmed,
+      },
+    });
   };
 
   return (
@@ -100,27 +119,36 @@ export default function VmFirstTaskScreen() {
                 </View>
               </ScrollView>
 
-              {/* Sticky bottom input */}
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={styles.input}
-                  value={task}
-                  onChangeText={setTask}
-                  placeholder="Or type your own task..."
-                  placeholderTextColor="#9A9A9A"
-                  returnKeyType="send"
-                  onSubmitEditing={handleSubmit}
-                />
+              {/* Sticky bottom input + skip */}
+              <View style={styles.bottomArea}>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={styles.input}
+                    value={task}
+                    onChangeText={setTask}
+                    placeholder="Or type your own task..."
+                    placeholderTextColor="#9A9A9A"
+                    returnKeyType="send"
+                    onSubmitEditing={handleSubmit}
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.submitBtn,
+                      !task.trim() && styles.submitBtnDisabled,
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={handleSubmit}
+                    disabled={!task.trim()}
+                  >
+                    <SubmitIcon width={22} height={22} />
+                  </TouchableOpacity>
+                </View>
                 <TouchableOpacity
-                  style={[
-                    styles.submitBtn,
-                    !task.trim() && styles.submitBtnDisabled,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={handleSubmit}
-                  disabled={!task.trim()}
+                  style={styles.skipButton}
+                  activeOpacity={0.6}
+                  onPress={() => router.replace("/new-navbar/(tabs)" as any)}
                 >
-                  <SubmitIcon width={22} height={22} />
+                  <Text style={styles.skipButtonText}>Skip for now</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -228,9 +256,6 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
     gap: 10,
   },
   input: {
@@ -257,5 +282,25 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: {
     opacity: 0.45,
+  },
+  bottomArea: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+    gap: 10,
+  },
+  skipButton: {
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "#DFDFDF",
+    backgroundColor: "rgba(255,255,255,0.30)",
+  },
+  skipButtonText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 15,
+    color: "#606060",
   },
 });

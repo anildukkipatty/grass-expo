@@ -1,9 +1,53 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getUser } from './auth-store';
 
 const URLS_KEY = 'grass_server_urls';
 const OLD_URLS_KEY = 'grass_ws_urls';
 const VM_URL_KEY = 'grass_vm_url';
 const LAST_TAB_KEY = 'grass_last_active_tab';
+
+// ─── Per-user custom VM URLs (survive logout, keyed by email) ─────────────────
+
+function customUrlsKey(email: string): string {
+  return `GRASS_CUSTOM_URLS_${email}`;
+}
+
+async function getPerUserCustomUrls(): Promise<string[]> {
+  try {
+    const user = await getUser();
+    if (!user) return [];
+    const raw = await AsyncStorage.getItem(customUrlsKey(user.email));
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function savePerUserCustomUrl(url: string): Promise<void> {
+  try {
+    const user = await getUser();
+    if (!user) return;
+    const key = customUrlsKey(user.email);
+    const raw = await AsyncStorage.getItem(key);
+    const urls: string[] = raw ? JSON.parse(raw) : [];
+    if (!urls.includes(url)) {
+      urls.push(url);
+      await AsyncStorage.setItem(key, JSON.stringify(urls));
+    }
+  } catch {}
+}
+
+async function removePerUserCustomUrl(url: string): Promise<void> {
+  try {
+    const user = await getUser();
+    if (!user) return;
+    const key = customUrlsKey(user.email);
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return;
+    const urls: string[] = JSON.parse(raw);
+    await AsyncStorage.setItem(key, JSON.stringify(urls.filter(u => u !== url)));
+  } catch {}
+}
 
 export async function getUrls(): Promise<string[]> {
   // One-time migration: convert old ws:// URLs to http://
@@ -20,19 +64,38 @@ export async function getUrls(): Promise<string[]> {
     } catch { /* fall through to new key */ }
   }
 
+  // Merge: primary VM URL + per-user custom URLs + legacy URLS_KEY (for migration)
+  const primaryUrl = await AsyncStorage.getItem(VM_URL_KEY);
+  const perUserCustom = await getPerUserCustomUrls();
+
   const raw = await AsyncStorage.getItem(URLS_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as string[];
-  } catch {
-    return [];
+  const legacyUrls: string[] = raw ? (JSON.parse(raw) as string[]) : [];
+
+  // Migrate any legacy custom URLs (non-primary) into the per-user store once
+  const legacyCustom = legacyUrls.filter(u => u !== primaryUrl);
+  for (const u of legacyCustom) {
+    await savePerUserCustomUrl(u);
   }
+
+  // Build deduplicated list: primary first, then custom
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const u of [primaryUrl, ...perUserCustom, ...legacyCustom]) {
+    if (u && !seen.has(u)) {
+      seen.add(u);
+      result.push(u);
+    }
+  }
+  return result;
 }
 
 export async function saveUrl(url: string): Promise<void> {
+  // Persist to per-user store so this URL survives logout
+  await savePerUserCustomUrl(url);
+  // Also update legacy URLS_KEY so in-flight reads stay consistent
   const urls = await getUrls();
   if (!urls.includes(url)) {
-    urls.unshift(url);
+    urls.push(url);
     await AsyncStorage.setItem(URLS_KEY, JSON.stringify(urls));
   }
 }
@@ -51,6 +114,7 @@ export async function saveVmUrl(url: string): Promise<void> {
 }
 
 export async function removeUrl(url: string): Promise<void> {
+  await removePerUserCustomUrl(url);
   const urls = await getUrls();
   const filtered = urls.filter(u => u !== url);
   await AsyncStorage.setItem(URLS_KEY, JSON.stringify(filtered));

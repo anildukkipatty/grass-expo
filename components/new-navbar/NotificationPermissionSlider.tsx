@@ -30,16 +30,6 @@ const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CLOSE_THRESHOLD = 80;
 const LAST_SHOWN_KEY = "notification_reminder_last_shown";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
 const PREVIEW_CARDS = [
   { time: "2h ago", message: "Task complete → Shipped the landing page." },
   { time: "1h ago", message: "Claude needs input → Should I use Tailwind?" },

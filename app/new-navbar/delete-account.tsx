@@ -19,6 +19,7 @@ import { SFPro } from "@/constants/theme";
 import { clearAuth, getUser } from "@/store/auth-store";
 import { closeConnection, getConnectedUrls } from "@/store/connection-store";
 import { clearUrls } from "@/store/url-store";
+import { clearAllVmMetadata } from "@/store/vm-metadata-store";
 
 import BackButton from "@/assets/images/new-design/chat/back-button.svg";
 import RightArrow from "@/assets/images/new-design/onboarding/right-arrow-head.svg";
@@ -48,6 +49,7 @@ export default function DeleteAccountScreen() {
     const connectedUrls = getConnectedUrls();
     connectedUrls.forEach((url) => closeConnection(url));
     await clearUrls();
+    await clearAllVmMetadata();
     await clearAuth();
     setStep(4);
   };
