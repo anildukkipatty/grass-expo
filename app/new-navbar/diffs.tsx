@@ -2,14 +2,17 @@ import BackButtonIcon from "@/assets/images/new-design/chat/back-button.svg";
 import ExpandIcon from "@/assets/images/new-design/chat/expland.svg";
 import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
 import { SFMono, SFPro } from "@/constants/theme";
+import { getEntry, openConnection } from "@/store/connection-store";
+import { fetch } from "expo/fetch";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -34,6 +37,105 @@ type FileDiff = {
   allLines: DiffLine[];
 };
 
+// ─── V1 diff parsing ──────────────────────────────────────────────────────────
+
+type RawFileDiff = {
+  filename: string;
+  lines: string[];
+  status: "modified" | "new" | "deleted" | "renamed";
+  renamedFrom?: string;
+  additions: number;
+  deletions: number;
+};
+
+function parseFileDiffs(text: string): RawFileDiff[] {
+  const lines = text.split("\n");
+  const files: RawFileDiff[] = [];
+  let current: RawFileDiff | null = null;
+
+  for (const line of lines) {
+    if (line.startsWith("diff --git ")) {
+      const match = line.match(/^diff --git a\/.+ b\/(.+)$/);
+      current = { filename: match?.[1] ?? "unknown", lines: [], status: "modified", additions: 0, deletions: 0 };
+      files.push(current);
+      continue;
+    }
+    if (!current) continue;
+    if (line.startsWith("new file mode")) { current.status = "new"; continue; }
+    if (line.startsWith("deleted file mode")) { current.status = "deleted"; continue; }
+    if (line.startsWith("rename from ")) { current.status = "renamed"; current.renamedFrom = line.slice(12); continue; }
+    if (line.startsWith("rename to ")) continue;
+    if (line.startsWith("--- ") || line.startsWith("+++ ")) continue;
+    if (line.startsWith("index ") || line.startsWith("similarity index")) continue;
+    if (line.startsWith("+")) current.additions++;
+    else if (line.startsWith("-")) current.deletions++;
+    current.lines.push(line);
+  }
+
+  if (files.length === 0 && text.trim()) {
+    files.push({ filename: "diff", lines, status: "modified", additions: 0, deletions: 0 });
+  }
+  return files;
+}
+
+type LineInfo = { text: string; oldNum: string; newNum: string; kind: "add" | "del" | "hunk" | "ctx" };
+
+function buildLineInfos(rawLines: string[]): LineInfo[] {
+  const result: LineInfo[] = [];
+  let oldLine = 0;
+  let newLine = 0;
+  for (const line of rawLines) {
+    if (line.startsWith("@@")) {
+      const m = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+      if (m) { oldLine = parseInt(m[1], 10); newLine = parseInt(m[2], 10); }
+      result.push({ text: line, oldNum: "", newNum: "", kind: "hunk" });
+    } else if (line.startsWith("+")) {
+      result.push({ text: line, oldNum: "", newNum: String(newLine), kind: "add" });
+      newLine++;
+    } else if (line.startsWith("-")) {
+      result.push({ text: line, oldNum: String(oldLine), newNum: "", kind: "del" });
+      oldLine++;
+    } else {
+      result.push({ text: line, oldNum: String(oldLine), newNum: String(newLine), kind: "ctx" });
+      oldLine++;
+      newLine++;
+    }
+  }
+  return result;
+}
+
+const STATUS_TO_CHANGE_TYPE: Record<string, ChangeType> = {
+  modified: "M",
+  new: "A",
+  deleted: "D",
+  renamed: "R",
+};
+
+function convertToFileDiffs(rawFiles: RawFileDiff[]): FileDiff[] {
+  return rawFiles.map((raw, i) => {
+    const changeType = STATUS_TO_CHANGE_TYPE[raw.status] ?? "M";
+    const path = raw.renamedFrom ? `${raw.renamedFrom} → ${raw.filename}` : raw.filename;
+    const lineInfos = buildLineInfos(raw.lines);
+    const allLines: DiffLine[] = lineInfos.map((info) => ({
+      type: info.kind === "add" ? "added" : info.kind === "del" ? "deleted" : "context",
+      lineNum: parseInt(info.newNum || info.oldNum || "0", 10) || 0,
+      content: info.text,
+    }));
+    const preview = allLines.filter((l) => l.type !== "context").slice(0, 4);
+    return {
+      id: String(i),
+      changeType,
+      path,
+      additions: raw.additions,
+      deletions: raw.deletions,
+      lines: preview.length > 0 ? preview : allLines.slice(0, 4),
+      allLines,
+    };
+  });
+}
+
+// ─── Badge config ─────────────────────────────────────────────────────────────
+
 const BADGE_CONFIG: Record<ChangeType, { bg: string }> = {
   A: { bg: "#22C55E" },
   M: { bg: "#F59E0B" },
@@ -42,118 +144,7 @@ const BADGE_CONFIG: Record<ChangeType, { bg: string }> = {
   C: { bg: "#8B5CF6" },
 };
 
-const contextLines = (from: number, to: number): DiffLine[] =>
-  Array.from({ length: to - from + 1 }, (_, i) => ({
-    lineNum: from + i,
-    type: "context" as DiffLineType,
-    content: "",
-  }));
-
-const MOCK_DIFFS: FileDiff[] = [
-  {
-    id: "1",
-    changeType: "A",
-    path: "src/utils/jwt.ts",
-    additions: 15,
-    deletions: 0,
-    lines: [
-      { lineNum: 1, type: "added", content: "+ import jwt from 'jsonwebtoken';" },
-      { lineNum: 2, type: "added", content: "+ interface TokenPayload {" },
-      { lineNum: 3, type: "added", content: "+   userId: string;" },
-      { lineNum: 4, type: "added", content: "+   role: string;" },
-    ],
-    allLines: [
-      { lineNum: 1, type: "added", content: "+ import jwt from 'jsonwebtoken';" },
-      { lineNum: 2, type: "added", content: "+ interface TokenPayload {" },
-      { lineNum: 3, type: "added", content: "+   userId: string;" },
-      { lineNum: 4, type: "added", content: "+   role: string;" },
-      { lineNum: 5, type: "added", content: "+ }" },
-      { lineNum: 6, type: "added", content: "+" },
-      { lineNum: 7, type: "added", content: "+ const SECRET = process.env.JWT_SECRET!;" },
-      { lineNum: 8, type: "added", content: "+" },
-      { lineNum: 9, type: "added", content: "+ export function validateToken(" },
-      { lineNum: 10, type: "added", content: "+   token: string" },
-      { lineNum: 11, type: "added", content: "+ ): TokenPayload {" },
-      { lineNum: 12, type: "added", content: "+   const decoded = jwt.verify(token, SECRET);" },
-      { lineNum: 13, type: "added", content: "+   return {" },
-      { lineNum: 14, type: "added", content: "+     userId: (decoded as any).sub," },
-      { lineNum: 15, type: "added", content: "+     role: (decoded as any).role," },
-      ...contextLines(16, 25),
-    ],
-  },
-  {
-    id: "2",
-    changeType: "M",
-    path: "src/middleware/auth.ts",
-    additions: 2,
-    deletions: 2,
-    lines: [
-      { lineNum: 3, type: "deleted", content: "- import jwt from 'jsonwebtoken';" },
-      { lineNum: 3, type: "added", content: "+ import { validateToken } from '../utils/jwt';" },
-      { lineNum: 7, type: "deleted", content: "- const decoded = jwt.verify(token, SECRE..." },
-      { lineNum: 7, type: "added", content: "+ const payload = validateToken(token);" },
-    ],
-    allLines: [
-      { lineNum: 1, type: "context", content: "  import express from 'express';" },
-      { lineNum: 2, type: "context", content: "  import { Request, Response, Next } from 'express';" },
-      { lineNum: 3, type: "deleted", content: "- import jwt from 'jsonwebtoken';" },
-      { lineNum: 3, type: "added", content: "+ import { validateToken } from '../utils/jwt';" },
-      { lineNum: 4, type: "context", content: "" },
-      { lineNum: 5, type: "context", content: "  export function authMiddleware(" },
-      { lineNum: 6, type: "context", content: "    req: Request, res: Response, next: Next" },
-      { lineNum: 7, type: "deleted", content: "- const decoded = jwt.verify(token, SECRET);" },
-      { lineNum: 7, type: "added", content: "+ const payload = validateToken(token);" },
-      { lineNum: 8, type: "context", content: "    next();" },
-      { lineNum: 9, type: "context", content: "  }" },
-      ...contextLines(10, 20),
-    ],
-  },
-  {
-    id: "3",
-    changeType: "D",
-    path: "src/helpers/tokenHelper.ts",
-    additions: 0,
-    deletions: 5,
-    lines: [
-      { lineNum: 1, type: "deleted", content: "- import jwt from 'jsonwebtoken';" },
-      { lineNum: 2, type: "deleted", content: "-" },
-      { lineNum: 3, type: "deleted", content: "- export function decodeToken(token: string) {" },
-      { lineNum: 4, type: "deleted", content: "-   return jwt.decode(token);" },
-    ],
-    allLines: [
-      { lineNum: 1, type: "deleted", content: "- import jwt from 'jsonwebtoken';" },
-      { lineNum: 2, type: "deleted", content: "-" },
-      { lineNum: 3, type: "deleted", content: "- export function decodeToken(token: string) {" },
-      { lineNum: 4, type: "deleted", content: "-   return jwt.decode(token);" },
-      { lineNum: 5, type: "deleted", content: "- }" },
-    ],
-  },
-  {
-    id: "4",
-    changeType: "R",
-    path: "src/routes/auth.ts → src/routes/authRouter.ts",
-    additions: 1,
-    deletions: 1,
-    lines: [
-      { lineNum: 2, type: "deleted", content: "- const router = require('./oldRouter');" },
-      { lineNum: 2, type: "added", content: "+ const router = require('./authRouter');" },
-    ],
-    allLines: [
-      { lineNum: 1, type: "context", content: "  import express from 'express';" },
-      { lineNum: 2, type: "deleted", content: "- const router = require('./oldRouter');" },
-      { lineNum: 2, type: "added", content: "+ const router = require('./authRouter');" },
-      { lineNum: 3, type: "context", content: "  router.use('/login', loginHandler);" },
-      { lineNum: 4, type: "context", content: "  module.exports = router;" },
-    ],
-  },
-];
-
-const DIFF_TOTALS = MOCK_DIFFS.reduce(
-  (acc, d) => ({ adds: acc.adds + d.additions, dels: acc.dels + d.deletions }),
-  { adds: 0, dels: 0 },
-);
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Sub-components (V2 visual design — do not change styles) ─────────────────
 
 function DiffTypeBadge({ type }: { type: ChangeType }) {
   const { bg } = BADGE_CONFIG[type];
@@ -169,7 +160,7 @@ function DiffLineRow({ line, showFullBg }: { line: DiffLine; showFullBg?: boolea
     line.type === "added" ? "#E3FDD7" : line.type === "deleted" ? "#FFEFEF" : "#FFF";
   return (
     <View style={[styles.diffLineRow, { backgroundColor: bg }]}>
-      <Text style={styles.diffLineNum}>{line.lineNum}</Text>
+      <Text style={styles.diffLineNum}>{line.lineNum || ""}</Text>
       <Text style={styles.diffLineContent} numberOfLines={showFullBg ? undefined : 1}>
         {line.content}
       </Text>
@@ -177,13 +168,7 @@ function DiffLineRow({ line, showFullBg }: { line: DiffLine; showFullBg?: boolea
   );
 }
 
-function DiffFileCard({
-  diff,
-  onExpand,
-}: {
-  diff: FileDiff;
-  onExpand: (diff: FileDiff) => void;
-}) {
+function DiffFileCard({ diff, onExpand }: { diff: FileDiff; onExpand: (diff: FileDiff) => void }) {
   return (
     <View style={styles.diffCard}>
       <View style={styles.diffCardHeader}>
@@ -201,7 +186,7 @@ function DiffFileCard({
         </TouchableOpacity>
       </View>
       <View style={styles.diffLinesWrapper}>
-        {diff.lines.slice(0, 4).map((line, idx) => (
+        {diff.lines.map((line, idx) => (
           <DiffLineRow key={idx} line={line} />
         ))}
       </View>
@@ -215,12 +200,58 @@ export default function DiffsScreen() {
   const { top } = useSafeAreaInsets();
   const router = useRouter();
   const {
-    repoName = "grass-welcome",
-    branchName = "main",
-  } = useLocalSearchParams<{ repoName: string; branchName: string }>();
+    serverUrl = "",
+    repoPath = "",
+    repoName = "",
+    branchName = "",
+  } = useLocalSearchParams<{ serverUrl?: string; repoPath?: string; repoName?: string; branchName?: string }>();
 
-  const repoStr = Array.isArray(repoName) ? repoName[0] : repoName;
+  const serverUrlStr = Array.isArray(serverUrl) ? serverUrl[0] : serverUrl;
+  const repoPathStr = Array.isArray(repoPath) ? repoPath[0] : repoPath;
+  const repoStr = Array.isArray(repoName) ? repoName[0] : (repoName || repoPathStr);
   const branchStr = Array.isArray(branchName) ? branchName[0] : branchName;
+
+  const [diffsText, setDiffsText] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!serverUrlStr) { setLoading(false); return; }
+    let cancelled = false;
+    setLoading(true);
+    setDiffsText(null);
+
+    const run = async () => {
+      // Ensure connection entry exists so getEntry has a baseUrl
+      openConnection(serverUrlStr);
+      const entry = getEntry(serverUrlStr);
+      const baseUrl = entry?.baseUrl ?? serverUrlStr;
+      try {
+        const qs = repoPathStr ? `?repoPath=${encodeURIComponent(repoPathStr)}` : "";
+        const res = await fetch(`${baseUrl}/diffs${qs}`);
+        const json = await res.json() as { diff?: string };
+        if (!cancelled) {
+          setDiffsText(json.diff ?? "");
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("[diffs] fetch failed:", err);
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    run();
+    return () => { cancelled = true; };
+  }, [serverUrlStr, repoPathStr]);
+
+  const files = useMemo(
+    () => (diffsText ? convertToFileDiffs(parseFileDiffs(diffsText)) : []),
+    [diffsText],
+  );
+
+  const totals = useMemo(
+    () => files.reduce((acc, f) => ({ adds: acc.adds + f.additions, dels: acc.dels + f.deletions }), { adds: 0, dels: 0 }),
+    [files],
+  );
 
   const expandSheetRef = useRef<BottomSheetModal>(null);
   const [expandedDiff, setExpandedDiff] = useState<FileDiff | null>(null);
@@ -232,11 +263,7 @@ export default function DiffsScreen() {
 
   const renderBackdrop = useCallback(
     (props: any) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-      />
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
     ),
     [],
   );
@@ -256,40 +283,57 @@ export default function DiffsScreen() {
           <Text style={styles.headerTitle}>Diffs</Text>
           <View style={styles.branchRow}>
             <GitBranchIcon width={12} height={12} />
-            <Text style={styles.branchName}>{repoStr} · {branchStr}</Text>
+            <Text style={styles.branchName}>
+              {repoStr}{branchStr ? ` · ${branchStr}` : ""}
+            </Text>
           </View>
         </View>
         <View style={styles.headerBtn} />
       </View>
 
-      {/* ── Summary ── */}
-      <View style={styles.summaryBox}>
-        <Text style={styles.summaryTitle}>
-          {MOCK_DIFFS.length} files changed (+{DIFF_TOTALS.adds} -{DIFF_TOTALS.dels})
-        </Text>
-        <Text style={styles.summarySubtitle}>
-          <Text style={[styles.summarySubtitle, styles.additionsText]}>
-            {DIFF_TOTALS.adds} additions
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator color="#808080" style={{ marginBottom: 8 }} />
+          <Text style={styles.emptyText}>Loading diffs…</Text>
+        </View>
+      ) : !serverUrlStr || files.length === 0 ? (
+        <View style={styles.centered}>
+          <Text style={styles.emptyText}>
+            {!serverUrlStr ? "No server URL provided" : "No diffs available"}
           </Text>
-          {" and "}
-          <Text style={[styles.summarySubtitle, styles.deletionsText]}>
-            {DIFF_TOTALS.dels} deletions
-          </Text>
-        </Text>
-      </View>
+        </View>
+      ) : (
+        <>
+          {/* ── Summary ── */}
+          <View style={styles.summaryBox}>
+            <Text style={styles.summaryTitle}>
+              {files.length} file{files.length !== 1 ? "s" : ""} changed (+{totals.adds} -{totals.dels})
+            </Text>
+            <Text style={styles.summarySubtitle}>
+              <Text style={[styles.summarySubtitle, styles.additionsText]}>
+                {totals.adds} additions
+              </Text>
+              {" and "}
+              <Text style={[styles.summarySubtitle, styles.deletionsText]}>
+                {totals.dels} deletions
+              </Text>
+            </Text>
+          </View>
 
-      {/* ── File list ── */}
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {MOCK_DIFFS.map((diff) => (
-          <DiffFileCard key={diff.id} diff={diff} onExpand={handleExpandDiff} />
-        ))}
-      </ScrollView>
+          {/* ── File list ── */}
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {files.map((diff) => (
+              <DiffFileCard key={diff.id} diff={diff} onExpand={handleExpandDiff} />
+            ))}
+          </ScrollView>
+        </>
+      )}
 
-      {/* ── Expand diff slider ── */}
+      {/* ── Expand diff sheet ── */}
       <BottomSheetModal
         ref={expandSheetRef}
         snapPoints={["92%"]}
@@ -332,10 +376,22 @@ export default function DiffsScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Styles (V2 visual design — do not change) ───────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
+
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  emptyText: {
+    fontFamily: SFPro.regular,
+    fontSize: 15,
+    color: "#808080",
+  },
 
   header: {
     flexDirection: "row",

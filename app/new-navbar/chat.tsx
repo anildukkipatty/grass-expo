@@ -19,8 +19,10 @@ import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg
 import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 import UpArrowIcon from "@/assets/images/new-design/up-arrow.svg";
 import { SFMono, SFPro } from "@/constants/theme";
+import modelsJson from "@/models.json";
 import { posthog } from "@/constants/posthog";
 import { useServer } from "@/hooks/use-server";
+import type { PermissionMode } from "@/hooks/use-server";
 import {
   closeSSEStream,
   getEntry,
@@ -40,7 +42,7 @@ import { AgentTypingskeleton } from "@/components/SkeletonLoader";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
-  BottomSheetView,
+  BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
 import { BlurView } from "expo-blur";
 import { useCameraPermissions } from "expo-camera";
@@ -62,13 +64,24 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Model helpers ────────────────────────────────────────────────────────────
 
-const MODELS = [
-  { key: "claude-opus-4-7",   label: "Claude Opus 4.7",   subtitle: "Most capable" },
-  { key: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", subtitle: "Fast, Capable" },
-  { key: "claude-haiku-4-5",  label: "Claude Haiku 4.5",  subtitle: "Fastest response" },
-];
+const MODELS_BY_AGENT = modelsJson as Record<string, Record<string, string>>;
+const MODEL_DEFAULTS: Record<string, string> = {
+  "claude-code": "claude-sonnet-4-6",
+  opencode: "opencode/big-pickle",
+};
+
+function getModelsForAgent(agent: string): { key: string; label: string }[] {
+  const agentKey = agent === "opencode" ? "opencode" : "claude-code";
+  const map = MODELS_BY_AGENT[agentKey] ?? MODELS_BY_AGENT["claude-code"];
+  return Object.entries(map).map(([key, label]) => ({ key, label }));
+}
+
+function getDefaultModel(agent: string): string {
+  const agentKey = agent === "opencode" ? "opencode" : "claude-code";
+  return MODEL_DEFAULTS[agentKey] ?? "claude-sonnet-4-6";
+}
 
 // ─── Sub-components (V2 visual design — do not change styles) ─────────────────
 
@@ -388,8 +401,9 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState("");
   const inputTextRef = useRef("");
   const [agentMode, setAgentMode] = useState<"build" | "plan">("build");
-  const [selectedModelKey, setSelectedModelKey] = useState("claude-sonnet-4-6");
-  const [tempModelKey, setTempModelKey] = useState("claude-sonnet-4-6");
+  const modelList = getModelsForAgent(agentStr);
+  const [selectedModelKey, setSelectedModelKey] = useState(() => getDefaultModel(agentStr));
+  const [tempModelKey, setTempModelKey] = useState(() => getDefaultModel(agentStr));
   const [showOptions, setShowOptions] = useState(false);
   const [addBtnMeasure, setAddBtnMeasure] = useState<{
     x: number; y: number; w: number; h: number;
@@ -408,6 +422,7 @@ export default function ChatScreen() {
   const initialMessageSent   = useRef(false);
   const scrollViewRef        = useRef<ScrollView>(null);
   const modelSheetRef        = useRef<BottomSheetModal>(null);
+  const modeSheetRef         = useRef<BottomSheetModal>(null);
   const addBtnRef            = useRef<any>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
@@ -430,6 +445,22 @@ export default function ChatScreen() {
     return () => {
       if (serverUrl) closeSSEStream(serverUrl);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Restore model + mode from server when resuming a session ──
+  const sessionConfigFetched = useRef(false);
+  useEffect(() => {
+    if (!initialSessionId || !serverUrl || sessionConfigFetched.current) return;
+    sessionConfigFetched.current = true;
+    ws.getSessionConfig(initialSessionId).then((config) => {
+      if (!config) return;
+      if (config.model) {
+        setSelectedModelKey(config.model);
+        setTempModelKey(config.model);
+      }
+      if (config.mode) setAgentMode(config.mode);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -506,7 +537,7 @@ export default function ChatScreen() {
   const headerTitle = sessionLabel ?? repoNameStr ?? "New Chat";
   const canSend     = !!inputText.trim() && !ws.streaming;
 
-  const selectedModel = MODELS.find((m) => m.key === selectedModelKey) ?? MODELS[1];
+  const selectedModel = modelList.find((m) => m.key === selectedModelKey) ?? modelList[0];
 
   // ── Send ──
   const handleSubmit = () => {
@@ -553,6 +584,13 @@ export default function ChatScreen() {
   };
 
   const renderModelBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+    ),
+    [],
+  );
+
+  const renderModeBackdrop = useCallback(
     (props: any) => (
       <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
     ),
@@ -793,17 +831,23 @@ export default function ChatScreen() {
               activeOpacity={0.7}
               onPress={openModelSheet}
             >
-              <Text style={styles.dropdownText}>{selectedModel.label}</Text>
+              <Text style={styles.dropdownText} numberOfLines={1}>{selectedModel.label}</Text>
               <DownArrowIcon width={14} height={14} />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.buildBtn}
               activeOpacity={0.7}
-              onPress={() => setAgentMode((m) => (m === "build" ? "plan" : "build"))}
+              onPress={() => {
+                Keyboard.dismiss();
+                modeSheetRef.current?.present();
+              }}
             >
-              <Text style={styles.buildText}>
+              <Text style={styles.buildText} numberOfLines={1}>
                 {agentMode === "build" ? "Build" : "Plan"}
+                {ws.permissionMode !== "ask-permissions"
+                  ? ` · ${ws.permissionMode === "allow-all-edits" ? "Edits" : "YOLO"}`
+                  : ""}
               </Text>
               <BuildIcon width={16} height={16} />
             </TouchableOpacity>
@@ -884,10 +928,108 @@ export default function ChatScreen() {
         </>
       )}
 
+      {/* ── Mode / Permission bottom sheet ── */}
+      <BottomSheetModal
+        ref={modeSheetRef}
+        snapPoints={["50%"]}
+        enableDynamicSizing={false}
+        enablePanDownToClose
+        backdropComponent={renderModeBackdrop}
+        backgroundStyle={styles.sheetBackground}
+        handleComponent={() => (
+          <View style={styles.sheetHandleContainer}>
+            <View style={styles.sheetDragger} />
+          </View>
+        )}
+      >
+        <View style={styles.sheetContainer}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Mode & Permissions</Text>
+            <TouchableOpacity
+              style={styles.sheetCloseBtn}
+              activeOpacity={0.7}
+              onPress={() => modeSheetRef.current?.dismiss()}
+            >
+              <CloseIcon width={36} height={36} />
+            </TouchableOpacity>
+          </View>
+
+          <BottomSheetScrollView
+            style={styles.sheetScrollFlex}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.sheetScrollContent}
+          >
+            {/* Agent mode */}
+            <Text style={styles.modeSheetSectionLabel}>Agent mode</Text>
+            <View style={styles.sheetModelList}>
+              {(["build", "plan"] as const).map((mode, index) => (
+                <TouchableOpacity
+                  key={mode}
+                  style={[
+                    styles.modelRow,
+                    agentMode === mode && styles.modelRowSelected,
+                    index === 0 && styles.modelRowSeparator,
+                  ]}
+                  activeOpacity={0.7}
+                  onPress={() => setAgentMode(mode)}
+                >
+                  <View style={styles.modelInfo}>
+                    <Text style={styles.modelLabel}>
+                      {mode === "build" ? "Build" : "Plan"}
+                    </Text>
+                    <Text style={styles.modeSheetSubLabel}>
+                      {mode === "build"
+                        ? "Agent makes changes directly"
+                        : "Agent plans before acting"}
+                    </Text>
+                  </View>
+                  {agentMode === mode && <SelectedIcon width={16} height={16} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Permission mode */}
+            <Text style={[styles.modeSheetSectionLabel, { marginTop: 20 }]}>Permissions</Text>
+            <View style={styles.sheetModelList}>
+              {([
+                { key: "ask-permissions", label: "Ask permissions", sub: "Agent asks before making changes" },
+                { key: "allow-all-edits",  label: "Allow all edits",  sub: "Agent edits files without asking" },
+                { key: "yolo",             label: "YOLO",             sub: "Agent runs commands freely, no confirmations" },
+              ] as const).map((item, index) => (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[
+                    styles.modelRow,
+                    ws.permissionMode === item.key && styles.modelRowSelected,
+                    index < 2 && styles.modelRowSeparator,
+                  ]}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (serverUrl) {
+                      ws.patchPermissionMode(
+                        ws.grassId ?? ws.sessionId,
+                        item.key as PermissionMode,
+                      );
+                    }
+                  }}
+                >
+                  <View style={styles.modelInfo}>
+                    <Text style={styles.modelLabel}>{item.label}</Text>
+                    <Text style={styles.modeSheetSubLabel}>{item.sub}</Text>
+                  </View>
+                  {ws.permissionMode === item.key && <SelectedIcon width={16} height={16} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </BottomSheetScrollView>
+        </View>
+      </BottomSheetModal>
+
       {/* ── Model picker bottom sheet ── */}
       <BottomSheetModal
         ref={modelSheetRef}
-        enableDynamicSizing
+        snapPoints={[agentStr === "claude-code" ? "55%" : "75%"]}
+        enableDynamicSizing={false}
         enablePanDownToClose
         backdropComponent={renderModelBackdrop}
         backgroundStyle={styles.sheetBackground}
@@ -897,7 +1039,7 @@ export default function ChatScreen() {
           </View>
         )}
       >
-        <BottomSheetView>
+        <View style={styles.sheetContainer}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Select model</Text>
             <TouchableOpacity
@@ -909,27 +1051,33 @@ export default function ChatScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.sheetModelList}>
-            {MODELS.map((m, index) => (
-              <TouchableOpacity
-                key={m.key}
-                style={[
-                  styles.modelRow,
-                  tempModelKey === m.key && styles.modelRowSelected,
-                  index < MODELS.length - 1 && styles.modelRowSeparator,
-                ]}
-                activeOpacity={0.7}
-                onPress={() => setTempModelKey(m.key)}
-              >
-                <View style={styles.modelInfo}>
-                  <Text style={styles.modelLabel}>{m.label}</Text>
-                  <Text style={styles.modelSubtitle}>{m.subtitle}</Text>
-                </View>
-                {tempModelKey === m.key && <SelectedIcon width={16} height={16} />}
-              </TouchableOpacity>
-            ))}
-          </View>
+          <BottomSheetScrollView
+            style={styles.sheetScrollFlex}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.sheetScrollContent}
+          >
+            <View style={styles.sheetModelList}>
+              {modelList.map((m, index) => (
+                <TouchableOpacity
+                  key={m.key}
+                  style={[
+                    styles.modelRow,
+                    tempModelKey === m.key && styles.modelRowSelected,
+                    index < modelList.length - 1 && styles.modelRowSeparator,
+                  ]}
+                  activeOpacity={0.7}
+                  onPress={() => setTempModelKey(m.key)}
+                >
+                  <View style={styles.modelInfo}>
+                    <Text style={styles.modelLabel}>{m.label}</Text>
+                  </View>
+                  {tempModelKey === m.key && <SelectedIcon width={16} height={16} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </BottomSheetScrollView>
 
+          {/* Sticky confirm button */}
           <View style={styles.sheetFooter}>
             <TouchableOpacity
               style={styles.confirmBtn}
@@ -939,7 +1087,7 @@ export default function ChatScreen() {
               <Text style={styles.confirmText}>Confirm</Text>
             </TouchableOpacity>
           </View>
-        </BottomSheetView>
+        </View>
       </BottomSheetModal>
     </View>
   );
@@ -1260,6 +1408,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#1A1A1A",
     letterSpacing: -0.2,
+    maxWidth: 80,
   },
   buildBtn: {
     flexDirection: "row",
@@ -1277,6 +1426,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#1A1A1A",
     letterSpacing: -0.2,
+    maxWidth: 72,
   },
   submitBtn: {
     width: 40,
@@ -1375,6 +1525,31 @@ const styles = StyleSheet.create({
     color: "rgba(0,0,0,0.5)",
     letterSpacing: -0.5,
     lineHeight: 20,
+  },
+  sheetContainer: {
+    flex: 1,
+  },
+  sheetScrollFlex: {
+    flex: 1,
+  },
+  sheetScrollContent: {
+    paddingBottom: 8,
+  },
+  modeSheetSectionLabel: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 13,
+    color: "#808080",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  modeSheetSubLabel: {
+    fontFamily: SFPro.regular,
+    fontSize: 13,
+    color: "#808080",
+    letterSpacing: -0.2,
+    lineHeight: 18,
   },
   sheetFooter: {
     paddingHorizontal: 16,

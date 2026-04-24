@@ -23,6 +23,14 @@ import ClaudeIcon from "@/assets/images/new-design/chat/claude.svg";
 import OpenCodeIcon from "@/assets/images/new-design/chat/opencode.svg";
 import { SFPro } from "@/constants/theme";
 import { extractHost, RepoItem, useNavbar } from "@/contexts/navbar-context";
+import {
+  getEntry,
+  getRepoDetailsStore,
+  listReposStore,
+  openConnectionWithKey,
+} from "@/store/connection-store";
+import { resolveServerKey, resolveServerUrl } from "@/store/url-store";
+import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
 
 const LAST_REPO_KEY = (serverUrl: string) => `@grass/last_repo:${serverUrl}`;
 const LAST_AGENT_KEY = "@grass/last_agent";
@@ -68,31 +76,85 @@ function SelectionRow({ icon, label, value, isLast, onPress, placeholder }: Sele
 
 export function NewChatSlider({ visible, onClose }: Props) {
   const router = useRouter();
-  const { selectedVmUrl, primaryVmUrl, repos } = useNavbar();
+  const { selectedVmUrl, primaryVmUrl, vmUrls } = useNavbar();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
+  const [vmMetadataMap, setVmMetadataMap] = useState<Record<string, { name: string; iconIndex: number }>>({});
+  const [grassVmName, setGrassVmName] = useState<string | null>(null);
+  const [localVmUrl, setLocalVmUrl] = useState<string>("");
+  const [localRepos, setLocalRepos] = useState<RepoItem[]>([]);
+  const [localReposLoading, setLocalReposLoading] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<"claude-code" | "opencode">("claude-code");
   const [showRepoPicker, setShowRepoPicker] = useState(false);
+  const [showMachinePicker, setShowMachinePicker] = useState(false);
   const showRepoPickerRef = useRef(false);
 
   // Sync ref so panResponder can read current showRepoPicker without stale closure
   useEffect(() => {
-    showRepoPickerRef.current = showRepoPicker;
-  }, [showRepoPicker]);
+    showRepoPickerRef.current = showRepoPicker || showMachinePicker;
+  }, [showRepoPicker, showMachinePicker]);
+
+  // Fetch repos whenever localVmUrl changes
+  useEffect(() => {
+    if (!localVmUrl) return;
+    let cancelled = false;
+    setLocalReposLoading(true);
+    setLocalRepos([]);
+
+    const run = async () => {
+      const key = resolveServerKey(localVmUrl);
+      const realUrl = resolveServerUrl(localVmUrl);
+      openConnectionWithKey(key, realUrl);
+      await listReposStore(key);
+      if (cancelled) return;
+
+      const entry = getEntry(key);
+      const repoList = entry?.repos ?? [];
+      await Promise.all(repoList.map((r) => getRepoDetailsStore(key, r.path)));
+      if (cancelled) return;
+
+      const updatedEntry = getEntry(key);
+      const details = updatedEntry?.repoDetails ?? new Map();
+      const mapped: RepoItem[] = repoList.map((r, i) => ({
+        id: String(i),
+        name: r.name,
+        path: r.path,
+        branch: details.get(r.path)?.branch ?? "main",
+        action: "Open Code",
+        badge: details.get(r.path)?.dominantLanguage ?? (r.isGit ? "Git" : "Folder"),
+        badgeType: "gray" as const,
+      }));
+
+      if (!cancelled) {
+        setLocalRepos(mapped);
+        setLocalReposLoading(false);
+      }
+    };
+
+    run();
+    return () => { cancelled = true; };
+  }, [localVmUrl]);
 
   // Reset state and pre-populate from last-used values when slider opens
   useEffect(() => {
     if (!visible) return;
     setShowRepoPicker(false);
+    setShowMachinePicker(false);
+    getAllVmMetadata().then(setVmMetadataMap);
+    getVmName().then(setGrassVmName);
+
+    const initialVm = selectedVmUrl ?? primaryVmUrl ?? "";
+    setLocalVmUrl(initialVm);
+    setSelectedRepo(null);
 
     const load = async () => {
       let lastRepoRaw: string | null = null;
       let lastAgent: string | null = null;
       try {
         [lastRepoRaw, lastAgent] = await Promise.all([
-          selectedVmUrl ? AsyncStorage.getItem(LAST_REPO_KEY(selectedVmUrl)) : Promise.resolve(null),
+          initialVm ? AsyncStorage.getItem(LAST_REPO_KEY(initialVm)) : Promise.resolve(null),
           AsyncStorage.getItem(LAST_AGENT_KEY),
         ]);
       } catch {
@@ -104,26 +166,26 @@ export function NewChatSlider({ visible, onClose }: Props) {
       if (lastRepoRaw) {
         try {
           const parsed = JSON.parse(lastRepoRaw);
-          // Guard against corrupt/partial data — require the fields handleStart depends on
           if (parsed && typeof parsed.path === "string" && typeof parsed.name === "string") {
             setSelectedRepo(parsed as RepoItem);
-          } else {
-            setSelectedRepo(null);
           }
         } catch {
-          setSelectedRepo(null);
+          // ignore
         }
-      } else {
-        setSelectedRepo(null);
       }
     };
 
     load();
-  }, [visible, selectedVmUrl]);
+  }, [visible, selectedVmUrl, primaryVmUrl]);
 
-  const vmLabel = selectedVmUrl
-    ? extractHost(selectedVmUrl)
-    : extractHost(primaryVmUrl ?? "");
+  const getVmDisplayName = (url: string) => {
+    const meta = vmMetadataMap[url];
+    if (meta?.name) return meta.name;
+    if (url === primaryVmUrl && grassVmName) return grassVmName;
+    return extractHost(url);
+  };
+
+  const vmLabel = localVmUrl ? getVmDisplayName(localVmUrl) : extractHost(primaryVmUrl ?? "");
 
   const open = useCallback(() => {
     Animated.parallel([
@@ -204,20 +266,22 @@ export function NewChatSlider({ visible, onClose }: Props) {
   ).current;
 
   async function handleStart() {
-    if (!selectedRepo || !selectedVmUrl) return;
+    if (!selectedRepo || !localVmUrl) return;
     const [pendingTask] = await Promise.all([
       AsyncStorage.getItem("GRASS_PENDING_FIRST_TASK"),
-      AsyncStorage.setItem(LAST_REPO_KEY(selectedVmUrl), JSON.stringify(selectedRepo)),
+      AsyncStorage.setItem(LAST_REPO_KEY(localVmUrl), JSON.stringify(selectedRepo)),
       AsyncStorage.setItem(LAST_AGENT_KEY, selectedAgent),
     ]);
     if (pendingTask) await AsyncStorage.removeItem("GRASS_PENDING_FIRST_TASK");
     close(() => {
+      // Switch to home tab first so back-from-chat lands on index, not the new tab
+      router.navigate("/new-navbar/(tabs)/index" as any);
       router.push({
         pathname: "/new-navbar/chat",
         params: {
-          serverUrl: selectedVmUrl,
-          repoPath: selectedRepo.path,
-          repoName: selectedRepo.name,
+          serverUrl: localVmUrl,
+          repoPath: selectedRepo!.path,
+          repoName: selectedRepo!.name,
           agent: selectedAgent,
           ...(pendingTask ? { initialMessage: pendingTask } : {}),
         },
@@ -241,7 +305,52 @@ export function NewChatSlider({ visible, onClose }: Props) {
           <View style={styles.dragger} />
         </View>
 
-        {showRepoPicker ? (
+        {showMachinePicker ? (
+          <>
+            <View style={styles.header}>
+              <View style={styles.headerText}>
+                <Text style={styles.headerTitle}>Select machine</Text>
+                <Text style={styles.headerSubtitle}>Choose a VM to run your agent on.</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowMachinePicker(false)}
+                style={styles.closeButton}
+                hitSlop={8}
+              >
+                <CloseIcon />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.repoList} showsVerticalScrollIndicator={false}>
+              {vmUrls.length === 0 ? (
+                <View style={styles.emptyRepos}>
+                  <Text style={styles.emptyReposText}>No machines found</Text>
+                </View>
+              ) : (
+                vmUrls.map((url) => (
+                  <TouchableOpacity
+                    key={url}
+                    style={[styles.repoRow, url === localVmUrl && styles.repoRowSelected]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setLocalVmUrl(url);
+                      setSelectedRepo(null);
+                      setShowMachinePicker(false);
+                    }}
+                  >
+                    <MachinesIcon width={20} height={20} />
+                    <View style={styles.repoRowText}>
+                      <Text style={styles.repoRowName}>{getVmDisplayName(url)}</Text>
+                    </View>
+                    {url === localVmUrl && (
+                      <Text style={styles.selectedCheckmark}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </>
+        ) : showRepoPicker ? (
           <>
             {/* Repo picker header */}
             <View style={styles.header}>
@@ -259,12 +368,16 @@ export function NewChatSlider({ visible, onClose }: Props) {
             </View>
 
             <ScrollView style={styles.repoList} showsVerticalScrollIndicator={false}>
-              {repos.length === 0 ? (
+              {localReposLoading ? (
+                <View style={styles.emptyRepos}>
+                  <Text style={styles.emptyReposText}>Loading repositories…</Text>
+                </View>
+              ) : localRepos.length === 0 ? (
                 <View style={styles.emptyRepos}>
                   <Text style={styles.emptyReposText}>No repositories found</Text>
                 </View>
               ) : (
-                repos.map((repo) => (
+                localRepos.map((repo) => (
                   <TouchableOpacity
                     key={repo.id}
                     style={styles.repoRow}
@@ -305,6 +418,7 @@ export function NewChatSlider({ visible, onClose }: Props) {
                 icon={<MachinesIcon width={22} height={22} />}
                 label="Machine"
                 value={vmLabel}
+                onPress={vmUrls.length > 1 ? () => setShowMachinePicker(true) : undefined}
               />
               <SelectionRow
                 icon={<RepositoryIcon width={22} height={22} />}
@@ -591,5 +705,13 @@ const styles = StyleSheet.create({
     fontFamily: SFPro.regular,
     fontSize: 15,
     color: "#808080",
+  },
+  repoRowSelected: {
+    backgroundColor: "#F5FFF0",
+  },
+  selectedCheckmark: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 17,
+    color: "#3D841E",
   },
 });
