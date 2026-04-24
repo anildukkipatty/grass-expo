@@ -1,18 +1,18 @@
-import { BlurView } from "expo-blur";
 import { Image } from "expo-image";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  Modal,
-  PanResponder,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  useBottomSheetTimingConfigs,
+} from "@gorhom/bottom-sheet";
+import { Easing } from "react-native-reanimated";
 
 import { AddRepoSlider } from "./AddRepoSlider";
 import { ConfigureGitAccessSlider } from "./ConfigureGitAccessSlider";
@@ -27,11 +27,7 @@ import GithubIcon from "@/assets/images/new-design/connect-more/github.svg";
 import LinuxIcon from "@/assets/images/new-design/connect-more/linux.svg";
 import OpenCodeIcon from "@/assets/images/new-design/connect-more/open-code.svg";
 import WindowsIcon from "@/assets/images/new-design/connect-more/windows.svg";
-import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 import { SFPro } from "@/constants/theme";
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const CLOSE_THRESHOLD = 80;
 
 type CardProps = {
   title: string;
@@ -91,113 +87,46 @@ type Props = {
 };
 
 export function ConnectMoreSlider({ visible, onClose }: Props) {
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [ownAgentVisible, setOwnAgentVisible] = useState(false);
   const [laptopVisible, setLaptopVisible] = useState(false);
   const [addRepoVisible, setAddRepoVisible] = useState(false);
   const [gitAccessVisible, setGitAccessVisible] = useState(false);
 
-  const open = useCallback(() => {
-    Animated.parallel([
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        damping: 20,
-        stiffness: 200,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [translateY, backdropOpacity]);
+  const snapPoints = ["90%"];
+  const animationConfigs = useBottomSheetTimingConfigs({
+    duration: 300,
+    easing: Easing.out(Easing.cubic),
+  });
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+    ),
+    [],
+  );
 
-  const close = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: SCREEN_HEIGHT,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start(() => onClose());
-  }, [translateY, backdropOpacity, onClose]);
-
-  useEffect(() => {
+  React.useEffect(() => {
     if (visible) {
-      translateY.setValue(SCREEN_HEIGHT);
-      open();
+      bottomSheetRef.current?.present();
+    } else {
+      bottomSheetRef.current?.dismiss();
     }
-  }, [visible, open, translateY]);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 5,
-      onPanResponderMove: (_, gs) => {
-        if (gs.dy > 0) translateY.setValue(gs.dy);
-      },
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dy > CLOSE_THRESHOLD || gs.vy > 0.5) {
-          close();
-        } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            damping: 20,
-            stiffness: 200,
-          }).start();
-        }
-      },
-    }),
-  ).current;
-
-  if (!visible) return null;
+  }, [visible]);
 
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="none"
-      statusBarTranslucent
-    >
-      <TouchableWithoutFeedback onPress={close}>
-        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-          <BlurView
-            intensity={20}
-            tint="dark"
-            style={StyleSheet.absoluteFillObject}
-          />
-        </Animated.View>
-      </TouchableWithoutFeedback>
-
-      <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-        {/* <LinearGradient
-          colors={["#FFF", "rgba(255,255,255,0.90)", "rgba(255,255,255,0.00)"]}
-          locations={[0.2862, 0.7975, 1]}
-          style={StyleSheet.absoluteFillObject}
-          pointerEvents="none"
-        /> */}
-        {/* Drag handle */}
-        <View style={styles.dragArea} {...panResponder.panHandlers}>
-          <View style={styles.dragger} />
-        </View>
-
+    <>
+      <BottomSheetModal
+        ref={bottomSheetRef}
+        snapPoints={snapPoints}
+        enablePanDownToClose
+        animationConfigs={animationConfigs}
+        backdropComponent={renderBackdrop}
+        onDismiss={onClose}
+        backgroundStyle={styles.sheetBackground}
+        handleIndicatorStyle={styles.dragHandle}
+      >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={close}
-            style={styles.closeButton}
-            hitSlop={8}
-          >
-            <CloseIcon />
-          </TouchableOpacity>
           <View style={styles.headerText}>
             <Text style={styles.headerTitle}>Get more from grass</Text>
             <Text style={styles.headerSubtitle}>
@@ -206,10 +135,9 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
           </View>
         </View>
 
-        <ScrollView
+        <BottomSheetScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
-          bounces={false}
         >
           <TouchableOpacity
             onPress={() => setOwnAgentVisible(true)}
@@ -297,8 +225,8 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
               />
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </Animated.View>
+        </BottomSheetScrollView>
+      </BottomSheetModal>
 
       <ConnectOwnAgentSlider
         visible={ownAgentVisible}
@@ -316,34 +244,17 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
         visible={gitAccessVisible}
         onClose={() => setGitAccessVisible(false)}
       />
-    </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.80)",
-  },
-  sheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    maxHeight: SCREEN_HEIGHT * 0.95,
-    backgroundColor: "#FFF",
+  sheetBackground: {
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    overflow: "hidden",
-  },
-  dragArea: {
-    alignItems: "center",
-    paddingTop: 10,
-    paddingBottom: 16,
-    // marginBottom: ,
     backgroundColor: "#FFF",
   },
-  dragger: {
+  dragHandle: {
     width: 36,
     height: 5,
     borderRadius: 100,
@@ -371,20 +282,6 @@ const styles = StyleSheet.create({
     color: "#808080",
     letterSpacing: -0.2,
   },
-  closeButton: {
-    width: 44,
-    height: 44,
-    borderRadius: "50%",
-    backgroundColor: "#f2f2f2",
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "flex-end",
-  },
-  // closeX: {
-  //   fontSize: 13,
-  //   color: "#666",
-  //   lineHeight: 16,
-  // },
   scrollContent: {
     paddingHorizontal: 16,
     paddingBottom: 32,

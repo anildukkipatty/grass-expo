@@ -1,33 +1,26 @@
 import SuccessMark from "@/assets/images/new-design/connect-more/success-mark.svg";
-import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
-  Dimensions,
   Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  PanResponder,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  useBottomSheetTimingConfigs,
+} from "@gorhom/bottom-sheet";
+import { Easing } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 
 import { posthog } from "@/constants/posthog";
 import { SFPro } from "@/constants/theme";
 import { cloneRepoStore, getEntry } from "@/store/connection-store";
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
-const CLOSE_THRESHOLD = 80;
 
 type Step = "input" | "cloned";
 
@@ -39,97 +32,49 @@ type Props = {
 };
 
 export function AddRepoSlider({ visible, onClose, serverUrl, onRepoAdded }: Props) {
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const successTranslateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
 
-  const scrollRef = useRef<ScrollView>(null);
   const [repoUrl, setRepoUrl] = useState("");
   const [step, setStep] = useState<Step>("input");
   const [isCloning, setIsCloning] = useState(false);
   const [cloneError, setCloneError] = useState<string | null>(null);
 
-  const open = useCallback(() => {
-    Animated.parallel([
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        damping: 20,
-        stiffness: 200,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [translateY, backdropOpacity]);
+  const snapPoints = ["90%"];
+  const animationConfigs = useBottomSheetTimingConfigs({
+    duration: 300,
+    easing: Easing.out(Easing.cubic),
+  });
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+    ),
+    [],
+  );
 
-  const close = useCallback(() => {
-    Keyboard.dismiss();
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: SCREEN_HEIGHT,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start(() => onClose());
-  }, [translateY, backdropOpacity, onClose]);
+  // Success overlay animation
+  const successTranslateY = useSharedValue(800);
+  const successStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: successTranslateY.value }],
+  }));
 
-  useEffect(() => {
+  const slideSuccessIn = useCallback(() => {
+    setStep("cloned");
+    successTranslateY.value = 800;
+    successTranslateY.value = withSpring(0, { damping: 20, stiffness: 180 });
+  }, [successTranslateY]);
+
+  React.useEffect(() => {
     if (visible) {
-      translateY.setValue(SCREEN_HEIGHT);
-      successTranslateY.setValue(SHEET_HEIGHT);
+      bottomSheetRef.current?.present();
+      successTranslateY.value = 800;
       setRepoUrl("");
       setStep("input");
       setIsCloning(false);
       setCloneError(null);
-      open();
+    } else {
+      bottomSheetRef.current?.dismiss();
     }
-  }, [visible, open, translateY, successTranslateY]);
-
-  const slideSuccessIn = useCallback(() => {
-    setStep("cloned");
-    successTranslateY.setValue(SHEET_HEIGHT);
-    Animated.spring(successTranslateY, {
-      toValue: 0,
-      useNativeDriver: true,
-      damping: 20,
-      stiffness: 180,
-    }).start();
-  }, [successTranslateY]);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 5,
-      onPanResponderMove: (_, gs) => {
-        if (gs.dy > 0) translateY.setValue(gs.dy);
-      },
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dy > CLOSE_THRESHOLD || gs.vy > 0.5) {
-          close();
-        } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            damping: 20,
-            stiffness: 200,
-          }).start();
-        }
-      },
-    }),
-  ).current;
-
-  const repoName = (() => {
-    const clean = repoUrl.replace(/\.git$/, "");
-    return clean.split("/").filter(Boolean).pop() ?? "repo";
-  })();
+  }, [visible, successTranslateY]);
 
   const repoFullName = (() => {
     const clean = repoUrl.replace(/\.git$/, "");
@@ -163,232 +108,164 @@ export function AddRepoSlider({ visible, onClose, serverUrl, onRepoAdded }: Prop
 
   const isGreenStep = step === "cloned";
 
-  if (!visible) return null;
-
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="none"
-      statusBarTranslucent
+    <BottomSheetModal
+      ref={bottomSheetRef}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      animationConfigs={animationConfigs}
+      backdropComponent={renderBackdrop}
+      onDismiss={onClose}
+      backgroundStyle={styles.sheetBackground}
+      handleIndicatorStyle={styles.dragHandle}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
     >
-      <TouchableWithoutFeedback onPress={close}>
-        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-          <BlurView
-            intensity={20}
-            tint="dark"
-            style={StyleSheet.absoluteFillObject}
-          />
-        </Animated.View>
-      </TouchableWithoutFeedback>
+      {/* Close button */}
+      <TouchableOpacity
+        onPress={() => { Keyboard.dismiss(); bottomSheetRef.current?.dismiss(); }}
+        style={styles.closeButton}
+        hitSlop={8}
+      >
+        <View style={styles.closeX}>
+          <Text style={styles.closeXText}>✕</Text>
+        </View>
+      </TouchableOpacity>
 
-      <View style={styles.kavContainer} pointerEvents="box-none">
-        <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-          {!isGreenStep && (
-            <LinearGradient
-              colors={["#FFF", "#fff"]}
-              locations={[0.2862, 0.7975]}
-              style={StyleSheet.absoluteFillObject}
-              pointerEvents="none"
-            />
-          )}
-
-          {/* Drag handle */}
-          <View style={styles.dragArea} {...panResponder.panHandlers}>
-            <View
-              style={[styles.dragger, isGreenStep && styles.draggerOnGreen]}
-            />
+      <BottomSheetScrollView
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerText}>
+            <Text style={styles.headerTitle}>Add a repository</Text>
+            <Text style={styles.headerSubtitle}>
+              Paste a Git clone URL. No login needed for public repos.
+            </Text>
           </View>
+        </View>
 
-          {/* Close button – absolute, always on top */}
-          <TouchableOpacity
-            onPress={close}
-            style={[
-              styles.closeButton,
-              isGreenStep && styles.closeButtonTranslucent,
-            ]}
-            hitSlop={8}
-          >
-            <CloseIcon />
-          </TouchableOpacity>
+        {/* Content */}
+        <View style={styles.content}>
+          <View style={styles.urlCard}>
+            <Text style={styles.inputLabel}>Repository URL</Text>
+            <TextInput
+              style={styles.input}
+              value={repoUrl}
+              onChangeText={(t) => {
+                setRepoUrl(t);
+                setCloneError(null);
+              }}
+              placeholder="Paste link here"
+              placeholderTextColor="#B0B0B0"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
 
-          <KeyboardAvoidingView
-            style={styles.kavInner}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={0}
-          >
-            <ScrollView
-              ref={scrollRef}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              onScrollBeginDrag={Keyboard.dismiss}
-              contentContainerStyle={styles.scrollContent}
+            {cloneError ? (
+              <Text style={styles.errorText}>{cloneError}</Text>
+            ) : null}
+
+            <TouchableOpacity
+              style={[
+                styles.button,
+                (!repoUrl.trim() || isCloning) && styles.buttonDisabled,
+              ]}
+              activeOpacity={0.85}
+              disabled={!repoUrl.trim() || isCloning}
+              onPress={handleAddRepo}
             >
-              <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-                <View>
-                  {/* Header */}
-                  <View style={styles.header}>
-                    <View style={styles.headerText}>
-                      <Text style={styles.headerTitle}>Add a repository</Text>
-                      <Text style={styles.headerSubtitle}>
-                        Paste a Git clone URL. No login needed for public repos.
-                      </Text>
-                    </View>
-                  </View>
+              {isCloning ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <Text style={styles.buttonText}>Add repo</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </BottomSheetScrollView>
 
-                  {/* Content */}
-                  <View style={styles.content}>
-                    <View style={styles.urlCard}>
-                      <Text style={styles.inputLabel}>Repository URL</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={repoUrl}
-                        onChangeText={(t) => {
-                          setRepoUrl(t);
-                          setCloneError(null);
-                        }}
-                        placeholder="Paste link here"
-                        placeholderTextColor="#B0B0B0"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        keyboardType="url"
-                        onFocus={() => {
-                          setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-                        }}
-                      />
-
-                      {cloneError ? (
-                        <Text style={styles.errorText}>{cloneError}</Text>
-                      ) : null}
-
-                      <TouchableOpacity
-                        style={[
-                          styles.button,
-                          (!repoUrl.trim() || isCloning) && styles.buttonDisabled,
-                        ]}
-                        activeOpacity={0.85}
-                        disabled={!repoUrl.trim() || isCloning}
-                        onPress={handleAddRepo}
-                      >
-                        {isCloning ? (
-                          <ActivityIndicator color="#FFF" size="small" />
-                        ) : (
-                          <Text style={styles.buttonText}>Add repo</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
+      {/* ── Green success overlay ── */}
+      <Animated.View
+        style={[styles.successOverlay, successStyle]}
+        pointerEvents={isGreenStep ? "auto" : "none"}
+      >
+        {step === "cloned" && (
+          <View style={styles.greenContent}>
+            <View style={styles.greenCenter}>
+              <SuccessMark width={192} height={244} />
+              <Text style={styles.greenTitle}>Repo cloned</Text>
+              <View style={styles.repoPillRow}>
+                <View style={styles.repoPill}>
+                  <Text style={styles.repoPillText}>{repoFullName}</Text>
                 </View>
-              </TouchableWithoutFeedback>
-            </ScrollView>
-          </KeyboardAvoidingView>
-
-          {/* ── Green success overlay — slides up from bottom ── */}
-          <Animated.View
-            style={[
-              styles.successOverlay,
-              { transform: [{ translateY: successTranslateY }] },
-            ]}
-            pointerEvents={isGreenStep ? "auto" : "none"}
-          >
-            {step === "cloned" && (
-              <View style={styles.greenContent}>
-                <View style={styles.greenCenter}>
-                  <SuccessMark width={192} height={244} />
-                  <Text style={styles.greenTitle}>Repo cloned</Text>
-                  <View style={styles.repoPillRow}>
-                    <View style={styles.repoPill}>
-                      <Text style={styles.repoPillText}>{repoFullName}</Text>
-                    </View>
-                    <Text style={styles.greenSubtitle}>
-                      is on your machine.{"\n"}Ready when you are.
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.greenFooter}>
-                  <TouchableOpacity
-                    style={styles.primaryButton}
-                    onPress={close}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.primaryButtonText}>Done</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.addAnotherButton}
-                    onPress={() => {
-                      successTranslateY.setValue(SHEET_HEIGHT);
-                      setStep("input");
-                      setRepoUrl("");
-                      setCloneError(null);
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.addAnotherButtonText}>
-                      Add another
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                <Text style={styles.greenSubtitle}>
+                  is on your machine.{"\n"}Ready when you are.
+                </Text>
               </View>
-            )}
-          </Animated.View>
-        </Animated.View>
-      </View>
-    </Modal>
+            </View>
+            <View style={styles.greenFooter}>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() => bottomSheetRef.current?.dismiss()}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.primaryButtonText}>Done</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.addAnotherButton}
+                onPress={() => {
+                  successTranslateY.value = 800;
+                  setStep("input");
+                  setRepoUrl("");
+                  setCloneError(null);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.addAnotherButtonText}>
+                  Add another
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </Animated.View>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.80)",
-  },
-  kavContainer: {
-    flex: 1,
-    justifyContent: "flex-end",
-    pointerEvents: "box-none",
-  },
-  sheet: {
-    width: "100%",
-    flex: 1,
-    maxHeight: SHEET_HEIGHT,
-    backgroundColor: "#FFF",
+  sheetBackground: {
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    overflow: "hidden",
+    backgroundColor: "#FFF",
   },
-  dragArea: {
-    alignItems: "center",
-    paddingTop: 10,
-    paddingBottom: 6,
-    backgroundColor: "transparent",
-    marginBottom: 25,
-  },
-  dragger: {
+  dragHandle: {
     width: 36,
     height: 5,
     borderRadius: 100,
     backgroundColor: "#CCC",
-  },
-  draggerOnGreen: {
-    backgroundColor: "rgba(255, 255, 255, 0.40)",
   },
   closeButton: {
     position: "absolute",
     top: 16,
     right: 16,
     zIndex: 10,
+  },
+  closeX: {
     width: 44,
     height: 44,
-    borderRadius: 294,
+    borderRadius: 22,
     backgroundColor: "#EBEBEB",
     alignItems: "center",
     justifyContent: "center",
   },
-  closeButtonTranslucent: {
-    backgroundColor: "rgba(255, 255, 255, 0.30)",
-  },
-  kavInner: {
-    flex: 1,
+  closeXText: {
+    fontSize: 14,
+    color: "#333",
   },
   scrollContent: {
     flexGrow: 1,
@@ -475,7 +352,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: -0.5,
   },
-  // Green success overlay
   successOverlay: {
     position: "absolute",
     top: 0,

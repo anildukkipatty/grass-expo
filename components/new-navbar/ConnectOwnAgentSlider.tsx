@@ -1,26 +1,24 @@
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Clipboard,
-  Dimensions,
   Image,
   Keyboard,
-  KeyboardAvoidingView,
   Linking,
-  Modal,
-  PanResponder,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  useBottomSheetTimingConfigs,
+} from "@gorhom/bottom-sheet";
+import { Easing } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 
 import ClaudeTransparentIcon from "@/assets/images/new-design/connect-more/claude-transparent.svg";
 import ClaudeIcon from "@/assets/images/new-design/connect-more/claude.svg";
@@ -29,16 +27,11 @@ import LogoIcon from "@/assets/images/new-design/connect-more/logo.svg";
 import OpenCodeIcon from "@/assets/images/new-design/connect-more/opencode-transparent.svg";
 import SecureIcon from "@/assets/images/new-design/connect-more/secure.svg";
 import SuccessMark from "@/assets/images/new-design/connect-more/success-mark.svg";
-import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 
 import { SFPro } from "@/constants/theme";
 import { claudeComplete, claudeDisconnect, claudeStart, claudeStatus } from "@/api/claude";
 import { opencodeConnect, opencodeDisconnect, opencodeStatus } from "@/api/opencode";
 import { getToken } from "@/store/auth-store";
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
-const CLOSE_THRESHOLD = 80;
 
 const OPENCODE_KEY_URL = "opencode.ai/zen";
 const TABS = ["Claude Code", "Opencode"] as const;
@@ -69,9 +62,7 @@ function SkeletonBox({
 }
 
 export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const successTranslateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
 
   const [activeTab, setActiveTab] = useState<Tab>("Claude Code");
   const [authCode, setAuthCode] = useState("");
@@ -83,11 +74,9 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [step, setStep] = useState<Step>("form");
 
-  // Per-agent connected state (from status checks)
   const [claudeConnected, setClaudeConnected] = useState(false);
   const [opencodeConnected, setOpencodeConnected] = useState(false);
 
-  // Claude OAuth session (only set when not already connected)
   const [claudeSession, setClaudeSession] = useState<{
     sessionId: string;
     cmdId: string;
@@ -96,53 +85,32 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
 
   const authInputRef = useRef<TextInput>(null);
 
-  // ─── Sheet animation ──────────────────────────────────────────────────────
+  const snapPoints = ["90%"];
+  const animationConfigs = useBottomSheetTimingConfigs({
+    duration: 300,
+    easing: Easing.out(Easing.cubic),
+  });
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+    ),
+    [],
+  );
 
-  const open = useCallback(() => {
-    Animated.parallel([
-      Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 200 }),
-      Animated.timing(backdropOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-    ]).start();
-  }, [translateY, backdropOpacity]);
-
-  const close = useCallback(() => {
-    Keyboard.dismiss();
-    Animated.parallel([
-      Animated.timing(translateY, { toValue: SCREEN_HEIGHT, duration: 300, useNativeDriver: true }),
-      Animated.timing(backdropOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
-    ]).start(() => onClose());
-  }, [translateY, backdropOpacity, onClose]);
+  // Success overlay animation (slides up from bottom within the sheet)
+  const successTranslateY = useSharedValue(800);
+  const successStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: successTranslateY.value }],
+  }));
 
   const slideSuccessIn = useCallback(() => {
     setStep("connected");
-    successTranslateY.setValue(SHEET_HEIGHT);
-    Animated.spring(successTranslateY, {
-      toValue: 0,
-      useNativeDriver: true,
-      damping: 20,
-      stiffness: 180,
-    }).start();
+    successTranslateY.value = 800;
+    successTranslateY.value = withSpring(0, { damping: 20, stiffness: 180 });
   }, [successTranslateY]);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 5,
-      onPanResponderMove: (_, gs) => { if (gs.dy > 0) translateY.setValue(gs.dy); },
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dy > CLOSE_THRESHOLD || gs.vy > 0.5) {
-          close();
-        } else {
-          Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 200 }).start();
-        }
-      },
-    }),
-  ).current;
 
   // ─── API helpers ──────────────────────────────────────────────────────────
 
-  // Start the Claude OAuth flow (get authUrl / sessionId / cmdId).
-  // Called only when Claude is NOT already connected.
   const startClaudeAuth = useCallback(async (token: string) => {
     setIsLoading(true);
     setClaudeSession(null);
@@ -150,7 +118,6 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
     const res = await claudeStart(token);
     if (res.ok && res.data.success) {
       if (res.data.alreadyAuthenticated) {
-        // Server says connected — update local state but DON'T pop the overlay
         setClaudeConnected(true);
       } else if (res.data.sessionId && res.data.cmdId && res.data.authUrl) {
         setClaudeSession({
@@ -168,7 +135,6 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
     setIsLoading(false);
   }, []);
 
-  // Check both agent statuses on open, then kick off Claude auth if needed.
   const checkAndInit = useCallback(async () => {
     setIsLoading(true);
     const token = await getToken();
@@ -185,7 +151,6 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
     setOpencodeConnected(isOpencodeConn);
 
     if (!isClaudeConn) {
-      // Claude tab is default — pre-load the auth URL
       await startClaudeAuth(token);
     } else {
       setIsLoading(false);
@@ -194,8 +159,8 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
 
   useEffect(() => {
     if (visible) {
-      translateY.setValue(SCREEN_HEIGHT);
-      successTranslateY.setValue(SHEET_HEIGHT);
+      bottomSheetRef.current?.present();
+      successTranslateY.value = 800;
       setActiveTab("Claude Code");
       setAuthCode("");
       setAuthError(false);
@@ -206,10 +171,11 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       setIsConnecting(false);
       setIsDisconnecting(false);
       setStep("form");
-      open();
       checkAndInit();
+    } else {
+      bottomSheetRef.current?.dismiss();
     }
-  }, [visible, open, translateY, successTranslateY, checkAndInit]);
+  }, [visible, checkAndInit, successTranslateY]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
@@ -287,7 +253,6 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
           setClaudeSession(null);
           setAuthCode("");
           setConnectError(null);
-          // Restart the auth flow so the user can reconnect immediately
           await startClaudeAuth(token);
         }
       } else {
@@ -323,393 +288,382 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       ? "Claude Code is connected and ready."
       : "Opencode is connected and ready.";
 
-  if (!visible) return null;
-
   return (
-    <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
-      <TouchableWithoutFeedback onPress={close}>
-        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
-        </Animated.View>
-      </TouchableWithoutFeedback>
-
-      <KeyboardAvoidingView
-        style={styles.kavContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        pointerEvents="box-none"
+    <BottomSheetModal
+      ref={bottomSheetRef}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      animationConfigs={animationConfigs}
+      backdropComponent={renderBackdrop}
+      onDismiss={onClose}
+      backgroundStyle={styles.sheetBackground}
+      handleIndicatorStyle={styles.dragHandle}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+    >
+      {/* Close button */}
+      <TouchableOpacity
+        onPress={() => { Keyboard.dismiss(); bottomSheetRef.current?.dismiss(); }}
+        style={styles.closeButton}
+        hitSlop={8}
       >
-        <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-          {!isGreenStep && (
-            <LinearGradient
-              colors={["#FFF", "rgba(255,255,255,0.90)", "rgba(255,255,255,0.00)"]}
-              locations={[0.2862, 0.7975, 1]}
-              style={StyleSheet.absoluteFillObject}
-              pointerEvents="none"
-            />
-          )}
+        <View style={styles.closeX}>
+          <Text style={styles.closeXText}>✕</Text>
+        </View>
+      </TouchableOpacity>
 
-          <View style={styles.dragArea} {...panResponder.panHandlers}>
-            <View style={[styles.dragger, isGreenStep && styles.draggerOnGreen]} />
+      <View style={styles.header}>
+        <View style={styles.headerText}>
+          <Text style={styles.headerTitle}>Connect your own agent</Text>
+          <Text style={styles.headerSubtitle}>
+            All optional. Set up whenever you&#39;re ready.
+          </Text>
+        </View>
+      </View>
+
+      <BottomSheetScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.card}>
+          {/* Tabs row */}
+          <View style={styles.tabRow}>
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab;
+              const isConnected = tab === "Claude Code" ? claudeConnected : opencodeConnected;
+              return (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.tab, isActive && styles.tabActive]}
+                  onPress={async () => {
+                    if (tab === activeTab) return;
+                    setActiveTab(tab);
+                    setAuthCode("");
+                    setAuthError(false);
+                    setConnectError(null);
+                    if (tab === "Claude Code" && !claudeConnected) {
+                      const token = await getToken();
+                      if (token) startClaudeAuth(token);
+                    } else {
+                      setIsLoading(false);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  {tab === "Claude Code" ? (
+                    <ClaudeTransparentIcon width={18} height={18} />
+                  ) : (
+                    <OpenCodeIcon width={18} height={18} />
+                  )}
+                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                    {tab}
+                  </Text>
+                  {isConnected && (
+                    <View style={styles.tabConnectedDot} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
-          <TouchableOpacity
-            onPress={close}
-            style={[styles.closeButton, isGreenStep && styles.closeButtonTranslucent]}
-            hitSlop={8}
-          >
-            <CloseIcon />
-          </TouchableOpacity>
+          <View style={styles.cardDivider} />
 
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-            <View style={styles.header}>
-              <View style={styles.headerText}>
-                <Text style={styles.headerTitle}>Connect your own agent</Text>
-                <Text style={styles.headerSubtitle}>
-                  All optional. Set up whenever you&#39;re ready.
-                </Text>
+          {/* ── Connected state ── */}
+          {isCurrentTabConnected ? (
+            <View style={styles.connectedBlock}>
+              <View style={styles.illustrationRow}>
+                {activeTab === "Claude Code" ? (
+                  <ClaudeIcon width={44} height={44} />
+                ) : (
+                  <OpenCodeIcon width={44} height={44} />
+                )}
+                <Image
+                  source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
+                  style={styles.arrowImage}
+                  resizeMode="contain"
+                />
+                <LogoIcon width={44} height={44} />
               </View>
-            </View>
-          </TouchableWithoutFeedback>
 
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-            bounces={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.card}>
-              {/* Tabs row */}
-              <View style={styles.tabRow}>
-                {TABS.map((tab) => {
-                  const isActive = activeTab === tab;
-                  const isConnected = tab === "Claude Code" ? claudeConnected : opencodeConnected;
-                  return (
+              <Text style={styles.connectedAgentName}>
+                {activeTab === "Claude Code" ? "Claude Code" : "OpenCode Zen"}
+              </Text>
+              <Text style={styles.connectedSubtitle}>Connected and ready to use.</Text>
+
+              <View style={styles.connectedBadge}>
+                <Text style={styles.connectedBadgeCheck}>✓</Text>
+                <Text style={styles.connectedBadgeText}>Connected</Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.disconnectBtn, isDisconnecting && styles.disconnectBtnDisabled]}
+                onPress={handleDisconnect}
+                activeOpacity={0.8}
+                disabled={isDisconnecting}
+              >
+                {isDisconnecting ? (
+                  <ActivityIndicator size="small" color="#841E1E" />
+                ) : (
+                  <Text style={styles.disconnectBtnText}>Disconnect</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {/* ── Step 1 ── */}
+              <View style={styles.stepBlock}>
+                <View style={styles.illustrationRow}>
+                  {isLoading ? (
+                    <SkeletonBox width={44} height={44} borderRadius={10} />
+                  ) : activeTab === "Claude Code" ? (
+                    <ClaudeIcon width={44} height={44} />
+                  ) : (
+                    <OpenCodeIcon width={44} height={44} />
+                  )}
+                  <Image
+                    source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
+                    style={styles.arrowImage}
+                    resizeMode="contain"
+                  />
+                  {isLoading ? (
+                    <SkeletonBox width={44} height={44} borderRadius={10} />
+                  ) : (
+                    <LogoIcon width={44} height={44} />
+                  )}
+                </View>
+
+                <View style={styles.stepHeader}>
+                  {isLoading ? (
+                    <SkeletonBox width={160} height={18} borderRadius={6} />
+                  ) : (
+                    <>
+                      <View style={styles.stepBadge}>
+                        <Text style={styles.stepBadgeText}>1</Text>
+                      </View>
+                      <Text style={styles.stepTitle}>Connect {agentLabel}</Text>
+                    </>
+                  )}
+                </View>
+
+                {isLoading ? (
+                  <View style={styles.skeletonDescGroup}>
+                    <SkeletonBox width="90%" height={13} borderRadius={6} />
+                    <SkeletonBox width="100%" height={13} borderRadius={6} />
+                    <SkeletonBox width="70%" height={13} borderRadius={6} />
+                  </View>
+                ) : (
+                  <Text style={styles.stepDesc}>
+                    {activeTab === "Claude Code"
+                      ? "You'll be redirected to Anthropic to login, and authorize Grass."
+                      : "You'll need an API key from Opencode. Visit the link below to get one."}
+                  </Text>
+                )}
+
+                {isLoading ? (
+                  <SkeletonBox height={40} borderRadius={10} />
+                ) : (
+                  <View style={styles.urlInputBox}>
+                    <Text style={styles.urlInputText} numberOfLines={1}>
+                      {authUrl || "Waiting for auth URL…"}
+                    </Text>
+                  </View>
+                )}
+
+                {isLoading ? (
+                  <View style={styles.buttonRow}>
+                    <SkeletonBox width="42%" height={38} borderRadius={40} />
+                    <SkeletonBox width="55%" height={38} borderRadius={40} />
+                  </View>
+                ) : (
+                  <View style={styles.buttonRow}>
                     <TouchableOpacity
-                      key={tab}
-                      style={[styles.tab, isActive && styles.tabActive]}
-                      onPress={async () => {
-                        if (tab === activeTab) return;
-                        setActiveTab(tab);
-                        setAuthCode("");
-                        setAuthError(false);
-                        setConnectError(null);
-                        if (tab === "Claude Code" && !claudeConnected) {
-                          const token = await getToken();
-                          if (token) startClaudeAuth(token);
-                        } else {
-                          setIsLoading(false);
-                        }
-                      }}
-                      activeOpacity={0.7}
+                      style={styles.copyButton}
+                      onPress={handleCopy}
+                      activeOpacity={0.75}
+                      disabled={!authUrl}
                     >
-                      {tab === "Claude Code" ? (
-                        <ClaudeTransparentIcon width={18} height={18} />
-                      ) : (
-                        <OpenCodeIcon width={18} height={18} />
-                      )}
-                      <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-                        {tab}
+                      <CopyIcon width={15} height={15} />
+                      <Text style={styles.copyButtonText}>
+                        {copied ? "Copied!" : "Copy link"}
                       </Text>
-                      {isConnected && (
-                        <View style={styles.tabConnectedDot} />
-                      )}
                     </TouchableOpacity>
-                  );
-                })}
+                    <TouchableOpacity
+                      style={styles.openBrowserButton}
+                      onPress={handleOpenBrowser}
+                      activeOpacity={0.85}
+                      disabled={!authUrl}
+                    >
+                      <Text style={styles.openBrowserText}>Open in browser</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
 
               <View style={styles.cardDivider} />
 
-              {/* ── Connected state ── */}
-              {isCurrentTabConnected ? (
-                <View style={styles.connectedBlock}>
-                  <View style={styles.illustrationRow}>
-                    {activeTab === "Claude Code" ? (
-                      <ClaudeIcon width={44} height={44} />
-                    ) : (
-                      <OpenCodeIcon width={44} height={44} />
-                    )}
-                    <Image
-                      source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
-                      style={styles.arrowImage}
-                      resizeMode="contain"
-                    />
-                    <LogoIcon width={44} height={44} />
-                  </View>
-
-                  <Text style={styles.connectedAgentName}>
-                    {activeTab === "Claude Code" ? "Claude Code" : "OpenCode Zen"}
-                  </Text>
-                  <Text style={styles.connectedSubtitle}>Connected and ready to use.</Text>
-
-                  <View style={styles.connectedBadge}>
-                    <Text style={styles.connectedBadgeCheck}>✓</Text>
-                    <Text style={styles.connectedBadgeText}>Connected</Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={[styles.disconnectBtn, isDisconnecting && styles.disconnectBtnDisabled]}
-                    onPress={handleDisconnect}
-                    activeOpacity={0.8}
-                    disabled={isDisconnecting}
-                  >
-                    {isDisconnecting ? (
-                      <ActivityIndicator size="small" color="#841E1E" />
-                    ) : (
-                      <Text style={styles.disconnectBtnText}>Disconnect</Text>
-                    )}
-                  </TouchableOpacity>
+              {/* ── Step 2 ── */}
+              <View style={styles.stepBlock}>
+                <View style={styles.stepHeader}>
+                  {isLoading ? (
+                    <SkeletonBox width={200} height={18} borderRadius={6} />
+                  ) : (
+                    <>
+                      <View style={styles.stepBadge}>
+                        <Text style={styles.stepBadgeText}>2</Text>
+                      </View>
+                      <Text style={styles.stepTitle}>{step2Title}</Text>
+                    </>
+                  )}
                 </View>
-              ) : (
-                <>
-                  {/* ── Step 1 ── */}
-                  <View style={styles.stepBlock}>
-                    <View style={styles.illustrationRow}>
-                      {isLoading ? (
-                        <SkeletonBox width={44} height={44} borderRadius={10} />
-                      ) : activeTab === "Claude Code" ? (
-                        <ClaudeIcon width={44} height={44} />
-                      ) : (
-                        <OpenCodeIcon width={44} height={44} />
-                      )}
-                      <Image
-                        source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
-                        style={styles.arrowImage}
-                        resizeMode="contain"
-                      />
-                      {isLoading ? (
-                        <SkeletonBox width={44} height={44} borderRadius={10} />
-                      ) : (
-                        <LogoIcon width={44} height={44} />
-                      )}
-                    </View>
 
-                    <View style={styles.stepHeader}>
-                      {isLoading ? (
-                        <SkeletonBox width={160} height={18} borderRadius={6} />
-                      ) : (
-                        <>
-                          <View style={styles.stepBadge}>
-                            <Text style={styles.stepBadgeText}>1</Text>
-                          </View>
-                          <Text style={styles.stepTitle}>Connect {agentLabel}</Text>
-                        </>
-                      )}
-                    </View>
-
-                    {isLoading ? (
-                      <View style={styles.skeletonDescGroup}>
-                        <SkeletonBox width="90%" height={13} borderRadius={6} />
-                        <SkeletonBox width="100%" height={13} borderRadius={6} />
-                        <SkeletonBox width="70%" height={13} borderRadius={6} />
-                      </View>
-                    ) : (
-                      <Text style={styles.stepDesc}>
-                        {activeTab === "Claude Code"
-                          ? "You'll be redirected to Anthropic to login, and authorize Grass."
-                          : "You'll need an API key from Opencode. Visit the link below to get one."}
-                      </Text>
-                    )}
-
-                    {isLoading ? (
-                      <SkeletonBox height={40} borderRadius={10} />
-                    ) : (
-                      <View style={styles.urlInputBox}>
-                        <Text style={styles.urlInputText} numberOfLines={1}>
-                          {authUrl || "Waiting for auth URL…"}
-                        </Text>
-                      </View>
-                    )}
-
-                    {isLoading ? (
-                      <View style={styles.buttonRow}>
-                        <SkeletonBox width="42%" height={38} borderRadius={40} />
-                        <SkeletonBox width="55%" height={38} borderRadius={40} />
-                      </View>
-                    ) : (
-                      <View style={styles.buttonRow}>
-                        <TouchableOpacity
-                          style={styles.copyButton}
-                          onPress={handleCopy}
-                          activeOpacity={0.75}
-                          disabled={!authUrl}
-                        >
-                          <CopyIcon width={15} height={15} />
-                          <Text style={styles.copyButtonText}>
-                            {copied ? "Copied!" : "Copy link"}
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.openBrowserButton}
-                          onPress={handleOpenBrowser}
-                          activeOpacity={0.85}
-                          disabled={!authUrl}
-                        >
-                          <Text style={styles.openBrowserText}>Open in browser</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.cardDivider} />
-
-                  {/* ── Step 2 ── */}
-                  <View style={styles.stepBlock}>
-                    <View style={styles.stepHeader}>
-                      {isLoading ? (
-                        <SkeletonBox width={200} height={18} borderRadius={6} />
-                      ) : (
-                        <>
-                          <View style={styles.stepBadge}>
-                            <Text style={styles.stepBadgeText}>2</Text>
-                          </View>
-                          <Text style={styles.stepTitle}>{step2Title}</Text>
-                        </>
-                      )}
-                    </View>
-
-                    {isLoading ? (
-                      <SkeletonBox height={48} borderRadius={10} />
-                    ) : (
-                      <TextInput
-                        ref={authInputRef}
-                        style={[styles.authInput, authError && styles.authInputError]}
-                        placeholder={step2Placeholder}
-                        placeholderTextColor="#9F9F9F"
-                        value={authCode}
-                        onChangeText={(t) => {
-                          setAuthCode(t);
-                          setAuthError(false);
-                          setConnectError(null);
-                        }}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        secureTextEntry={activeTab === "Opencode"}
-                      />
-                    )}
-
-                    {(authError || connectError) && (
-                      <Text style={styles.errorText}>
-                        {connectError ?? "That code doesn't match. Try again."}
-                      </Text>
-                    )}
-
-                    {isLoading ? (
-                      <SkeletonBox height={52} borderRadius={50} />
-                    ) : (
-                      <View
-                        style={[
-                          styles.connectButtonWrap,
-                          (authCode.trim().length === 0 || isConnecting) &&
-                            styles.connectButtonWrapNoShadow,
-                        ]}
-                      >
-                        <TouchableOpacity
-                          style={[
-                            styles.connectButton,
-                            authCode.trim().length > 0 && !isConnecting
-                              ? styles.connectButtonActive
-                              : styles.connectButtonDisabled,
-                          ]}
-                          onPress={handleConnect}
-                          activeOpacity={0.88}
-                          disabled={isConnecting}
-                        >
-                          {isConnecting ? (
-                            <ActivityIndicator color="#FFF" size="small" />
-                          ) : (
-                            <Text style={styles.connectButtonText}>
-                              Connect {agentLabel}
-                            </Text>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                </>
-              )}
-            </View>
-
-            {/* Footer */}
-            <View style={styles.footerRow}>
-              <SecureIcon width={14} height={14} />
-              <Text style={styles.footerNote}>{footerNote}</Text>
-            </View>
-            <TouchableOpacity activeOpacity={0.7} style={styles.learnMoreWrap}>
-              <Text style={styles.learnMoreText}>Learn more →</Text>
-            </TouchableOpacity>
-          </ScrollView>
-
-          {/* ── Green success overlay (only from auth flow, not status check) ── */}
-          <Animated.View
-            style={[styles.successOverlay, { transform: [{ translateY: successTranslateY }] }]}
-            pointerEvents={isGreenStep ? "auto" : "none"}
-          >
-            {step === "connected" && (
-              <View style={styles.greenContent}>
-                <View style={styles.greenCenter}>
-                  <SuccessMark width={192} height={244} />
-                  <Text style={styles.greenTitle}>Agent connected</Text>
-                  <Text style={styles.greenSubtitle}>{successSubtitle}</Text>
-                </View>
-                <View style={styles.greenFooter}>
-                  <TouchableOpacity style={styles.primaryButton} onPress={close} activeOpacity={0.85}>
-                    <Text style={styles.primaryButtonText}>Start a session</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.addAnotherButton}
-                    onPress={async () => {
-                      successTranslateY.setValue(SHEET_HEIGHT);
-                      setStep("form");
-                      setAuthCode("");
+                {isLoading ? (
+                  <SkeletonBox height={48} borderRadius={10} />
+                ) : (
+                  <TextInput
+                    ref={authInputRef}
+                    style={[styles.authInput, authError && styles.authInputError]}
+                    placeholder={step2Placeholder}
+                    placeholderTextColor="#9F9F9F"
+                    value={authCode}
+                    onChangeText={(t) => {
+                      setAuthCode(t);
                       setAuthError(false);
                       setConnectError(null);
-                      if (activeTab === "Claude Code") {
-                        const token = await getToken();
-                        if (token) startClaudeAuth(token);
-                      }
                     }}
-                    activeOpacity={0.85}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    secureTextEntry={activeTab === "Opencode"}
+                  />
+                )}
+
+                {(authError || connectError) && (
+                  <Text style={styles.errorText}>
+                    {connectError ?? "That code doesn't match. Try again."}
+                  </Text>
+                )}
+
+                {isLoading ? (
+                  <SkeletonBox height={52} borderRadius={50} />
+                ) : (
+                  <View
+                    style={[
+                      styles.connectButtonWrap,
+                      (authCode.trim().length === 0 || isConnecting) &&
+                        styles.connectButtonWrapNoShadow,
+                    ]}
                   >
-                    <Text style={styles.addAnotherButtonText}>Connect another</Text>
-                  </TouchableOpacity>
-                </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.connectButton,
+                        authCode.trim().length > 0 && !isConnecting
+                          ? styles.connectButtonActive
+                          : styles.connectButtonDisabled,
+                      ]}
+                      onPress={handleConnect}
+                      activeOpacity={0.88}
+                      disabled={isConnecting}
+                    >
+                      {isConnecting ? (
+                        <ActivityIndicator color="#FFF" size="small" />
+                      ) : (
+                        <Text style={styles.connectButtonText}>
+                          Connect {agentLabel}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
-            )}
-          </Animated.View>
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </Modal>
+            </>
+          )}
+        </View>
+
+        {/* Footer */}
+        <View style={styles.footerRow}>
+          <SecureIcon width={14} height={14} />
+          <Text style={styles.footerNote}>{footerNote}</Text>
+        </View>
+        <TouchableOpacity activeOpacity={0.7} style={styles.learnMoreWrap}>
+          <Text style={styles.learnMoreText}>Learn more →</Text>
+        </TouchableOpacity>
+      </BottomSheetScrollView>
+
+      {/* ── Green success overlay (slides up from bottom within the sheet) ── */}
+      <Animated.View
+        style={[styles.successOverlay, successStyle]}
+        pointerEvents={isGreenStep ? "auto" : "none"}
+      >
+        {step === "connected" && (
+          <View style={styles.greenContent}>
+            <View style={styles.greenCenter}>
+              <SuccessMark width={192} height={244} />
+              <Text style={styles.greenTitle}>Agent connected</Text>
+              <Text style={styles.greenSubtitle}>{successSubtitle}</Text>
+            </View>
+            <View style={styles.greenFooter}>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() => { bottomSheetRef.current?.dismiss(); }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.primaryButtonText}>Start a session</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.addAnotherButton}
+                onPress={async () => {
+                  successTranslateY.value = 800;
+                  setStep("form");
+                  setAuthCode("");
+                  setAuthError(false);
+                  setConnectError(null);
+                  if (activeTab === "Claude Code") {
+                    const token = await getToken();
+                    if (token) startClaudeAuth(token);
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.addAnotherButtonText}>Connect another</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </Animated.View>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.80)",
-  },
-  kavContainer: {
-    flex: 1,
-    justifyContent: "flex-end",
-    pointerEvents: "box-none",
-  },
-  sheet: {
-    width: "100%",
-    height: SHEET_HEIGHT,
-    backgroundColor: "#FFF",
+  sheetBackground: {
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    overflow: "hidden",
+    backgroundColor: "#FFF",
   },
-  dragArea: {
+  dragHandle: {
+    width: 36,
+    height: 5,
+    borderRadius: 100,
+    backgroundColor: "#CCC",
+  },
+  closeButton: {
+    position: "absolute",
+    top: 14,
+    right: 16,
+    zIndex: 10,
+  },
+  closeX: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#EBEBEB",
     alignItems: "center",
-    paddingTop: 10,
-    paddingBottom: 10,
-    backgroundColor: "transparent",
-    marginBottom: 20,
+    justifyContent: "center",
   },
-  dragger: { width: 36, height: 5, borderRadius: 100, backgroundColor: "#CCC" },
-  draggerOnGreen: { backgroundColor: "rgba(255, 255, 255, 0.40)" },
+  closeXText: {
+    fontSize: 14,
+    color: "#333",
+  },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 },
   headerText: { gap: 4 },
   headerTitle: {
@@ -726,19 +680,6 @@ const styles = StyleSheet.create({
     color: "#808080",
     letterSpacing: -0.2,
   },
-  closeButton: {
-    position: "absolute",
-    top: 14,
-    right: 16,
-    zIndex: 10,
-    width: 44,
-    height: 44,
-    borderRadius: 294,
-    backgroundColor: "#EBEBEB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  closeButtonTranslucent: { backgroundColor: "rgba(255, 255, 255, 0.30)" },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 36, gap: 14 },
 
   // Card

@@ -1,34 +1,31 @@
-import { BlurView } from "expo-blur";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   AppState,
-  Dimensions,
   Image,
-  Modal,
-  PanResponder,
   StyleSheet,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  useBottomSheetTimingConfigs,
+} from "@gorhom/bottom-sheet";
+import { Easing } from "react-native-reanimated";
 
 import GithubIcon from "@/assets/images/new-design/connect-more/github.svg";
 import LogoIcon from "@/assets/images/new-design/connect-more/logo.svg";
-import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 
 import { githubOauthDisconnect, githubOauthStart, githubOauthStatus } from "@/api/github";
 import { posthog } from "@/constants/posthog";
 import { SFPro } from "@/constants/theme";
 import { getToken } from "@/store/auth-store";
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const CLOSE_THRESHOLD = 80;
 
 type Props = {
   visible: boolean;
@@ -36,8 +33,7 @@ type Props = {
 };
 
 export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [githubConnected, setGithubConnected] = useState(false);
@@ -46,49 +42,31 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const githubFlowActive = useRef(false);
 
-  // ─── Sheet animation ──────────────────────────────────────────────────────
+  const snapPoints = ["90%"];
+  const animationConfigs = useBottomSheetTimingConfigs({
+    duration: 300,
+    easing: Easing.out(Easing.cubic),
+  });
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+    ),
+    [],
+  );
 
-  const open = useCallback(() => {
-    Animated.parallel([
-      Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 200 }),
-      Animated.timing(backdropOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-    ]).start();
-  }, [translateY, backdropOpacity]);
+  React.useEffect(() => {
+    if (!visible) {
+      bottomSheetRef.current?.dismiss();
+      return;
+    }
 
-  const close = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(translateY, { toValue: SCREEN_HEIGHT, duration: 300, useNativeDriver: true }),
-      Animated.timing(backdropOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
-    ]).start(() => onClose());
-  }, [translateY, backdropOpacity, onClose]);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 5,
-      onPanResponderMove: (_, gs) => { if (gs.dy > 0) translateY.setValue(gs.dy); },
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dy > CLOSE_THRESHOLD || gs.vy > 0.5) {
-          close();
-        } else {
-          Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 200 }).start();
-        }
-      },
-    }),
-  ).current;
-
-  // ─── Init: check status on open ──────────────────────────────────────────
-
-  useEffect(() => {
-    if (!visible) return;
-    translateY.setValue(SCREEN_HEIGHT);
+    bottomSheetRef.current?.present();
     setGithubConnected(false);
     setGithubLogin(null);
     setIsConnecting(false);
     setIsDisconnecting(false);
     githubFlowActive.current = false;
     setIsLoading(true);
-    open();
 
     void (async () => {
       const token = await getToken();
@@ -101,11 +79,10 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
       }
       setIsLoading(false);
     })();
-  }, [visible, open, translateY]);
+  }, [visible]);
 
-  // ─── AppState listener: check status when returning from browser ─────────
-
-  useEffect(() => {
+  // AppState listener: check status when returning from browser
+  React.useEffect(() => {
     if (!visible) return;
     const sub = AppState.addEventListener("change", (nextState) => {
       if (nextState !== "active" || !githubFlowActive.current) return;
@@ -124,8 +101,6 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
     });
     return () => sub.remove();
   }, [visible]);
-
-  // ─── Handlers ─────────────────────────────────────────────────────────────
 
   const handleConnect = useCallback(async () => {
     const token = await getToken();
@@ -187,26 +162,32 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
     );
   }, [githubLogin]);
 
-  if (!visible) return null;
-
   return (
-    <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
-      <TouchableWithoutFeedback onPress={close}>
-        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
-        </Animated.View>
-      </TouchableWithoutFeedback>
-
-      <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-        {/* Drag handle */}
-        <View style={styles.dragArea} {...panResponder.panHandlers}>
-          <View style={styles.dragger} />
+    <BottomSheetModal
+      ref={bottomSheetRef}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      animationConfigs={animationConfigs}
+      backdropComponent={renderBackdrop}
+      onDismiss={onClose}
+      backgroundStyle={styles.sheetBackground}
+      handleIndicatorStyle={styles.dragHandle}
+    >
+      {/* Close button */}
+      <TouchableOpacity
+        onPress={() => bottomSheetRef.current?.dismiss()}
+        style={styles.closeButton}
+        hitSlop={8}
+      >
+        <View style={styles.closeX}>
+          <Text style={styles.closeXText}>✕</Text>
         </View>
+      </TouchableOpacity>
 
-        <TouchableOpacity onPress={close} style={styles.closeButton} hitSlop={8}>
-          <CloseIcon />
-        </TouchableOpacity>
-
+      <BottomSheetScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Configure Git Access</Text>
@@ -222,7 +203,6 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
               <ActivityIndicator size="large" color="#3D841E" />
             </View>
           ) : githubConnected ? (
-            /* ── Connected state ── */
             <View style={styles.connectedBlock}>
               <View style={styles.illustrationRow}>
                 <GithubIcon width={44} height={44} />
@@ -258,7 +238,6 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
               </TouchableOpacity>
             </View>
           ) : (
-            /* ── Not connected state ── */
             <View style={styles.connectBlock}>
               <View style={styles.illustrationRow}>
                 <GithubIcon width={44} height={44} />
@@ -298,44 +277,43 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
         <View style={styles.footerRow}>
           <Text style={styles.footerNote}>Auth happens on GitHub's servers, not ours.</Text>
         </View>
-      </Animated.View>
-    </Modal>
+      </BottomSheetScrollView>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.80)",
-  },
-  sheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#FFF",
+  sheetBackground: {
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    overflow: "hidden",
-    paddingBottom: 36,
+    backgroundColor: "#FFF",
   },
-  dragArea: {
-    alignItems: "center",
-    paddingTop: 10,
-    paddingBottom: 10,
+  dragHandle: {
+    width: 36,
+    height: 5,
+    borderRadius: 100,
+    backgroundColor: "#CCC",
   },
-  dragger: { width: 36, height: 5, borderRadius: 100, backgroundColor: "#CCC" },
   closeButton: {
     position: "absolute",
     top: 14,
     right: 16,
     zIndex: 10,
+  },
+  closeX: {
     width: 44,
     height: 44,
-    borderRadius: 294,
+    borderRadius: 22,
     backgroundColor: "#EBEBEB",
     alignItems: "center",
     justifyContent: "center",
+  },
+  closeXText: {
+    fontSize: 14,
+    color: "#333",
+  },
+  scrollContent: {
+    paddingBottom: 36,
   },
   header: {
     paddingHorizontal: 16,
@@ -369,8 +347,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
-  // Connected state
   connectedBlock: {
     padding: 20,
     alignItems: "center",
@@ -433,8 +409,6 @@ const styles = StyleSheet.create({
     color: "#841E1E",
     letterSpacing: -0.3,
   },
-
-  // Not connected state
   connectBlock: {
     padding: 20,
     alignItems: "center",
@@ -472,8 +446,6 @@ const styles = StyleSheet.create({
     color: "#FFF",
     letterSpacing: -0.3,
   },
-
-  // Footer
   footerRow: {
     alignItems: "center",
     justifyContent: "center",

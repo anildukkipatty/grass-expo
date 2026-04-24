@@ -1,30 +1,30 @@
-import { BlurView } from "expo-blur";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
-  Animated,
-  Dimensions,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
-  Modal,
-  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  useBottomSheetTimingConfigs,
+} from "@gorhom/bottom-sheet";
+import { Easing } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 
 import CopyIcon from "@/assets/images/new-design/connect-more/copy-icon.svg";
 import SecureIcon from "@/assets/images/new-design/connect-more/secure.svg";
 import SuccessMark from "@/assets/images/new-design/connect-more/success-mark.svg";
-import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 
 import { SFMono, SFPro } from "@/constants/theme";
 import { VM_ICONS } from "@/constants/vm-icons";
@@ -33,13 +33,8 @@ import { openConnectionWithKey } from "@/store/connection-store";
 import { saveUrl } from "@/store/url-store";
 import { setVmMetadata } from "@/store/vm-metadata-store";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
-const CLOSE_THRESHOLD = 80;
 const COMMAND = "npx grass start";
-
 type Step = "scan" | "paired" | "setup" | "ready";
-
 const ICONS = VM_ICONS;
 
 type Props = {
@@ -48,9 +43,7 @@ type Props = {
 };
 
 export function ConnectLaptopSlider({ visible, onClose }: Props) {
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const successTranslateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
 
   const [copied, setCopied] = useState(false);
   const { vmUrls, setVmUrls, primaryVmUrl } = useNavbar();
@@ -62,98 +55,57 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
   const [selectedIconIndex, setSelectedIconIndex] = useState(0);
   const [scannedUrl, setScannedUrl] = useState("");
 
-  const open = useCallback(() => {
-    Animated.parallel([
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        damping: 20,
-        stiffness: 200,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [translateY, backdropOpacity]);
+  const snapPoints = ["90%"];
+  const animationConfigs = useBottomSheetTimingConfigs({
+    duration: 300,
+    easing: Easing.out(Easing.cubic),
+  });
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+    ),
+    [],
+  );
 
-  const close = useCallback(() => {
-    Keyboard.dismiss();
-    setCameraEnabled(false);
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: SCREEN_HEIGHT,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start(() => onClose());
-  }, [translateY, backdropOpacity, onClose]);
-
-  useEffect(() => {
-    if (visible) {
-      translateY.setValue(SCREEN_HEIGHT);
-      successTranslateY.setValue(SHEET_HEIGHT);
-      setCopied(false);
-      setCameraEnabled(false);
-      setStep("scan");
-      setMachineName("");
-      setSelectedIconIndex(0);
-      open();
-    }
-  }, [visible, open, translateY, successTranslateY]);
+  // Success overlay animation
+  const successTranslateY = useSharedValue(800);
+  const successStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: successTranslateY.value }],
+  }));
 
   const slideSuccessIn = useCallback(
     (nextStep: "paired" | "ready") => {
       setStep(nextStep);
-      successTranslateY.setValue(SHEET_HEIGHT);
-      Animated.spring(successTranslateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        damping: 20,
-        stiffness: 180,
-      }).start();
+      successTranslateY.value = 800;
+      successTranslateY.value = withSpring(0, { damping: 20, stiffness: 180 });
     },
     [successTranslateY],
   );
 
   const slideSuccessOut = useCallback(
     (nextStep: Step) => {
-      Animated.timing(successTranslateY, {
-        toValue: SHEET_HEIGHT,
-        duration: 280,
-        useNativeDriver: true,
-      }).start(() => setStep(nextStep));
+      successTranslateY.value = withTiming(800, { duration: 280 }, () => {
+        // run on JS thread after animation
+      });
+      // Use setTimeout so setStep runs after animation starts
+      setTimeout(() => setStep(nextStep), 280);
     },
     [successTranslateY],
   );
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 5,
-      onPanResponderMove: (_, gs) => {
-        if (gs.dy > 0) translateY.setValue(gs.dy);
-      },
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dy > CLOSE_THRESHOLD || gs.vy > 0.5) {
-          close();
-        } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            damping: 20,
-            stiffness: 200,
-          }).start();
-        }
-      },
-    }),
-  ).current;
+  useEffect(() => {
+    if (visible) {
+      bottomSheetRef.current?.present();
+      successTranslateY.value = 800;
+      setCopied(false);
+      setCameraEnabled(false);
+      setStep("scan");
+      setMachineName("");
+      setSelectedIconIndex(0);
+    } else {
+      bottomSheetRef.current?.dismiss();
+    }
+  }, [visible, successTranslateY]);
 
   const handleCopy = useCallback(() => {
     setCopied(true);
@@ -193,374 +145,320 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
     }
   }, [cameraPermission, requestCameraPermission]);
 
-  if (!visible) return null;
-
   const isGreenStep = step === "paired" || step === "ready";
   const SelectedIconComponent = ICONS[selectedIconIndex];
 
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="none"
-      statusBarTranslucent
+    <BottomSheetModal
+      ref={bottomSheetRef}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      animationConfigs={animationConfigs}
+      backdropComponent={renderBackdrop}
+      onDismiss={() => { setCameraEnabled(false); onClose(); }}
+      backgroundStyle={styles.sheetBackground}
+      handleIndicatorStyle={styles.dragHandle}
     >
-      <TouchableWithoutFeedback onPress={close}>
-        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-          <BlurView
-            intensity={20}
-            tint="dark"
-            style={StyleSheet.absoluteFillObject}
-          />
-        </Animated.View>
-      </TouchableWithoutFeedback>
-
-      <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-        {!isGreenStep && (
-          <LinearGradient
-            colors={[
-              "#FFF",
-              "rgba(255,255,255,0.90)",
-              "rgba(255,255,255,0.00)",
-            ]}
-            locations={[0.2862, 0.7975, 1]}
-            style={StyleSheet.absoluteFillObject}
-            pointerEvents="none"
-          />
-        )}
-
-        {/* Close button */}
-        <TouchableOpacity
-          onPress={close}
-          style={[
-            styles.closeButton,
-            isGreenStep && styles.closeButtonTranslucent,
-          ]}
-          hitSlop={8}
-        >
-          <CloseIcon />
-        </TouchableOpacity>
-
-        {/* Drag handle */}
-        <View style={styles.dragArea} {...panResponder.panHandlers}>
-          <View
-            style={[styles.dragger, isGreenStep && styles.draggerOnGreen]}
-          />
+      {/* Close button */}
+      <TouchableOpacity
+        onPress={() => { setCameraEnabled(false); bottomSheetRef.current?.dismiss(); }}
+        style={styles.closeButton}
+        hitSlop={8}
+      >
+        <View style={styles.closeX}>
+          <Text style={styles.closeXText}>✕</Text>
         </View>
+      </TouchableOpacity>
 
-        {/* ── Scan step ── */}
-        {step === "scan" && (
-          <>
-            <View style={styles.header}>
-              <View style={styles.headerText}>
-                <Text style={styles.headerTitle}>Connect your laptop</Text>
-                <Text style={styles.headerSubtitle}>
-                  All optional. Set up whenever you&#39;re ready.
-                </Text>
-              </View>
+      {/* ── Scan step ── */}
+      {step === "scan" && (
+        <>
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <Text style={styles.headerTitle}>Connect your laptop</Text>
+              <Text style={styles.headerSubtitle}>
+                All optional. Set up whenever you&#39;re ready.
+              </Text>
             </View>
+          </View>
 
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
-              bounces={false}
-            >
-              <View style={styles.stepBlock}>
-                <View style={styles.stepHeader}>
-                  <View style={styles.stepBadge}>
-                    <Text style={styles.stepBadgeText}>1</Text>
-                  </View>
-                  <Text style={styles.stepTitle}>
-                    Run this in your terminal
-                  </Text>
-                </View>
-
-                <View style={styles.commandBox}>
-                  <Text style={styles.commandText}>{COMMAND}</Text>
-                  <TouchableOpacity
-                    style={styles.copyButton}
-                    onPress={handleCopy}
-                    activeOpacity={0.8}
-                  >
-                    <CopyIcon width={14} height={14} color="#FFF" />
-                    <Text style={styles.copyButtonText}>
-                      {copied ? "Copied!" : "Copy"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.stepDivider} />
-
-                <View style={styles.stepHeader}>
-                  <View style={styles.stepBadge}>
-                    <Text style={styles.stepBadgeText}>2</Text>
-                  </View>
-                  <Text style={styles.stepTitle}>Scan the QR code</Text>
-                </View>
-
-                <View style={styles.qrArea}>
-                  {cameraEnabled ? (
-                    <CameraView
-                      style={styles.camera}
-                      facing="back"
-                      barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-                      onBarcodeScanned={(result) => {
-                        if (result.data) {
-                          setScannedUrl(result.data);
-                          setCameraEnabled(false);
-                          slideSuccessIn("paired");
-                        }
-                      }}
-                    />
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.cameraPlaceholder}
-                      onPress={handleEnableCamera}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.cameraPlaceholderText}>
-                        Tap to enable camera
-                      </Text>
-                      <Text style={styles.cameraPlaceholderSub}>
-                        Camera permission required
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-
-              <View style={styles.footerSection}>
-                <View style={styles.footerRow}>
-                  <SecureIcon width={14} height={14} />
-                  <Text style={styles.footerNote}>
-                    Your code never leaves your machine.
-                  </Text>
-                </View>
-                <TouchableOpacity activeOpacity={0.7}>
-                  <Text style={styles.learnMore}>Learn more →</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </>
-        )}
-
-        {/* ── Setup step ── */}
-        {step === "setup" && (
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          <BottomSheetScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
           >
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={{ flex: 1 }}>
-                <View style={styles.header}>
-                  <View style={styles.headerText}>
-                    <Text style={styles.headerTitle}>Set up this machine</Text>
-                    <Text style={styles.headerSubtitle}>
-                      Pick a icon and a name you&#39;ll recognize.
-                    </Text>
-                  </View>
+            <View style={styles.stepBlock}>
+              <View style={styles.stepHeader}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>1</Text>
                 </View>
-
-                <ScrollView
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={styles.setupScrollContent}
-                  bounces={false}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.iconSelectorContent}
-                    keyboardShouldPersistTaps="handled"
-                  >
-                    {ICONS.map((IconComp, index) => {
-                      const isSelected = selectedIconIndex === index;
-                      return (
-                        <View key={index} style={styles.iconWrapper}>
-                          <TouchableOpacity
-                            style={[
-                              styles.iconItem,
-                              isSelected && styles.iconItemSelected,
-                            ]}
-                            onPress={() => {
-                              Keyboard.dismiss();
-                              setSelectedIconIndex(index);
-                            }}
-                            activeOpacity={0.8}
-                          >
-                            {isSelected ? (
-                              <View style={styles.iconInnerCircle}>
-                                <IconComp width={60} height={60} />
-                              </View>
-                            ) : (
-                              <IconComp width={44} height={44} />
-                            )}
-                          </TouchableOpacity>
-                        </View>
-                      );
-                    })}
-                  </ScrollView>
-
-                  <View style={styles.nameInputContainer}>
-                    <TextInput
-                      style={styles.nameInput}
-                      placeholder="Work Laptop"
-                      placeholderTextColor="#888"
-                      value={machineName}
-                      onChangeText={setMachineName}
-                      textAlign="center"
-                      returnKeyType="done"
-                      onSubmitEditing={Keyboard.dismiss}
-                    />
-                    <Text style={styles.nameLabel}>NAME</Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.saveButton,
-                      machineName.trim()
-                        ? styles.saveButtonActive
-                        : styles.saveButtonInactive,
-                    ]}
-                    onPress={async () => {
-                      if (!machineName.trim()) return;
-                      Keyboard.dismiss();
-                      const url = scannedUrl.trim();
-                      if (url) {
-                        await saveUrl(url);
-                        await setVmMetadata(url, { name: machineName.trim(), iconIndex: selectedIconIndex });
-                        openConnectionWithKey(url, url);
-                        setVmUrls(orderVmUrls([...vmUrls, url], primaryVmUrl));
-                      }
-                      slideSuccessIn("ready");
-                    }}
-                    activeOpacity={machineName.trim() ? 0.85 : 1}
-                  >
-                    <Text style={styles.saveButtonText}>Save</Text>
-                  </TouchableOpacity>
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </KeyboardAvoidingView>
-        )}
-
-        {/* ── Green success overlay (paired + ready) — slides up from bottom ── */}
-        <Animated.View
-          style={[
-            styles.successOverlay,
-            { transform: [{ translateY: successTranslateY }] },
-          ]}
-          pointerEvents={isGreenStep ? "auto" : "none"}
-        >
-          {/* ── Machine paired step ── */}
-          {step === "paired" && (
-            <View style={styles.greenContent}>
-              <View style={styles.greenCenter}>
-                <SuccessMark width={192} height={244} />
-                <Text style={styles.greenTitle}>Machine paired</Text>
-                <Text style={styles.greenSubtitle}>
-                  Your computer is connected to Grass over your local network.
+                <Text style={styles.stepTitle}>
+                  Run this in your terminal
                 </Text>
               </View>
-              <View style={styles.greenFooter}>
-                <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={() => slideSuccessOut("setup")}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.primaryButtonText}>Continue</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
 
-          {/* ── Ready to go step ── */}
-          {step === "ready" && (
-            <View style={styles.greenContent}>
-              <View style={styles.greenCenter}>
-                <View style={styles.readyIconGlow}>
-                  <View style={styles.readyIconCircle}>
-                    <SelectedIconComponent width={60} height={60} />
-                  </View>
-                </View>
-                <Text style={styles.greenTitle}>Ready to go</Text>
-                <Text style={styles.greenSubtitle}>
-                  {machineName} is connected. Start a session anytime.
-                </Text>
-              </View>
-              <View style={styles.greenFooter}>
+              <View style={styles.commandBox}>
+                <Text style={styles.commandText}>{COMMAND}</Text>
                 <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={close}
-                  activeOpacity={0.85}
+                  style={styles.copyButton}
+                  onPress={handleCopy}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.primaryButtonText}>Start a session</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.addAnotherButton}
-                  onPress={() => {
-                    successTranslateY.setValue(SHEET_HEIGHT);
-                    setStep("scan");
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.addAnotherButtonText}>
-                    Add another machine
+                  <CopyIcon width={14} height={14} color="#FFF" />
+                  <Text style={styles.copyButtonText}>
+                    {copied ? "Copied!" : "Copy"}
                   </Text>
                 </TouchableOpacity>
               </View>
+
+              <View style={styles.stepDivider} />
+
+              <View style={styles.stepHeader}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>2</Text>
+                </View>
+                <Text style={styles.stepTitle}>Scan the QR code</Text>
+              </View>
+
+              <View style={styles.qrArea}>
+                {cameraEnabled ? (
+                  <CameraView
+                    style={styles.camera}
+                    facing="back"
+                    barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                    onBarcodeScanned={(result) => {
+                      if (result.data) {
+                        setScannedUrl(result.data);
+                        setCameraEnabled(false);
+                        slideSuccessIn("paired");
+                      }
+                    }}
+                  />
+                ) : (
+                  <TouchableOpacity
+                    style={styles.cameraPlaceholder}
+                    onPress={handleEnableCamera}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.cameraPlaceholderText}>
+                      Tap to enable camera
+                    </Text>
+                    <Text style={styles.cameraPlaceholderSub}>
+                      Camera permission required
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
-          )}
-        </Animated.View>
+
+            <View style={styles.footerSection}>
+              <View style={styles.footerRow}>
+                <SecureIcon width={14} height={14} />
+                <Text style={styles.footerNote}>
+                  Your code never leaves your machine.
+                </Text>
+              </View>
+              <TouchableOpacity activeOpacity={0.7}>
+                <Text style={styles.learnMore}>Learn more →</Text>
+              </TouchableOpacity>
+            </View>
+          </BottomSheetScrollView>
+        </>
+      )}
+
+      {/* ── Setup step ── */}
+      {step === "setup" && (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <Text style={styles.headerTitle}>Set up this machine</Text>
+              <Text style={styles.headerSubtitle}>
+                Pick a icon and a name you&#39;ll recognize.
+              </Text>
+            </View>
+          </View>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.setupScrollContent}
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.iconSelectorContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {ICONS.map((IconComp, index) => {
+                const isSelected = selectedIconIndex === index;
+                return (
+                  <View key={index} style={styles.iconWrapper}>
+                    <TouchableOpacity
+                      style={[
+                        styles.iconItem,
+                        isSelected && styles.iconItemSelected,
+                      ]}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setSelectedIconIndex(index);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      {isSelected ? (
+                        <View style={styles.iconInnerCircle}>
+                          <IconComp width={60} height={60} />
+                        </View>
+                      ) : (
+                        <IconComp width={44} height={44} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.nameInputContainer}>
+              <TextInput
+                style={styles.nameInput}
+                placeholder="Work Laptop"
+                placeholderTextColor="#888"
+                value={machineName}
+                onChangeText={setMachineName}
+                textAlign="center"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+              />
+              <Text style={styles.nameLabel}>NAME</Text>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.saveButton,
+                machineName.trim()
+                  ? styles.saveButtonActive
+                  : styles.saveButtonInactive,
+              ]}
+              onPress={async () => {
+                if (!machineName.trim()) return;
+                Keyboard.dismiss();
+                const url = scannedUrl.trim();
+                if (url) {
+                  await saveUrl(url);
+                  await setVmMetadata(url, { name: machineName.trim(), iconIndex: selectedIconIndex });
+                  openConnectionWithKey(url, url);
+                  setVmUrls(orderVmUrls([...vmUrls, url], primaryVmUrl));
+                }
+                slideSuccessIn("ready");
+              }}
+              activeOpacity={machineName.trim() ? 0.85 : 1}
+            >
+              <Text style={styles.saveButtonText}>Save</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      )}
+
+      {/* ── Green success overlay (paired + ready) ── */}
+      <Animated.View
+        style={[styles.successOverlay, successStyle]}
+        pointerEvents={isGreenStep ? "auto" : "none"}
+      >
+        {/* ── Machine paired step ── */}
+        {step === "paired" && (
+          <View style={styles.greenContent}>
+            <View style={styles.greenCenter}>
+              <SuccessMark width={192} height={244} />
+              <Text style={styles.greenTitle}>Machine paired</Text>
+              <Text style={styles.greenSubtitle}>
+                Your computer is connected to Grass over your local network.
+              </Text>
+            </View>
+            <View style={styles.greenFooter}>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() => slideSuccessOut("setup")}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.primaryButtonText}>Continue</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ── Ready to go step ── */}
+        {step === "ready" && (
+          <View style={styles.greenContent}>
+            <View style={styles.greenCenter}>
+              <View style={styles.readyIconGlow}>
+                <View style={styles.readyIconCircle}>
+                  <SelectedIconComponent width={60} height={60} />
+                </View>
+              </View>
+              <Text style={styles.greenTitle}>Ready to go</Text>
+              <Text style={styles.greenSubtitle}>
+                {machineName} is connected. Start a session anytime.
+              </Text>
+            </View>
+            <View style={styles.greenFooter}>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() => bottomSheetRef.current?.dismiss()}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.primaryButtonText}>Start a session</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.addAnotherButton}
+                onPress={() => {
+                  successTranslateY.value = 800;
+                  setStep("scan");
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.addAnotherButtonText}>
+                  Add another machine
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </Animated.View>
-    </Modal>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.80)",
-  },
-  sheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: SHEET_HEIGHT,
-    backgroundColor: "#FFF",
+  sheetBackground: {
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    overflow: "hidden",
+    backgroundColor: "#FFF",
   },
-  dragArea: {
-    alignItems: "center",
-    paddingTop: 10,
-    paddingBottom: 6,
-  },
-  dragger: {
+  dragHandle: {
     width: 36,
     height: 5,
     borderRadius: 100,
     backgroundColor: "#CCC",
-  },
-  draggerOnGreen: {
-    backgroundColor: "rgba(255, 255, 255, 0.40)",
   },
   closeButton: {
     position: "absolute",
     top: 16,
     right: 16,
     zIndex: 10,
+  },
+  closeX: {
     width: 44,
     height: 44,
-    borderRadius: 296,
+    borderRadius: 22,
     backgroundColor: "#EBEBEB",
     alignItems: "center",
     justifyContent: "center",
   },
-  closeButtonTranslucent: {
-    backgroundColor: "rgba(255, 255, 255, 0.30)",
+  closeXText: {
+    fontSize: 14,
+    color: "#333",
   },
   header: {
     paddingHorizontal: 16,
@@ -717,7 +615,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     lineHeight: 18,
   },
-  // Green success overlay — absolutely fills the sheet and slides up from bottom
   successOverlay: {
     position: "absolute",
     top: 0,
@@ -728,13 +625,11 @@ const styles = StyleSheet.create({
   },
   greenContent: {
     flex: 1,
-    // paddingBottom: 40,
   },
   greenCenter: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    // paddingHorizontal: 32,
     gap: 16,
   },
   greenTitle: {
@@ -781,7 +676,6 @@ const styles = StyleSheet.create({
     color: "#FFF",
     letterSpacing: -0.3,
   },
-  // Ready icon
   readyIconGlow: {
     width: 80,
     height: 80,
@@ -798,7 +692,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  // Setup step
   setupScrollContent: {
     paddingHorizontal: 16,
     paddingBottom: 36,
@@ -817,7 +710,7 @@ const styles = StyleSheet.create({
   iconItem: {
     width: 90,
     height: 90,
-    borderRadius: "50%",
+    borderRadius: 45,
     borderWidth: 4,
     borderColor: "transparent",
     backgroundColor: "#E3FDD7",
