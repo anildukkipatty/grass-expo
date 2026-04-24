@@ -1,3 +1,9 @@
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  useBottomSheetTimingConfigs,
+} from "@gorhom/bottom-sheet";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -13,14 +19,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetScrollView,
-  useBottomSheetTimingConfigs,
-} from "@gorhom/bottom-sheet";
-import { Easing } from "react-native-reanimated";
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 
 import CopyIcon from "@/assets/images/new-design/connect-more/copy-icon.svg";
 import SecureIcon from "@/assets/images/new-design/connect-more/secure.svg";
@@ -62,7 +67,11 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
   });
   const renderBackdrop = useCallback(
     (props: any) => (
-      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+      />
     ),
     [],
   );
@@ -155,13 +164,19 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
       enablePanDownToClose
       animationConfigs={animationConfigs}
       backdropComponent={renderBackdrop}
-      onDismiss={() => { setCameraEnabled(false); onClose(); }}
+      onDismiss={() => {
+        setCameraEnabled(false);
+        onClose();
+      }}
       backgroundStyle={styles.sheetBackground}
       handleIndicatorStyle={styles.dragHandle}
     >
       {/* Close button */}
       <TouchableOpacity
-        onPress={() => { setCameraEnabled(false); bottomSheetRef.current?.dismiss(); }}
+        onPress={() => {
+          setCameraEnabled(false);
+          bottomSheetRef.current?.dismiss();
+        }}
         style={styles.closeButton}
         hitSlop={8}
       >
@@ -191,9 +206,7 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
                 <View style={styles.stepBadge}>
                   <Text style={styles.stepBadgeText}>1</Text>
                 </View>
-                <Text style={styles.stepTitle}>
-                  Run this in your terminal
-                </Text>
+                <Text style={styles.stepTitle}>Run this in your terminal</Text>
               </View>
 
               <View style={styles.commandBox}>
@@ -347,7 +360,10 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
                 const url = scannedUrl.trim();
                 if (url) {
                   await saveUrl(url);
-                  await setVmMetadata(url, { name: machineName.trim(), iconIndex: selectedIconIndex });
+                  await setVmMetadata(url, {
+                    name: machineName.trim(),
+                    iconIndex: selectedIconIndex,
+                  });
                   openConnectionWithKey(url, url);
                   setVmUrls(orderVmUrls([...vmUrls, url], primaryVmUrl));
                 }
@@ -625,6 +641,7 @@ const styles = StyleSheet.create({
   },
   greenContent: {
     flex: 1,
+    paddingBottom: 140,
   },
   greenCenter: {
     flex: 1,
