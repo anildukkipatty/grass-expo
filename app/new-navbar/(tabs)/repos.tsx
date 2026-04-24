@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { MachineCarousel, Machine } from "@/components/new-navbar/MachineCarousel";
 import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
 import { AddRepoSlider } from "@/components/new-navbar/AddRepoSlider";
@@ -57,6 +57,7 @@ const CUSTOM_VM_COLORS: { borderColor: string; backgroundColor: string }[] = [
 
 export default function ReposScreen() {
   const { bottom } = useSafeAreaInsets();
+  const router = useRouter();
   const [connectMoreVisible, setConnectMoreVisible] = React.useState(false);
   const [addRepoVisible, setAddRepoVisible] = useState(false);
   const [cloneGithubVisible, setCloneGithubVisible] = useState(false);
@@ -73,7 +74,6 @@ export default function ReposScreen() {
     repos,
     reposLoading,
     refreshRepos,
-    setPendingRepo,
   } = useNavbar();
 
   // Reload stored names + icons whenever the VM list changes or tab is focused
@@ -207,7 +207,10 @@ export default function ReposScreen() {
               key={repo.id}
               style={styles.repoItem}
               activeOpacity={0.7}
-              onPress={() => setPendingRepo(repo)}
+              onPress={() => router.push({
+                pathname: "/new-navbar/chat-list",
+                params: { repoName: repo.name, repoPath: repo.path },
+              })}
             >
               <View style={styles.repoInfo}>
                 <Text style={styles.repoName}>{repo.name}</Text>

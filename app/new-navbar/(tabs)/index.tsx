@@ -226,7 +226,7 @@ export default function HomeScreen() {
                   });
                   setSessionLabel(thread.title);
                   router.push({
-                    pathname: "/chat",
+                    pathname: "/new-navbar/chat",
                     params: {
                       serverUrl: thread.serverUrl,
                       sessionId: thread.grassId,

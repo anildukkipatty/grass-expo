@@ -4,10 +4,12 @@ import { usePathname } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 
 import { NavbarHeader } from "@/components/new-navbar/NavbarHeader";
+import { useNavbar } from "@/contexts/navbar-context";
 
 export default function TabsLayout() {
   const pathname = usePathname();
   const showNavbarHeader = !pathname.includes("chat-list");
+  const { permsCount } = useNavbar();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -24,6 +26,9 @@ export default function TabsLayout() {
         <NativeTabs.Trigger name="permissions">
           <NativeTabs.Trigger.Icon sf="bolt.fill" md="bolt" />
           <NativeTabs.Trigger.Label>Permissions</NativeTabs.Trigger.Label>
+          {permsCount > 0 && (
+            <NativeTabs.Trigger.Badge>{String(permsCount)}</NativeTabs.Trigger.Badge>
+          )}
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="repos">
           <NativeTabs.Trigger.Icon sf="tray.fill" md="inbox" />

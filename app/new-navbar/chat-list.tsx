@@ -56,7 +56,7 @@ export default function ChatListScreen() {
     posthog.capture("thread_resumed", { agent: thread.tool, repo_name: thread.repo });
     setSessionLabel(thread.title);
     router.push({
-      pathname: "/chat",
+      pathname: "/new-navbar/chat",
       params: {
         serverUrl: thread.serverUrl,
         sessionId: thread.grassId,

@@ -19,6 +19,24 @@ import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg
 import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 import UpArrowIcon from "@/assets/images/new-design/up-arrow.svg";
 import { SFMono, SFPro } from "@/constants/theme";
+import { posthog } from "@/constants/posthog";
+import { useServer } from "@/hooks/use-server";
+import {
+  closeSSEStream,
+  getEntry,
+  getPermissions,
+  GlobalPermissionItem,
+  respondGlobalPermission,
+  subscribeToConnection,
+  subscribeToPermissions,
+} from "@/store/connection-store";
+import {
+  getSessionLabel,
+  setSessionLabel,
+  subscribeSessionLabel,
+} from "@/store/session-label-store";
+import { upsertThread } from "@/store/thread-store";
+import { AgentTypingskeleton } from "@/components/SkeletonLoader";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -27,8 +45,9 @@ import {
 import { BlurView } from "expo-blur";
 import { useCameraPermissions } from "expo-camera";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   KeyboardAvoidingView,
@@ -46,31 +65,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MODELS = [
-  {
-    key: "claude-opus-4-7",
-    label: "Claude Opus 4.6",
-    subtitle: "Most capable",
-  },
-  {
-    key: "claude-sonnet-4-6",
-    label: "Claude Sonnet 4.6",
-    subtitle: "Fast, Capable",
-  },
-  {
-    key: "claude-haiku-4-5",
-    label: "Claude Haiku 4.5",
-    subtitle: "Fastest response",
-  },
+  { key: "claude-opus-4-7",   label: "Claude Opus 4.7",   subtitle: "Most capable" },
+  { key: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", subtitle: "Fast, Capable" },
+  { key: "claude-haiku-4-5",  label: "Claude Haiku 4.5",  subtitle: "Fastest response" },
 ];
 
-function getShortTitle(text: string): string {
-  const cleaned = (text || "").replace(/\n/g, " ").trim();
-  const first = cleaned.split(/[.!?]/)[0].trim();
-  if (first.length <= 36) return first;
-  return cleaned.substring(0, 33) + "...";
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Sub-components (V2 visual design — do not change styles) ─────────────────
 
 function UserBubble({ text }: { text: string }) {
   return (
@@ -98,41 +98,10 @@ function WritingPill({ path }: { path: string }) {
   );
 }
 
-function AgentResponse() {
+function ToolPill({ label }: { label: string }) {
   return (
-    <View style={styles.agentBlock}>
-      <Text style={styles.agentText}>
-        {
-          "I've analyzed the current auth setup. JWT validation is duplicated across 4 route files.\nHere's my plan:"
-        }
-      </Text>
-      <View style={styles.listRow}>
-        <Text style={styles.agentText}>{"1. Create "}</Text>
-        <View style={styles.inlineCodeBox}>
-          <Text style={styles.inlineCodeText}>src/utils/jwt.ts</Text>
-        </View>
-        <Text style={styles.agentText}>{" with shared validation"}</Text>
-      </View>
-      <Text style={styles.agentText}>
-        {"2. Update the middleware to use the new utility"}
-      </Text>
-      <Text style={styles.agentText}>{"3. Update all route handlers"}</Text>
-      <Text style={styles.agentText}>{"4. Add unit tests"}</Text>
-      <Text style={[styles.agentText, { marginTop: 10 }]}>
-        {"Starting with the utility file:"}
-      </Text>
-    </View>
-  );
-}
-
-function AgentCodeBlock() {
-  const code = `export function validateToken(token: string): TokenPayload {
-  const decoded = jwt.verify(token, SECRET);
-  return { userId: decoded.s, role: decoded.role };
-}`;
-  return (
-    <View style={styles.codeBlock}>
-      <Text style={styles.codeText}>{code}</Text>
+    <View style={styles.actionPill}>
+      <Text style={styles.actionPillText}>{label}</Text>
     </View>
   );
 }
@@ -169,19 +138,11 @@ function PermCard({
         </View>
       </View>
       <View style={styles.permActionRow}>
-        <TouchableOpacity
-          style={styles.denyBtn}
-          onPress={onDeny}
-          activeOpacity={0.8}
-        >
+        <TouchableOpacity style={styles.denyBtn} onPress={onDeny} activeOpacity={0.8}>
           <DenyIcon width={16} height={16} />
           <Text style={styles.actionBtnText}>Deny</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.approveBtn}
-          onPress={onApprove}
-          activeOpacity={0.8}
-        >
+        <TouchableOpacity style={styles.approveBtn} onPress={onApprove} activeOpacity={0.8}>
           <ApproveIcon width={16} height={16} />
           <Text style={styles.actionBtnText}>Approve</Text>
         </TouchableOpacity>
@@ -212,48 +173,187 @@ export default function ChatScreen() {
   const { top, bottom } = useSafeAreaInsets();
   const router = useRouter();
   const {
-    task = "",
-    repoName = "grass-welcome",
-    branchName = "main",
+    serverUrl: serverUrlParam,
+    sessionId: initialSessionId,
+    repoName,
+    repoPath,
+    agent,
+    initialMessage,
   } = useLocalSearchParams<{
-    task: string;
-    repoName: string;
-    branchName: string;
+    serverUrl: string;
+    sessionId?: string;
+    repoName?: string;
+    repoPath?: string;
+    agent?: string;
+    initialMessage?: string;
   }>();
 
+  // Pin the first non-null serverUrl so it never reverts mid-session
+  const serverUrlRef = useRef<string | null>(null);
+  if (serverUrlParam && !serverUrlRef.current) serverUrlRef.current = serverUrlParam;
+  const serverUrl = serverUrlRef.current ?? serverUrlParam ?? null;
+
+  const repoNameStr = Array.isArray(repoName) ? repoName[0] : (repoName ?? "");
+  const repoPathStr = Array.isArray(repoPath) ? repoPath[0] : (repoPath ?? "");
+  const agentStr    = Array.isArray(agent)    ? agent[0]    : (agent ?? "claude-code");
+
+  // ── Local state ──
   const [inputText, setInputText] = useState("");
-  const [perm1Dismissed, setPerm1Dismissed] = useState(false);
-  const [perm2Dismissed, setPerm2Dismissed] = useState(false);
-  const [perm3Dismissed, setPerm3Dismissed] = useState(false);
+  const inputTextRef = useRef("");
+  const [agentMode, setAgentMode] = useState<"build" | "plan">("build");
+  const [selectedModelKey, setSelectedModelKey] = useState("claude-sonnet-4-6");
+  const [tempModelKey, setTempModelKey] = useState("claude-sonnet-4-6");
   const [showOptions, setShowOptions] = useState(false);
-  const [selectedModelKey, setSelectedModelKey] = useState("claude-opus-4-7");
-  const [tempModelKey, setTempModelKey] = useState("claude-opus-4-7");
   const [addBtnMeasure, setAddBtnMeasure] = useState<{
-    x: number;
-    y: number;
-    w: number;
-    h: number;
+    x: number; y: number; w: number; h: number;
   } | null>(null);
   const [inputContainerHeight, setInputContainerHeight] = useState(0);
+  const [pendingPermission, setPendingPermission] = useState<GlobalPermissionItem | null>(null);
+  const [sessionLabel, setSessionLabelState] = useState<string | null>(
+    initialSessionId ? getSessionLabel() : null,
+  );
 
-  const modelSheetRef = useRef<BottomSheetModal>(null);
-  const addBtnRef = useRef<TouchableOpacity>(null);
+  // ── Refs ──
+  const hasSent              = useRef(false);
+  const firstUserMessage     = useRef<string | null>(null);
+  const threadSaved          = useRef(false);
+  const sessionInitialized   = useRef(false);
+  const initialMessageSent   = useRef(false);
+  const scrollViewRef        = useRef<ScrollView>(null);
+  const modelSheetRef        = useRef<BottomSheetModal>(null);
+  const addBtnRef            = useRef<any>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
-  const taskStr = Array.isArray(task) ? task[0] : task;
-  const repoStr = Array.isArray(repoName) ? repoName[0] : repoName;
-  const branchStr = Array.isArray(branchName) ? branchName[0] : branchName;
-  const shortTitle = getShortTitle(taskStr);
+  const ws = useServer(serverUrl);
 
-  const selectedModel =
-    MODELS.find((m) => m.key === selectedModelKey) ?? MODELS[0];
+  // ── Session label subscription ──
+  useEffect(() => subscribeSessionLabel(setSessionLabelState), []);
 
+  // ── Init session on mount; close SSE on unmount ──
+  useEffect(() => {
+    if (!sessionInitialized.current && serverUrl) {
+      sessionInitialized.current = true;
+      ws.initSession(initialSessionId ?? null, agentStr, repoPathStr || null);
+      posthog.capture("chat_session_started", {
+        agent: agentStr,
+        repo_name: repoNameStr,
+        is_new_session: !initialSessionId,
+      });
+    }
+    return () => {
+      if (serverUrl) closeSSEStream(serverUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Permission subscription ──
+  useEffect(() => {
+    if (!serverUrl) return;
+    const update = () => {
+      const entry = getEntry(serverUrl);
+      const grassId = entry?.currentSessionId ?? null;
+      const sdkId   = entry?.sessionId ?? null;
+      const match =
+        grassId || sdkId
+          ? (getPermissions(serverUrl).find(
+              (p) =>
+                (grassId && p.sessionId === grassId) ||
+                (sdkId   && p.sdkSessionId === sdkId),
+            ) ?? null)
+          : null;
+      setPendingPermission(match);
+    };
+    update();
+    const unsubPerms = subscribeToPermissions(serverUrl, update);
+    const unsubConn  = subscribeToConnection(serverUrl, update);
+    return () => { unsubPerms(); unsubConn(); };
+  }, [serverUrl]);
+
+  // ── Save thread after first send ──
+  useEffect(() => {
+    if (threadSaved.current) return;
+    if (!hasSent.current || !serverUrl || !ws.grassId) return;
+    if (!initialSessionId && !ws.sdkSessionId) return;
+    const userText = firstUserMessage.current;
+    if (!userText) return;
+    const title = userText.length > 80 ? userText.slice(0, 80) + "..." : userText;
+    if (!sessionLabel) {
+      setSessionLabelState(title);
+      setSessionLabel(title);
+    }
+    const threadId = ws.sdkSessionId || ws.grassId;
+    threadSaved.current = true;
+    upsertThread({
+      grassId: threadId,
+      sdkSessionId: ws.sdkSessionId ?? undefined,
+      title: sessionLabel ?? title,
+      repo: repoNameStr,
+      repoPath: repoPathStr,
+      tool: agentStr,
+      serverUrl: serverUrl,
+      time: new Date().toISOString(),
+    });
+  }, [ws.grassId, ws.sdkSessionId, serverUrl, sessionLabel]);
+
+  // ── Auto-scroll to bottom on new messages ──
+  useEffect(() => {
+    if (ws.messages.length > 0) {
+      scrollViewRef.current?.scrollToEnd({ animated: false });
+    }
+  }, [ws.messages.length, ws.streaming]);
+
+  // ── Auto-send initialMessage once session grassId is ready ──
+  useEffect(() => {
+    if (initialMessageSent.current || !initialMessage || !ws.grassId || ws.streaming) return;
+    const text = Array.isArray(initialMessage) ? initialMessage[0] : initialMessage;
+    if (!text) return;
+    initialMessageSent.current = true;
+    if (!hasSent.current) firstUserMessage.current = text;
+    hasSent.current = true;
+    ws.send(text, selectedModelKey, agentMode, ws.permissionMode);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ws.grassId]);
+
+  // ── Derived values ──
+  const branch      = repoPathStr ? ws.repoDetails.get(repoPathStr)?.branch : null;
+  const headerTitle = sessionLabel ?? repoNameStr ?? "New Chat";
+  const canSend     = !!inputText.trim() && !ws.streaming;
+
+  const selectedModel = MODELS.find((m) => m.key === selectedModelKey) ?? MODELS[1];
+
+  // ── Send ──
   const handleSubmit = () => {
-    if (!inputText.trim()) return;
+    const text = inputTextRef.current.trim();
+    if (!text || ws.streaming) return;
     Keyboard.dismiss();
+    if (!hasSent.current) firstUserMessage.current = text;
+    hasSent.current = true;
+    posthog.capture("chat_message_sent", {
+      agent: agentStr,
+      model: selectedModelKey,
+      mode: agentMode,
+      repo_name: repoNameStr,
+    });
+    ws.send(text, selectedModelKey, agentMode, ws.permissionMode);
+    // Keep thread timestamp fresh on each send
+    const threadId = ws.sdkSessionId || ws.grassId;
+    if (threadId && serverUrl) {
+      upsertThread({
+        grassId: threadId,
+        sdkSessionId: ws.sdkSessionId ?? undefined,
+        title: sessionLabel ?? repoNameStr ?? "Chat",
+        repo: repoNameStr,
+        repoPath: repoPathStr,
+        tool: agentStr,
+        serverUrl: serverUrl,
+        time: new Date().toISOString(),
+      });
+    }
+    inputTextRef.current = "";
     setInputText("");
   };
 
+  // ── Model sheet ──
   const openModelSheet = () => {
     setTempModelKey(selectedModelKey);
     Keyboard.dismiss();
@@ -267,23 +367,12 @@ export default function ChatScreen() {
 
   const renderModelBackdrop = useCallback(
     (props: any) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-      />
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
     ),
     [],
   );
 
-  const openDiffs = () => {
-    Keyboard.dismiss();
-    router.push({
-      pathname: "/new-navbar/diffs" as any,
-      params: { repoName: repoStr, branchName: branchStr },
-    });
-  };
-
+  // ── Options popup ──
   const openOptions = () => {
     Keyboard.dismiss();
     setTimeout(() => {
@@ -314,10 +403,7 @@ export default function ChatScreen() {
         "Please enable camera access in Settings.",
         [
           { text: "Cancel", style: "cancel" },
-          {
-            text: "Open Settings",
-            onPress: () => Linking.openURL("app-settings:"),
-          },
+          { text: "Open Settings", onPress: () => Linking.openURL("app-settings:") },
         ],
       );
     }
@@ -333,6 +419,49 @@ export default function ChatScreen() {
     Alert.alert("Files", "File picker will open here.");
   };
 
+  // ── Message rendering ──
+  function renderMessages() {
+    return ws.messages.map((msg) => {
+      if (msg.role === "user") {
+        return <UserBubble key={msg.msgId} text={msg.content} />;
+      }
+
+      if (msg.role === "tool") {
+        const label = msg.badge ?? msg.content.substring(0, 60);
+        const isRead  = /read|search|view|cat|ls|get/i.test(label);
+        const isWrite = /write|edit|create|patch|insert|update/i.test(label);
+        if (isRead)  return <ReadingPill key={msg.msgId} path={label} />;
+        if (isWrite) return <WritingPill key={msg.msgId} path={label} />;
+        return <ToolPill key={msg.msgId} label={label} />;
+      }
+
+      if (msg.role === "assistant") {
+        return (
+          <View key={msg.msgId} style={styles.agentBlock}>
+            <Text style={styles.agentText}>{msg.content}</Text>
+          </View>
+        );
+      }
+
+      if (msg.role === "error") {
+        return (
+          <View key={msg.msgId} style={styles.agentBlock}>
+            <Text style={[styles.agentText, { color: "#B20000" }]}>{msg.content}</Text>
+          </View>
+        );
+      }
+
+      return null;
+    });
+  }
+
+  // ── Permission card data ──
+  function getPermissionCommand(item: GlobalPermissionItem): string {
+    const input = item.input as Record<string, unknown>;
+    const val = input.command ?? input.path ?? input.file_path ?? input.url ?? Object.values(input)[0];
+    return String(val ?? "");
+  }
+
   return (
     <View style={[styles.container, { paddingTop: top }]}>
       {/* ── Header ── */}
@@ -340,27 +469,35 @@ export default function ChatScreen() {
         <TouchableOpacity
           style={styles.headerBtn}
           activeOpacity={0.7}
-          onPress={() => router.push("/new-navbar/chat-list" as any)}
+          onPress={() => router.back()}
         >
           <BackButtonIcon width={40} height={40} />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
           <Text style={styles.repoName} numberOfLines={1}>
-            {shortTitle || "New Chat"}
+            {headerTitle}
           </Text>
           <View style={styles.branchRow}>
-            <Text style={styles.branchName}>
-              {repoStr} ·
-              <GitBranchIcon width={14} height={14} /> {branchStr}
-            </Text>
+            {branch ? (
+              <Text style={styles.branchName}>
+                {repoNameStr} · <GitBranchIcon width={13} height={13} /> {branch}
+              </Text>
+            ) : (
+              <Text style={styles.branchName}>{repoNameStr}</Text>
+            )}
           </View>
         </View>
 
         <TouchableOpacity
           style={styles.headerBtn}
           activeOpacity={0.7}
-          onPress={openDiffs}
+          onPress={() =>
+            router.push({
+              pathname: "/diffs" as any,
+              params: { serverUrl: serverUrl ?? "", repoPath: repoPathStr },
+            })
+          }
         >
           <DiffButtonIcon width={20} height={20} />
         </TouchableOpacity>
@@ -374,49 +511,64 @@ export default function ChatScreen() {
         {/* Chat area */}
         <View style={styles.chatArea}>
           <ScrollView
+            ref={scrollViewRef}
             style={styles.flex}
             contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() =>
+              scrollViewRef.current?.scrollToEnd({ animated: false })
+            }
           >
-            {!!taskStr && <UserBubble text={taskStr} />}
-            <ReadingPill path="src/routes/api.ts" />
-            <ReadingPill path="src/middleware/auth.ts" />
-            <AgentResponse />
-            <AgentCodeBlock />
-            <WritingPill path="src/routes/api.ts" />
-            <View style={styles.agentBlock}>
-              <Text style={styles.agentText}>
-                {
-                  "Created the shared utility. Now I need to update the middleware file — this will modify existing auth logic."
+            {/* Session loading (resumed session history) */}
+            {ws.sessionLoading && (
+              <View style={styles.centeredRow}>
+                <ActivityIndicator size="small" color="#808080" />
+              </View>
+            )}
+
+            {/* Empty state */}
+            {ws.messages.length === 0 && !ws.sessionLoading && (
+              <View style={styles.centeredRow}>
+                <Text style={[styles.agentText, { color: "#808080" }]}>
+                  Send a message to get started.
+                </Text>
+              </View>
+            )}
+
+            {renderMessages()}
+
+            {/* Permission card */}
+            {pendingPermission && serverUrl && (
+              <PermCard
+                permType={pendingPermission.toolName.toUpperCase()}
+                command={getPermissionCommand(pendingPermission)}
+                onApprove={() =>
+                  respondGlobalPermission(
+                    serverUrl,
+                    pendingPermission.sessionId,
+                    pendingPermission.toolUseID,
+                    true,
+                  )
                 }
-              </Text>
-            </View>
-            {!perm1Dismissed && (
-              <PermCard
-                permType="BASH"
-                command="npm run test -- --coverage"
-                onApprove={() => setPerm1Dismissed(true)}
-                onDeny={() => setPerm1Dismissed(true)}
+                onDeny={() =>
+                  respondGlobalPermission(
+                    serverUrl,
+                    pendingPermission.sessionId,
+                    pendingPermission.toolUseID,
+                    false,
+                  )
+                }
               />
             )}
-            {!perm2Dismissed && (
-              <PermCard
-                permType="WRITE FILE"
-                command="src/utils/jwt.ts"
-                onApprove={() => setPerm2Dismissed(true)}
-                onDeny={() => setPerm2Dismissed(true)}
-              />
+
+            {/* Typing indicator */}
+            {ws.streaming && ws.messages.some((m) => m.role === "assistant") && (
+              <AgentTypingskeleton theme="light" />
             )}
-            {!perm3Dismissed && (
-              <PermCard
-                permType="READ FILE"
-                command="src/middleware/auth.ts"
-                onApprove={() => setPerm3Dismissed(true)}
-                onDeny={() => setPerm3Dismissed(true)}
-              />
-            )}
-            <ChatActions />
+
+            {/* Chat actions shown after session has messages and is idle */}
+            {ws.messages.length > 0 && !ws.streaming && <ChatActions />}
           </ScrollView>
         </View>
 
@@ -428,10 +580,16 @@ export default function ChatScreen() {
           <TextInput
             style={styles.textInput}
             value={inputText}
-            onChangeText={setInputText}
+            onChangeText={(t) => {
+              inputTextRef.current = t;
+              setInputText(t);
+            }}
             placeholder="Type here"
             placeholderTextColor="#000"
             multiline
+            editable={!ws.streaming}
+            onSubmitEditing={handleSubmit}
+            blurOnSubmit={false}
           />
           <View style={styles.toolbarRow}>
             <TouchableOpacity
@@ -452,29 +610,42 @@ export default function ChatScreen() {
               <DownArrowIcon width={14} height={14} />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.buildBtn} activeOpacity={0.7}>
-              <Text style={styles.buildText}>Build</Text>
+            <TouchableOpacity
+              style={styles.buildBtn}
+              activeOpacity={0.7}
+              onPress={() => setAgentMode((m) => (m === "build" ? "plan" : "build"))}
+            >
+              <Text style={styles.buildText}>
+                {agentMode === "build" ? "Build" : "Plan"}
+              </Text>
               <BuildIcon width={16} height={16} />
             </TouchableOpacity>
 
             <View style={styles.toolbarSpacer} />
 
-            <TouchableOpacity
-              style={[
-                styles.submitBtn,
-                !inputText.trim() && styles.submitBtnDisabled,
-              ]}
-              activeOpacity={0.8}
-              onPress={handleSubmit}
-              disabled={!inputText.trim()}
-            >
-              <UpArrowIcon width={20} height={20} />
-            </TouchableOpacity>
+            {ws.streaming ? (
+              <TouchableOpacity
+                style={styles.submitBtn}
+                activeOpacity={0.8}
+                onPress={() => ws.abort()}
+              >
+                <Text style={styles.stopBtnText}>■</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.submitBtn, !canSend && styles.submitBtnDisabled]}
+                activeOpacity={0.8}
+                onPress={handleSubmit}
+                disabled={!canSend}
+              >
+                <UpArrowIcon width={20} height={20} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </KeyboardAvoidingView>
 
-      {/* ── Full-screen blur overlay when add options are open ── */}
+      {/* ── Options overlay ── */}
       {showOptions && addBtnMeasure && (
         <>
           <BlurView
@@ -491,38 +662,22 @@ export default function ChatScreen() {
           <View
             style={[
               styles.optionsPanel,
-              {
-                position: "absolute",
-                left: 16,
-                bottom: inputContainerHeight + 12,
-              },
+              { position: "absolute", left: 16, bottom: inputContainerHeight + 12 },
             ]}
           >
-            <TouchableOpacity
-              style={styles.optionRow}
-              activeOpacity={0.7}
-              onPress={handleCameraPress}
-            >
+            <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={handleCameraPress}>
               <View style={styles.optionIconBg}>
                 <CameraIcon width={22} height={22} />
               </View>
               <Text style={styles.optionLabel}>Camera</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.optionRow}
-              activeOpacity={0.7}
-              onPress={handlePhotosPress}
-            >
+            <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={handlePhotosPress}>
               <View style={styles.optionIconBg}>
                 <PhotosIcon width={22} height={22} />
               </View>
               <Text style={styles.optionLabel}>Photos</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.optionRow}
-              activeOpacity={0.7}
-              onPress={handleFilesPress}
-            >
+            <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={handleFilesPress}>
               <View style={styles.optionIconBg}>
                 <FilesIcon width={22} height={22} />
               </View>
@@ -532,11 +687,7 @@ export default function ChatScreen() {
           <TouchableOpacity
             style={[
               styles.addBtn,
-              {
-                position: "absolute",
-                left: addBtnMeasure.x,
-                top: addBtnMeasure.y,
-              },
+              { position: "absolute", left: addBtnMeasure.x, top: addBtnMeasure.y },
             ]}
             activeOpacity={0.7}
             onPress={closeOptions}
@@ -587,9 +738,7 @@ export default function ChatScreen() {
                   <Text style={styles.modelLabel}>{m.label}</Text>
                   <Text style={styles.modelSubtitle}>{m.subtitle}</Text>
                 </View>
-                {tempModelKey === m.key && (
-                  <SelectedIcon width={16} height={16} />
-                )}
+                {tempModelKey === m.key && <SelectedIcon width={16} height={16} />}
               </TouchableOpacity>
             ))}
           </View>
@@ -609,11 +758,16 @@ export default function ChatScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Styles (V2 design — unchanged) ───────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
   flex: { flex: 1 },
+
+  centeredRow: {
+    alignItems: "center",
+    paddingVertical: 40,
+  },
 
   // Header
   header: {
@@ -665,7 +819,6 @@ const styles = StyleSheet.create({
     position: "relative",
   },
 
-  // Messages — 15 px gap between every section
   messagesContent: {
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -695,7 +848,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
 
-  // Reading / Writing pills (shared style)
+  // Reading / Writing pills
   actionPill: {
     alignSelf: "flex-start",
     flexDirection: "row",
@@ -722,41 +875,6 @@ const styles = StyleSheet.create({
     color: "#000",
     lineHeight: 22,
     letterSpacing: -0.5,
-  },
-  listRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-
-  // Inline code
-  inlineCodeBox: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#DFDFDF",
-    backgroundColor: "#F2F2F2",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  inlineCodeText: {
-    fontFamily: SFMono.semiBold,
-    fontSize: 15,
-    color: "#808080",
-  },
-
-  // Code block
-  codeBlock: {
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: "#DFDFDF",
-    backgroundColor: "#F2F2F2",
-    padding: 14,
-  },
-  codeText: {
-    fontFamily: SFMono.semiBold,
-    fontSize: 15,
-    color: "#404040",
-    lineHeight: 25,
   },
 
   // Permission card
@@ -854,7 +972,7 @@ const styles = StyleSheet.create({
     color: "#FFF",
   },
 
-  // Chat action icons (share / copy / reload)
+  // Chat actions row
   chatActionsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -865,9 +983,6 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 18,
-    // borderWidth: 1,
-    // borderColor: "#DFDFDF",
-    // backgroundColor: "#F5F5F5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -891,7 +1006,7 @@ const styles = StyleSheet.create({
   optionIconBg: {
     width: 42,
     height: 42,
-    borderRadius: "50%",
+    borderRadius: 21,
     backgroundColor: "rgba(255, 255, 255, 0.85)",
     alignItems: "center",
     justifyContent: "center",
@@ -902,11 +1017,6 @@ const styles = StyleSheet.create({
     color: "#000",
     letterSpacing: -0.5,
     lineHeight: 22,
-  },
-  optionSeparator: {
-    // height: 1,
-    // backgroundColor: "rgba(255, 255, 255, 0.40)",
-    marginHorizontal: 16,
   },
 
   // Bottom input container
@@ -940,19 +1050,12 @@ const styles = StyleSheet.create({
   addBtn: {
     width: 36,
     height: 36,
-    // backgroundColor: "#F2F2F2",
     borderRadius: 20,
     borderColor: "#FFF",
     backgroundColor: "rgba(0, 0, 0, 0.00)",
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-  },
-  closeIconText: {
-    fontFamily: SFPro.medium,
-    fontSize: 16,
-    color: "#1A1A1A",
-    lineHeight: 18,
   },
   modelDropdown: {
     flexDirection: "row",
@@ -1000,6 +1103,11 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: {
     opacity: 0.45,
+  },
+  stopBtnText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "700",
   },
 
   // Model bottom sheet

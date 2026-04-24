@@ -108,7 +108,7 @@ export function usePushNotifications() {
           const thread = await findThreadById(data.sessionId);
           if (thread) {
             router.push({
-              pathname: "/chat",
+              pathname: "/new-navbar/chat",
               params: {
                 serverUrl: thread.serverUrl,
                 sessionId: thread.grassId,
@@ -118,7 +118,7 @@ export function usePushNotifications() {
               },
             });
           } else {
-            router.push("/(tabs)/home");
+            router.push("/new-navbar/(tabs)");
           }
         } else if (data.type === "container_ready" || data.type === "limit_exceeded") {
           router.replace("/(tabs)/home");

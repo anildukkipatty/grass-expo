@@ -155,7 +155,7 @@ export function NewChatSlider({ visible, onClose }: Props) {
     if (pendingTask) await AsyncStorage.removeItem("GRASS_PENDING_FIRST_TASK");
     close(() => {
       router.push({
-        pathname: "/chat",
+        pathname: "/new-navbar/chat",
         params: {
           serverUrl: selectedVmUrl,
           repoPath: selectedRepo.path,
