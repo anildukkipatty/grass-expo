@@ -11,19 +11,18 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BackButtonIcon from "@/assets/images/new-design/chat/back-button.svg";
-import ClaudeIcon from "@/assets/images/new-design/chat/claude.svg";
 import ClaudeLightModeIcon from "@/assets/images/new-design/chat/claude-light-mode.svg";
-import DiffButtonIcon from "@/assets/images/new-design/chat/diff-button.svg";
-import OpenCodeIcon from "@/assets/images/new-design/chat/opencode.svg";
+import ClaudeIcon from "@/assets/images/new-design/chat/claude.svg";
 import OpenCodeLightNodeIcon from "@/assets/images/new-design/chat/opencode-light-node.svg";
+import OpenCodeIcon from "@/assets/images/new-design/chat/opencode.svg";
 import SearchIcon from "@/assets/images/new-design/chat/search-icon.svg";
 import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
 
-import { SFPro } from "@/constants/theme";
 import { posthog } from "@/constants/posthog";
+import { SFPro } from "@/constants/theme";
 import { useNavbar } from "@/contexts/navbar-context";
-import { formatRelativeTime } from "@/store/thread-store";
 import { setSessionLabel } from "@/store/session-label-store";
+import { formatRelativeTime } from "@/store/thread-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,13 +32,18 @@ type AgentKey = "claude" | "opencode";
 export default function ChatListScreen() {
   const { top } = useSafeAreaInsets();
   const router = useRouter();
-  const { repoName, repoPath } = useLocalSearchParams<{ repoName?: string; repoPath?: string }>();
+  const { repoName, repoPath } = useLocalSearchParams<{
+    repoName?: string;
+    repoPath?: string;
+  }>();
   const { threads, repos } = useNavbar();
   const [selectedAgent, setSelectedAgent] = useState<AgentKey>("claude");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Find branch from repos list
-  const matchedRepo = repos?.find((r) => r.path === repoPath || r.name === repoName);
+  const matchedRepo = repos?.find(
+    (r) => r.path === repoPath || r.name === repoName,
+  );
   const branchName = matchedRepo?.branch ?? null;
 
   // Filter threads: by repoPath (if given), by agent tab, by search
@@ -48,12 +52,19 @@ export default function ChatListScreen() {
     const isClaudeAgent = t.tool === "claude-code" || t.tool === "claude";
     if (selectedAgent === "claude" && !isClaudeAgent) return false;
     if (selectedAgent === "opencode" && t.tool !== "opencode") return false;
-    if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (
+      searchQuery &&
+      !t.title.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+      return false;
     return true;
   });
 
-  function handleThreadTap(thread: typeof threads[0]) {
-    posthog.capture("thread_resumed", { agent: thread.tool, repo_name: thread.repo });
+  function handleThreadTap(thread: (typeof threads)[0]) {
+    posthog.capture("thread_resumed", {
+      agent: thread.tool,
+      repo_name: thread.repo,
+    });
     setSessionLabel(thread.title);
     router.push({
       pathname: "/new-navbar/chat",
@@ -91,9 +102,9 @@ export default function ChatListScreen() {
           )}
         </View>
 
-        <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7}>
+        {/* <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7}>
           <DiffButtonIcon width={20} height={20} />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       {/* ── Agent tab toggle ── */}
@@ -101,7 +112,9 @@ export default function ChatListScreen() {
         <TouchableOpacity
           style={[
             styles.agentTab,
-            selectedAgent === "claude" ? styles.claudeActiveTab : styles.inactiveTab,
+            selectedAgent === "claude"
+              ? styles.claudeActiveTab
+              : styles.inactiveTab,
           ]}
           activeOpacity={0.85}
           onPress={() => setSelectedAgent("claude")}
@@ -116,7 +129,9 @@ export default function ChatListScreen() {
         <TouchableOpacity
           style={[
             styles.agentTab,
-            selectedAgent === "opencode" ? styles.openCodeActiveTab : styles.inactiveTab,
+            selectedAgent === "opencode"
+              ? styles.openCodeActiveTab
+              : styles.inactiveTab,
           ]}
           activeOpacity={0.85}
           onPress={() => setSelectedAgent("opencode")}
@@ -159,7 +174,9 @@ export default function ChatListScreen() {
                 <Text style={styles.chatTitle} numberOfLines={1}>
                   {thread.title}
                 </Text>
-                <Text style={styles.chatTime}>{formatRelativeTime(thread.time)}</Text>
+                <Text style={styles.chatTime}>
+                  {formatRelativeTime(thread.time)}
+                </Text>
               </View>
             </TouchableOpacity>
           ))

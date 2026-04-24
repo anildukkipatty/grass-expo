@@ -17,6 +17,7 @@ import ContactIcon from "@/assets/images/new-design/support/calender.svg";
 import Arrow from "@/assets/images/new-design/support/down-arrow.svg";
 import EmailIcon from "@/assets/images/new-design/support/email.svg";
 import ExternalLinkIcon from "@/assets/images/new-design/support/share.svg";
+import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
 import { SFPro } from "@/constants/theme";
 
 type ActionButton = {
@@ -31,66 +32,8 @@ type FAQItem = {
   actionButton?: ActionButton;
 };
 
-const FAQS: FAQItem[] = [
-  {
-    question: "Why is my session slow?",
-    answer:
-      "Usually one of three things: a slow internet connection, a repo with a lot of files for the agent to index, or peak-time load on our side. Check your connection first, then try starting a fresh session. If it keeps happening, email us with the session ID and we'll dig in.",
-    actionButton: {
-      label: "Email support",
-      onPress: () => Linking.openURL("mailto:support@codeongrass.com"),
-    },
-  },
-  {
-    question: "My agent stopped mid-task",
-    answer:
-      "Agents pause when they hit a question or run into an error. Tap the session to see what state it's in. If it's waiting on you, there'll be a prompt to answer. If it crashed, you can resume from the last checkpoint.",
-    actionButton: {
-      label: "Email support",
-      onPress: () => Linking.openURL("mailto:support@codeongrass.com"),
-    },
-  },
-  {
-    question: "How do I connect a new machine?",
-    answer:
-      "Open Grass on your Mac and run the pair command in terminal. A QR code will appear. Scan it with your phone and give the machine a name. It'll show up in your machine list within seconds. You can connect as many machines as you want.",
-    actionButton: {
-      label: "Add a machine",
-      onPress: () => Linking.openURL("https://codeongrass.com/docs"),
-    },
-  },
-  {
-    question: "Can I run multiple agents at once?",
-    answer:
-      "Yes. Run as many as you want in parallel. Each agent gets its own VM so they don't slow each other down. Switch between them from the session list.",
-  },
-  {
-    question: "What happens if I close the app?",
-    answer:
-      "Nothing. Agents keep running on our servers whether the app is open or not. You'll get a push notification when they need input or finish a task. When you reopen the app, everything picks up exactly where it was.",
-  },
-  {
-    question: "How does billing work?",
-    answer:
-      "Grass is free while we're in early access. No caps on agents, no caps on runtime, no credit card required. We'll give you plenty of notice before we introduce paid plans, and your feedback now will help shape what those plans look like.",
-    actionButton: {
-      label: "Share feedback",
-      icon: "external",
-      onPress: () => Linking.openURL("https://codeongrass.com/privacy"),
-    },
-  },
-
-  {
-    question: "Is my code private?",
-    answer:
-      "Yes. Your code runs in an isolated VM that gets destroyed when the session ends. We don't train on your code, we don't share it, and nobody at Grass can read it without your permission. Repos pulled from GitHub use read-only access tokens scoped to the repos you pick.",
-    actionButton: {
-      label: "Read our privacy policy",
-      icon: "external",
-      onPress: () => Linking.openURL("https://codeongrass.com/privacy"),
-    },
-  },
-];
+const SUPPORT_MAILTO =
+  "mailto:support@codeongrass.com?subject=Support%3A%20%5BDescribe%20your%20issue%5D&body=What's%20happening%3F%0A%0A%0ASteps%20to%20reproduce%20(if%20applicable)%3A%0A%0A%0AGrass%20version%20(bottom%20of%20your%20Profile%20page)%3A%0A%0ADevice%20%26%20iOS%20version%3A%0A";
 
 function ActionBtn({ btn }: { btn: ActionButton }) {
   return (
@@ -162,6 +105,70 @@ function AccordionItem({
 export default function SupportScreen() {
   const { top } = useSafeAreaInsets();
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [connectMoreVisible, setConnectMoreVisible] = useState(false);
+
+  const FAQS: FAQItem[] = [
+    {
+      question: "Why is my session slow?",
+      answer:
+        "Usually one of three things: a slow internet connection, a repo with a lot of files for the agent to index, or peak-time load on our side. Check your connection first, then try starting a fresh session. If it keeps happening, email us with the session ID and we'll dig in.",
+      actionButton: {
+        label: "Email support",
+        onPress: () => Linking.openURL(SUPPORT_MAILTO),
+      },
+    },
+    {
+      question: "My agent stopped mid-task",
+      answer:
+        "Agents pause when they hit a question or run into an error. Tap the session to see what state it's in. If it's waiting on you, there'll be a prompt to answer. If it crashed, you can resume from the last checkpoint.",
+      actionButton: {
+        label: "Email support",
+        onPress: () => Linking.openURL(SUPPORT_MAILTO),
+      },
+    },
+    {
+      question: "How do I connect a new machine?",
+      answer:
+        "Open Grass on your Mac and run the pair command in terminal. A QR code will appear. Scan it with your phone and give the machine a name. It'll show up in your machine list within seconds. You can connect as many machines as you want.",
+      actionButton: {
+        label: "Add a machine",
+        onPress: () => setConnectMoreVisible(true),
+      },
+    },
+    {
+      question: "Can I run multiple agents at once?",
+      answer:
+        "Yes. Run as many as you want in parallel. Each agent gets its own VM so they don't slow each other down. Switch between them from the session list.",
+    },
+    {
+      question: "What happens if I close the app?",
+      answer:
+        "Nothing. Agents keep running on our servers whether the app is open or not. You'll get a push notification when they need input or finish a task. When you reopen the app, everything picks up exactly where it was.",
+    },
+    {
+      question: "How does billing work?",
+      answer:
+        "Grass is free while we're in early access. No caps on agents, no caps on runtime, no credit card required. We'll give you plenty of notice before we introduce paid plans, and your feedback now will help shape what those plans look like.",
+      actionButton: {
+        label: "Share feedback",
+        icon: "external",
+        onPress: () =>
+          Linking.openURL(
+            "mailto:support@codeongrass.com?subject=Feature%20Request%3A%20%5BYour%20idea%20in%20one%20line%5D&body=What's%20the%20feature%3F%0A%0A%0AWhy%20do%20you%20need%20it%3F%20What%20problem%20does%20it%20solve%3F%0A%0A%0AHow%20are%20you%20currently%20working%20around%20it%3F%0A"
+          ),
+      },
+    },
+    {
+      question: "Is my code private?",
+      answer:
+        "Yes. Your code runs in an isolated VM that gets destroyed when the session ends. We don't train on your code, we don't share it, and nobody at Grass can read it without your permission. Repos pulled from GitHub use read-only access tokens scoped to the repos you pick.",
+      actionButton: {
+        label: "Read our privacy policy",
+        icon: "external",
+        onPress: () => Linking.openURL("https://codeongrass.com/privacypolicy"),
+      },
+    },
+  ];
 
   return (
     <View style={[styles.screen, { paddingTop: top }]}>
@@ -200,7 +207,7 @@ export default function SupportScreen() {
           <TouchableOpacity
             style={[styles.contactRow, styles.contactBorder]}
             activeOpacity={0.7}
-            onPress={() => Linking.openURL("mailto:support@codeongrass.com")}
+            onPress={() => Linking.openURL(SUPPORT_MAILTO)}
           >
             <View style={styles.contactIconWrap}>
               <EmailIcon width={15} height={18} />
@@ -216,7 +223,7 @@ export default function SupportScreen() {
           <TouchableOpacity
             style={styles.contactRow}
             activeOpacity={0.7}
-            onPress={() => Linking.openURL("https://cal.com/codeongrass")}
+            onPress={() => Linking.openURL("https://calendly.com/sahil-revise/30min-meeting")}
           >
             <View style={styles.contactIconWrap}>
               <ContactIcon width={15} height={18} />
@@ -231,6 +238,11 @@ export default function SupportScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <ConnectMoreSlider
+        visible={connectMoreVisible}
+        onClose={() => setConnectMoreVisible(false)}
+      />
     </View>
   );
 }
