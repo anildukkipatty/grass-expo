@@ -71,6 +71,7 @@ export function NewChatSlider({ visible, onClose }: Props) {
   const { selectedVmUrl, primaryVmUrl, repos } = useNavbar();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
   const pendingCallbackRef = useRef<(() => void) | null>(null);
+  const wasPresented = useRef(false);
 
   const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<
@@ -97,6 +98,7 @@ export function NewChatSlider({ visible, onClose }: Props) {
 
   useEffect(() => {
     if (visible) {
+      wasPresented.current = true;
       bottomSheetRef.current?.present();
     } else {
       bottomSheetRef.current?.dismiss();
@@ -156,6 +158,8 @@ export function NewChatSlider({ visible, onClose }: Props) {
     : extractHost(primaryVmUrl ?? "");
 
   const handleDismiss = useCallback(() => {
+    if (!wasPresented.current) return;
+    wasPresented.current = false;
     const cb = pendingCallbackRef.current;
     pendingCallbackRef.current = null;
     onClose();
@@ -189,6 +193,7 @@ export function NewChatSlider({ visible, onClose }: Props) {
   }
 
   return (
+    <>
     <BottomSheetModal
       ref={bottomSheetRef}
       snapPoints={snapPoints}
@@ -336,6 +341,7 @@ export function NewChatSlider({ visible, onClose }: Props) {
         </>
       )}
     </BottomSheetModal>
+    </>
   );
 }
 

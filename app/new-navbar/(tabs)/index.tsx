@@ -16,7 +16,7 @@ import {
   Machine,
   MachineCarousel,
 } from "@/components/new-navbar/MachineCarousel";
-import { NewChatSlider } from "@/components/new-navbar/NewChatSlider";
+import { NewChatSlider2 } from "@/components/new-navbar/NewChatSlider2";
 import { posthog } from "@/constants/posthog";
 import { VM_ICONS } from "@/constants/vm-icons";
 import { extractHost, useNavbar } from "@/contexts/navbar-context";
@@ -213,7 +213,7 @@ export default function HomeScreen() {
         visible={connectMoreVisible}
         onClose={() => setConnectMoreVisible(false)}
       />
-      <NewChatSlider
+      <NewChatSlider2
         visible={newChatVisible}
         onClose={() => setNewChatVisible(false)}
       />
