@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -8,30 +9,34 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 
-
-import { MachineCarousel, Machine } from "@/components/new-navbar/MachineCarousel";
+import FloatIcon from "@/assets/images/new-design/navbar/float-icon.svg";
 import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
-import { extractHost, useNavbar } from "@/contexts/navbar-context";
+import {
+  Machine,
+  MachineCarousel,
+} from "@/components/new-navbar/MachineCarousel";
+import { NewChatSlider2 } from "@/components/new-navbar/NewChatSlider2";
 import { posthog } from "@/constants/posthog";
+import { VM_ICONS } from "@/constants/vm-icons";
+import { extractHost, useNavbar } from "@/contexts/navbar-context";
 import { setSessionLabel } from "@/store/session-label-store";
 import { formatRelativeTime } from "@/store/thread-store";
 import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
-import { VM_ICONS } from "@/constants/vm-icons";
 
 import ClaudeIcon from "@/assets/images/new-design/navbar/claude.svg";
-import OpenCodeIcon from "@/assets/images/new-design/navbar/opencode.svg";
-import CompletedIcon from "@/assets/images/new-design/navbar/completed-icon.svg";
 import FolderIcon from "@/assets/images/new-design/navbar/folder-icon.svg";
-import ProgressIcon from "@/assets/images/new-design/navbar/progress-icon.svg";
-import WaitingIcon from "@/assets/images/new-design/navbar/waiting-for-completion-icon.svg";
+import OpenCodeIcon from "@/assets/images/new-design/navbar/opencode.svg";
 
 import { SFPro } from "@/constants/theme";
 
 // ─── Static pool of colors + images for VMs without saved metadata ────────────
 
-const VM_STYLES: { borderColor: string; backgroundColor: string; image: ReturnType<typeof require> }[] = [
+const VM_STYLES: {
+  borderColor: string;
+  backgroundColor: string;
+  image: ReturnType<typeof require>;
+}[] = [
   {
     image: require("@/assets/images/new-design/navbar/dummy-profile-icons/profile-one.png"),
     borderColor: "#72C44E",
@@ -60,7 +65,10 @@ const CUSTOM_VM_COLORS: { borderColor: string; backgroundColor: string }[] = [
 
 // ─── Agent icon mapping (thread.tool → SVG component) ─────────────────────────
 
-const AGENT_ICONS: Record<string, React.FC<{ width: number; height: number }>> = {
+const AGENT_ICONS: Record<
+  string,
+  React.FC<{ width: number; height: number }>
+> = {
   "claude-code": ClaudeIcon,
   claude: ClaudeIcon,
   opencode: OpenCodeIcon,
@@ -73,8 +81,12 @@ function SkeletonItem({ opacity }: { opacity: Animated.Value }) {
     <View style={styles.threadItem}>
       <Animated.View style={[styles.skeletonIcon, { opacity }]} />
       <View style={styles.threadContent}>
-        <Animated.View style={[styles.skeletonBar, styles.skeletonBarLong, { opacity }]} />
-        <Animated.View style={[styles.skeletonBar, styles.skeletonBarShort, { opacity }]} />
+        <Animated.View
+          style={[styles.skeletonBar, styles.skeletonBarLong, { opacity }]}
+        />
+        <Animated.View
+          style={[styles.skeletonBar, styles.skeletonBarShort, { opacity }]}
+        />
       </View>
     </View>
   );
@@ -86,7 +98,10 @@ export default function HomeScreen() {
   const { bottom } = useSafeAreaInsets();
   const router = useRouter();
   const [connectMoreVisible, setConnectMoreVisible] = React.useState(false);
-  const [vmMetadataMap, setVmMetadataMap] = useState<Record<string, { name: string; iconIndex: number }>>({});
+  const [newChatVisible, setNewChatVisible] = React.useState(false);
+  const [vmMetadataMap, setVmMetadataMap] = useState<
+    Record<string, { name: string; iconIndex: number }>
+  >({});
   const [grassVmName, setGrassVmName] = useState<string | null>(null);
   const hasPromptedForName = useRef(false);
 
@@ -107,7 +122,10 @@ export default function HomeScreen() {
       setGrassVmName(name);
       if (!name && !hasPromptedForName.current) {
         hasPromptedForName.current = true;
-        router.push({ pathname: "/onboarding/vm-name" as any, params: { mode: "rename" } });
+        router.push({
+          pathname: "/onboarding/vm-name" as any,
+          params: { mode: "rename" },
+        });
       }
     });
   }, [vmUrls]);
@@ -117,8 +135,16 @@ export default function HomeScreen() {
   React.useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(shimmerAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(shimmerAnim, { toValue: 0.4, duration: 800, useNativeDriver: true }),
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmerAnim, {
+          toValue: 0.4,
+          duration: 800,
+          useNativeDriver: true,
+        }),
       ]),
     );
     loop.start();
@@ -130,7 +156,11 @@ export default function HomeScreen() {
   React.useEffect(() => {
     if (!vmRunning) {
       const loop = Animated.loop(
-        Animated.timing(progressAnim, { toValue: 1, duration: 1200, useNativeDriver: false }),
+        Animated.timing(progressAnim, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: false,
+        }),
       );
       loop.start();
       return () => loop.stop();
@@ -183,6 +213,10 @@ export default function HomeScreen() {
         visible={connectMoreVisible}
         onClose={() => setConnectMoreVisible(false)}
       />
+      <NewChatSlider2
+        visible={newChatVisible}
+        onClose={() => setNewChatVisible(false)}
+      />
 
       {/* ── Section header ── */}
       <View style={styles.sectionHeaderRow}>
@@ -191,7 +225,9 @@ export default function HomeScreen() {
           <View style={styles.refreshingContainer}>
             <Text style={styles.refreshingText}>Refreshing VM</Text>
             <View style={styles.progressTrack}>
-              <Animated.View style={[styles.progressBar, { width: progressWidth }]} />
+              <Animated.View
+                style={[styles.progressBar, { width: progressWidth }]}
+              />
             </View>
           </View>
         )}
@@ -209,7 +245,9 @@ export default function HomeScreen() {
           ))
         ) : threads.length === 0 ? (
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyText}>Start a new thread to see chats here</Text>
+            <Text style={styles.emptyText}>
+              Start a new thread to see chats here
+            </Text>
           </View>
         ) : (
           threads.map((thread) => {
@@ -261,6 +299,14 @@ export default function HomeScreen() {
           })
         )}
       </ScrollView>
+
+      <TouchableOpacity
+        style={styles.floatButton}
+        activeOpacity={0.85}
+        onPress={() => setNewChatVisible(true)}
+      >
+        <FloatIcon width={24} height={24} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -359,6 +405,23 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     lineHeight: 20,
     letterSpacing: -0.3,
+  },
+  floatButton: {
+    position: "absolute",
+    bottom: 100,
+    right: 16,
+    zIndex: 9999,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#FFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
   emptyWrap: {
     alignItems: "center",

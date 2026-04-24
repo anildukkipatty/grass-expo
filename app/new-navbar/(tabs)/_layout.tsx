@@ -1,7 +1,7 @@
-import React from "react";
-import { SafeAreaView, StyleSheet } from "react-native";
 import { usePathname } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
+import React from "react";
+import { SafeAreaView, StyleSheet } from "react-native";
 
 import { NavbarHeader } from "@/components/new-navbar/NavbarHeader";
 import { useNavbar } from "@/contexts/navbar-context";
@@ -27,23 +27,19 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Icon sf="bolt.fill" md="bolt" />
           <NativeTabs.Trigger.Label>Permissions</NativeTabs.Trigger.Label>
           {permsCount > 0 && (
-            <NativeTabs.Trigger.Badge>{String(permsCount)}</NativeTabs.Trigger.Badge>
+            <NativeTabs.Trigger.Badge>
+              {String(permsCount)}
+            </NativeTabs.Trigger.Badge>
           )}
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="repos">
           <NativeTabs.Trigger.Icon sf="tray.fill" md="inbox" />
           <NativeTabs.Trigger.Label>Repos</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="new" role="search">
-          <NativeTabs.Trigger.Icon sf="plus" md="add" />
-          <NativeTabs.Trigger.Label>New</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-
         <NativeTabs.Slot name="chat-list" />
         <NativeTabs.Slot name="index" />
         <NativeTabs.Slot name="permissions" />
         <NativeTabs.Slot name="repos" />
-        <NativeTabs.Slot name="new" />
       </NativeTabs>
     </SafeAreaView>
   );
