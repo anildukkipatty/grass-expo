@@ -1,3 +1,15 @@
+import { AddRepoSlider } from "@/components/new-navbar/AddRepoSlider";
+import { CloneFromGithubSlider } from "@/components/new-navbar/CloneFromGithubSlider";
+import { ConfigureGitAccessSlider } from "@/components/new-navbar/ConfigureGitAccessSlider";
+import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
+import {
+  Machine,
+  MachineCarousel,
+} from "@/components/new-navbar/MachineCarousel";
+import { VM_ICONS } from "@/constants/vm-icons";
+import { extractHost, useNavbar } from "@/contexts/navbar-context";
+import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -9,15 +21,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect, useRouter } from "expo-router";
-import { MachineCarousel, Machine } from "@/components/new-navbar/MachineCarousel";
-import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
-import { AddRepoSlider } from "@/components/new-navbar/AddRepoSlider";
-import { CloneFromGithubSlider } from "@/components/new-navbar/CloneFromGithubSlider";
-import { ConfigureGitAccessSlider } from "@/components/new-navbar/ConfigureGitAccessSlider";
-import { extractHost, useNavbar } from "@/contexts/navbar-context";
-import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
-import { VM_ICONS } from "@/constants/vm-icons";
 
 import AddIcon from "@/assets/images/new-design/navbar/add-icon.svg";
 import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
@@ -27,7 +30,11 @@ import { SFPro } from "@/constants/theme";
 
 // ─── Static pool for VMs without saved metadata ────────────────────────────────
 
-const VM_STYLES: { borderColor: string; backgroundColor: string; image: ReturnType<typeof require> }[] = [
+const VM_STYLES: {
+  borderColor: string;
+  backgroundColor: string;
+  image: ReturnType<typeof require>;
+}[] = [
   {
     image: require("@/assets/images/new-design/navbar/dummy-profile-icons/profile-one.png"),
     borderColor: "#72C44E",
@@ -63,7 +70,9 @@ export default function ReposScreen() {
   const [cloneGithubVisible, setCloneGithubVisible] = useState(false);
   const [gitAccessVisible, setGitAccessVisible] = useState(false);
 
-  const [vmMetadataMap, setVmMetadataMap] = useState<Record<string, { name: string; iconIndex: number }>>({});
+  const [vmMetadataMap, setVmMetadataMap] = useState<
+    Record<string, { name: string; iconIndex: number }>
+  >({});
   const [grassVmName, setGrassVmName] = useState<string | null>(null);
 
   const {
@@ -95,8 +104,16 @@ export default function ReposScreen() {
   React.useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(shimmerAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(shimmerAnim, { toValue: 0.4, duration: 800, useNativeDriver: true }),
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmerAnim, {
+          toValue: 0.4,
+          duration: 800,
+          useNativeDriver: true,
+        }),
       ]),
     );
     loop.start();
@@ -191,10 +208,24 @@ export default function ReposScreen() {
           Array.from({ length: 5 }).map((_, i) => (
             <View key={i} style={styles.repoItem}>
               <View style={styles.repoInfo}>
-                <Animated.View style={[styles.skeletonBar, styles.skeletonBarLong, { opacity: shimmerAnim }]} />
-                <Animated.View style={[styles.skeletonBar, styles.skeletonBarShort, { opacity: shimmerAnim }]} />
+                <Animated.View
+                  style={[
+                    styles.skeletonBar,
+                    styles.skeletonBarLong,
+                    { opacity: shimmerAnim },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.skeletonBar,
+                    styles.skeletonBarShort,
+                    { opacity: shimmerAnim },
+                  ]}
+                />
               </View>
-              <Animated.View style={[styles.skeletonBadge, { opacity: shimmerAnim }]} />
+              <Animated.View
+                style={[styles.skeletonBadge, { opacity: shimmerAnim }]}
+              />
             </View>
           ))
         ) : repos.length === 0 ? (
@@ -207,27 +238,38 @@ export default function ReposScreen() {
               key={repo.id}
               style={styles.repoItem}
               activeOpacity={0.7}
-              onPress={() => router.push({
-                pathname: "/new-navbar/chat-list",
-                params: { repoName: repo.name, repoPath: repo.path },
-              })}
+              onPress={() =>
+                router.push({
+                  pathname: "/new-navbar/chat-list",
+                  params: { repoName: repo.name, repoPath: repo.path },
+                })
+              }
             >
               <View style={styles.repoInfo}>
                 <Text style={styles.repoName}>{repo.name}</Text>
                 <View style={styles.repoBranchRow}>
-                  <GitBranchIcon width={14} height={14} style={styles.repoBranchIconSvg} />
+                  <GitBranchIcon
+                    width={14}
+                    height={14}
+                    style={styles.repoBranchIconSvg}
+                  />
                   <Text style={styles.repoBranchText}>{repo.branch}</Text>
                 </View>
               </View>
               {repo.badge ? (
-                <View style={[
-                  styles.repoLanguageBadge,
-                  repo.badgeType === "green" && styles.repoLanguageBadgeGreen,
-                ]}>
-                  <Text style={[
-                    styles.repoLanguageText,
-                    repo.badgeType === "green" && styles.repoLanguageTextGreen,
-                  ]}>
+                <View
+                  style={[
+                    styles.repoLanguageBadge,
+                    repo.badgeType === "green" && styles.repoLanguageBadgeGreen,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.repoLanguageText,
+                      repo.badgeType === "green" &&
+                        styles.repoLanguageTextGreen,
+                    ]}
+                  >
                     {repo.badge}
                   </Text>
                 </View>
@@ -263,7 +305,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 0,
   },
   repoActionText: {
     fontFamily: SFPro.medium,
@@ -271,7 +313,6 @@ const styles = StyleSheet.create({
     color: "#000",
     lineHeight: 20,
     letterSpacing: -0.3,
-    marginLeft: 6,
   },
   repoScrollList: {
     flex: 1,

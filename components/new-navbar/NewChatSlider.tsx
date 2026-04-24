@@ -72,6 +72,12 @@ export function NewChatSlider({ visible, onClose }: Props) {
   const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<"claude-code" | "opencode">("claude-code");
   const [showRepoPicker, setShowRepoPicker] = useState(false);
+  const showRepoPickerRef = useRef(false);
+
+  // Sync ref so panResponder can read current showRepoPicker without stale closure
+  useEffect(() => {
+    showRepoPickerRef.current = showRepoPicker;
+  }, [showRepoPicker]);
 
   // Reset state when slider opens
   useEffect(() => {
@@ -116,9 +122,13 @@ export function NewChatSlider({ visible, onClose }: Props) {
       }),
     ]).start(() => {
       onClose();
-      onComplete?.();
+      if (onComplete) {
+        onComplete();
+      } else {
+        router.navigate("/new-navbar");
+      }
     });
-  }, [translateY, backdropOpacity, onClose]);
+  }, [translateY, backdropOpacity, onClose, router]);
 
   useEffect(() => {
     if (visible) {
@@ -136,7 +146,18 @@ export function NewChatSlider({ visible, onClose }: Props) {
       },
       onPanResponderRelease: (_, gs) => {
         if (gs.dy > CLOSE_THRESHOLD || gs.vy > 0.5) {
-          close();
+          if (showRepoPickerRef.current) {
+            // Drag on repo picker → return to main slider, not home
+            Animated.spring(translateY, {
+              toValue: 0,
+              useNativeDriver: true,
+              damping: 20,
+              stiffness: 200,
+            }).start();
+            setShowRepoPicker(false);
+          } else {
+            close();
+          }
         } else {
           Animated.spring(translateY, {
             toValue: 0,

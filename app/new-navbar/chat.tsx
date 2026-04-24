@@ -167,6 +167,193 @@ function ChatActions() {
   );
 }
 
+// ─── Markdown renderer ────────────────────────────────────────────────────────
+
+function parseInlineMarkdown(text: string, baseStyle: any): React.ReactNode[] {
+  const TOKEN_RE = /(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|~~[^~]+~~)/g;
+  const nodes: React.ReactNode[] = [];
+  let last = 0;
+  let k = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = TOKEN_RE.exec(text)) !== null) {
+    if (match.index > last) {
+      nodes.push(<Text key={k++} style={baseStyle}>{text.slice(last, match.index)}</Text>);
+    }
+    const token = match[1];
+    if (token.startsWith("***")) {
+      nodes.push(<Text key={k++} style={[baseStyle, { fontFamily: SFPro.bold, fontStyle: "italic" }]}>{token.slice(3, -3)}</Text>);
+    } else if (token.startsWith("**")) {
+      nodes.push(<Text key={k++} style={[baseStyle, { fontFamily: SFPro.bold }]}>{token.slice(2, -2)}</Text>);
+    } else if (token.startsWith("*")) {
+      nodes.push(<Text key={k++} style={[baseStyle, { fontStyle: "italic" }]}>{token.slice(1, -1)}</Text>);
+    } else if (token.startsWith("`")) {
+      nodes.push(<Text key={k++} style={styles.mdInlineCode}>{token.slice(1, -1)}</Text>);
+    } else if (token.startsWith("~~")) {
+      nodes.push(<Text key={k++} style={[baseStyle, { textDecorationLine: "line-through" }]}>{token.slice(2, -2)}</Text>);
+    }
+    last = match.index + token.length;
+  }
+
+  if (last < text.length) {
+    nodes.push(<Text key={k++} style={baseStyle}>{text.slice(last)}</Text>);
+  }
+
+  return nodes.length > 0 ? nodes : [<Text key={0} style={baseStyle}>{text}</Text>];
+}
+
+function MarkdownText({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const blocks: React.ReactNode[] = [];
+  let i = 0;
+  let key = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Code fence
+    if (line.startsWith("```")) {
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].startsWith("```")) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      blocks.push(
+        <View key={key++} style={styles.mdCodeBlock}>
+          <Text style={styles.mdCodeBlockText}>{codeLines.join("\n")}</Text>
+        </View>
+      );
+      i++;
+      continue;
+    }
+
+    // Headers
+    const h3 = line.match(/^### (.+)/);
+    const h2 = line.match(/^## (.+)/);
+    const h1 = line.match(/^# (.+)/);
+    if (h1 || h2 || h3) {
+      const hStyle = h1 ? styles.mdH1 : h2 ? styles.mdH2 : styles.mdH3;
+      const hText = (h1 ?? h2 ?? h3)![1];
+      blocks.push(
+        <Text key={key++} style={hStyle}>
+          {parseInlineMarkdown(hText, hStyle)}
+        </Text>
+      );
+      i++;
+      continue;
+    }
+
+    // Table
+    if (line.startsWith("|")) {
+      const tableLines: string[] = [];
+      while (i < lines.length && lines[i].startsWith("|")) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      const isSep = (l: string) => /^\|[\s\-|:]+\|$/.test(l);
+      const hasHeader = tableLines.length > 1 && isSep(tableLines[1]);
+      const dataRows = tableLines.filter((l) => !isSep(l));
+      blocks.push(
+        <View key={key++} style={styles.mdTable}>
+          {dataRows.map((row, ri) => {
+            const cells = row.split("|").slice(1, -1);
+            const isHeader = hasHeader && ri === 0;
+            return (
+              <View
+                key={ri}
+                style={[
+                  styles.mdTableRow,
+                  isHeader && styles.mdTableHeaderRow,
+                  ri === dataRows.length - 1 && styles.mdTableLastRow,
+                ]}
+              >
+                {cells.map((cell, ci) => {
+                  const cellStyle = isHeader ? styles.mdTableHeaderCell : styles.mdTableCell;
+                  return (
+                    <Text key={ci} style={cellStyle}>
+                      {parseInlineMarkdown(cell.trim(), cellStyle)}
+                    </Text>
+                  );
+                })}
+              </View>
+            );
+          })}
+        </View>
+      );
+      continue;
+    }
+
+    // Unordered list
+    if (/^[-*+] /.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^[-*+] /.test(lines[i])) {
+        items.push(lines[i].replace(/^[-*+] /, ""));
+        i++;
+      }
+      blocks.push(
+        <View key={key++} style={styles.mdList}>
+          {items.map((item, li) => (
+            <View key={li} style={styles.mdListItem}>
+              <Text style={styles.mdBullet}>{"•"}</Text>
+              <Text style={[styles.agentText, styles.mdListItemText]}>
+                {parseInlineMarkdown(item, styles.agentText)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      );
+      continue;
+    }
+
+    // Ordered list
+    if (/^\d+\. /.test(line)) {
+      const items: Array<{ n: string; t: string }> = [];
+      while (i < lines.length && /^\d+\. /.test(lines[i])) {
+        const m = lines[i].match(/^(\d+)\. (.*)/);
+        if (m) items.push({ n: m[1], t: m[2] });
+        i++;
+      }
+      blocks.push(
+        <View key={key++} style={styles.mdList}>
+          {items.map((item, li) => (
+            <View key={li} style={styles.mdListItem}>
+              <Text style={styles.mdNumber}>{item.n}{"."}</Text>
+              <Text style={[styles.agentText, styles.mdListItemText]}>
+                {parseInlineMarkdown(item.t, styles.agentText)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      );
+      continue;
+    }
+
+    // Horizontal rule
+    if (/^[-*_]{3,}$/.test(line.trim())) {
+      blocks.push(<View key={key++} style={styles.mdHr} />);
+      i++;
+      continue;
+    }
+
+    // Empty line
+    if (line.trim() === "") {
+      i++;
+      continue;
+    }
+
+    // Paragraph
+    blocks.push(
+      <Text key={key++} style={styles.agentText}>
+        {parseInlineMarkdown(line, styles.agentText)}
+      </Text>
+    );
+    i++;
+  }
+
+  return <View style={styles.mdBlock}>{blocks}</View>;
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ChatScreen() {
@@ -376,7 +563,7 @@ export default function ChatScreen() {
   const openOptions = () => {
     Keyboard.dismiss();
     setTimeout(() => {
-      addBtnRef.current?.measureInWindow((x, y, w, h) => {
+      addBtnRef.current?.measureInWindow((x: number, y: number, w: number, h: number) => {
         setAddBtnMeasure({ x, y, w, h });
         setShowOptions(true);
       });
@@ -438,7 +625,7 @@ export default function ChatScreen() {
       if (msg.role === "assistant") {
         return (
           <View key={msg.msgId} style={styles.agentBlock}>
-            <Text style={styles.agentText}>{msg.content}</Text>
+            <MarkdownText content={msg.content} />
           </View>
         );
       }
@@ -1208,5 +1395,114 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: "#FFF",
     letterSpacing: -0.3,
+  },
+
+  // Markdown
+  mdBlock: {
+    gap: 6,
+    alignSelf: "stretch",
+  },
+  mdH1: {
+    fontFamily: SFPro.bold,
+    fontSize: 22,
+    color: "#000",
+    lineHeight: 28,
+    letterSpacing: -0.5,
+  },
+  mdH2: {
+    fontFamily: SFPro.bold,
+    fontSize: 19,
+    color: "#000",
+    lineHeight: 25,
+    letterSpacing: -0.5,
+  },
+  mdH3: {
+    fontFamily: SFPro.bold,
+    fontSize: 17,
+    color: "#000",
+    lineHeight: 22,
+    letterSpacing: -0.5,
+  },
+  mdInlineCode: {
+    fontFamily: SFMono.semiBold,
+    fontSize: 15,
+    color: "#333",
+    backgroundColor: "#F0F0F0",
+  },
+  mdCodeBlock: {
+    backgroundColor: "#F2F2F2",
+    borderRadius: 10,
+    padding: 12,
+  },
+  mdCodeBlockText: {
+    fontFamily: SFMono.semiBold,
+    fontSize: 13,
+    color: "#333",
+    lineHeight: 20,
+  },
+  mdTable: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#DFDFDF",
+    overflow: "hidden",
+  },
+  mdTableRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#DFDFDF",
+  },
+  mdTableLastRow: {
+    borderBottomWidth: 0,
+  },
+  mdTableHeaderRow: {
+    backgroundColor: "#F2F2F2",
+  },
+  mdTableCell: {
+    flex: 1,
+    fontFamily: SFPro.semiBold,
+    fontSize: 15,
+    color: "#000",
+    padding: 8,
+    lineHeight: 20,
+    letterSpacing: -0.3,
+  },
+  mdTableHeaderCell: {
+    flex: 1,
+    fontFamily: SFPro.bold,
+    fontSize: 15,
+    color: "#000",
+    padding: 8,
+    lineHeight: 20,
+    letterSpacing: -0.3,
+  },
+  mdList: {
+    gap: 4,
+  },
+  mdListItem: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "flex-start",
+  },
+  mdListItemText: {
+    flex: 1,
+  },
+  mdBullet: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 17,
+    color: "#000",
+    lineHeight: 22,
+    width: 14,
+  },
+  mdNumber: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 17,
+    color: "#000",
+    lineHeight: 22,
+    minWidth: 24,
+  },
+  mdHr: {
+    height: 1,
+    backgroundColor: "#DFDFDF",
+    marginVertical: 4,
   },
 });
