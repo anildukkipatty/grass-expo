@@ -18,8 +18,9 @@ import DenyIcon from "@/assets/images/new-design/navbar/deny-icon.svg";
 import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
 import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 import UpArrowIcon from "@/assets/images/new-design/up-arrow.svg";
-import { SFMono, SFPro } from "@/constants/theme";
+import { AgentTypingskeleton } from "@/components/SkeletonLoader";
 import { posthog } from "@/constants/posthog";
+import { SFMono, SFPro } from "@/constants/theme";
 import { useServer } from "@/hooks/use-server";
 import {
   closeSSEStream,
@@ -36,7 +37,6 @@ import {
   subscribeSessionLabel,
 } from "@/store/session-label-store";
 import { upsertThread } from "@/store/thread-store";
-import { AgentTypingskeleton } from "@/components/SkeletonLoader";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -65,9 +65,21 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MODELS = [
-  { key: "claude-opus-4-7",   label: "Claude Opus 4.7",   subtitle: "Most capable" },
-  { key: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", subtitle: "Fast, Capable" },
-  { key: "claude-haiku-4-5",  label: "Claude Haiku 4.5",  subtitle: "Fastest response" },
+  {
+    key: "claude-opus-4-7",
+    label: "Claude Opus 4.7",
+    subtitle: "Most capable",
+  },
+  {
+    key: "claude-sonnet-4-6",
+    label: "Claude Sonnet 4.6",
+    subtitle: "Fast, Capable",
+  },
+  {
+    key: "claude-haiku-4-5",
+    label: "Claude Haiku 4.5",
+    subtitle: "Fastest response",
+  },
 ];
 
 // ─── Sub-components (V2 visual design — do not change styles) ─────────────────
@@ -138,11 +150,19 @@ function PermCard({
         </View>
       </View>
       <View style={styles.permActionRow}>
-        <TouchableOpacity style={styles.denyBtn} onPress={onDeny} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={styles.denyBtn}
+          onPress={onDeny}
+          activeOpacity={0.8}
+        >
           <DenyIcon width={16} height={16} />
           <Text style={styles.actionBtnText}>Deny</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.approveBtn} onPress={onApprove} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={styles.approveBtn}
+          onPress={onApprove}
+          activeOpacity={0.8}
+        >
           <ApproveIcon width={16} height={16} />
           <Text style={styles.actionBtnText}>Approve</Text>
         </TouchableOpacity>
@@ -170,7 +190,8 @@ function ChatActions() {
 // ─── Markdown renderer ────────────────────────────────────────────────────────
 
 function parseInlineMarkdown(text: string, baseStyle: any): React.ReactNode[] {
-  const TOKEN_RE = /(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|~~[^~]+~~)/g;
+  const TOKEN_RE =
+    /(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|~~[^~]+~~)/g;
   const nodes: React.ReactNode[] = [];
   let last = 0;
   let k = 0;
@@ -178,28 +199,68 @@ function parseInlineMarkdown(text: string, baseStyle: any): React.ReactNode[] {
 
   while ((match = TOKEN_RE.exec(text)) !== null) {
     if (match.index > last) {
-      nodes.push(<Text key={k++} style={baseStyle}>{text.slice(last, match.index)}</Text>);
+      nodes.push(
+        <Text key={k++} style={baseStyle}>
+          {text.slice(last, match.index)}
+        </Text>,
+      );
     }
     const token = match[1];
     if (token.startsWith("***")) {
-      nodes.push(<Text key={k++} style={[baseStyle, { fontFamily: SFPro.bold, fontStyle: "italic" }]}>{token.slice(3, -3)}</Text>);
+      nodes.push(
+        <Text
+          key={k++}
+          style={[baseStyle, { fontFamily: SFPro.bold, fontStyle: "italic" }]}
+        >
+          {token.slice(3, -3)}
+        </Text>,
+      );
     } else if (token.startsWith("**")) {
-      nodes.push(<Text key={k++} style={[baseStyle, { fontFamily: SFPro.bold }]}>{token.slice(2, -2)}</Text>);
+      nodes.push(
+        <Text key={k++} style={[baseStyle, { fontFamily: SFPro.bold }]}>
+          {token.slice(2, -2)}
+        </Text>,
+      );
     } else if (token.startsWith("*")) {
-      nodes.push(<Text key={k++} style={[baseStyle, { fontStyle: "italic" }]}>{token.slice(1, -1)}</Text>);
+      nodes.push(
+        <Text key={k++} style={[baseStyle, { fontStyle: "italic" }]}>
+          {token.slice(1, -1)}
+        </Text>,
+      );
     } else if (token.startsWith("`")) {
-      nodes.push(<Text key={k++} style={styles.mdInlineCode}>{token.slice(1, -1)}</Text>);
+      nodes.push(
+        <Text key={k++} style={styles.mdInlineCode}>
+          {token.slice(1, -1)}
+        </Text>,
+      );
     } else if (token.startsWith("~~")) {
-      nodes.push(<Text key={k++} style={[baseStyle, { textDecorationLine: "line-through" }]}>{token.slice(2, -2)}</Text>);
+      nodes.push(
+        <Text
+          key={k++}
+          style={[baseStyle, { textDecorationLine: "line-through" }]}
+        >
+          {token.slice(2, -2)}
+        </Text>,
+      );
     }
     last = match.index + token.length;
   }
 
   if (last < text.length) {
-    nodes.push(<Text key={k++} style={baseStyle}>{text.slice(last)}</Text>);
+    nodes.push(
+      <Text key={k++} style={baseStyle}>
+        {text.slice(last)}
+      </Text>,
+    );
   }
 
-  return nodes.length > 0 ? nodes : [<Text key={0} style={baseStyle}>{text}</Text>];
+  return nodes.length > 0
+    ? nodes
+    : [
+        <Text key={0} style={baseStyle}>
+          {text}
+        </Text>,
+      ];
 }
 
 function MarkdownText({ content }: { content: string }) {
@@ -222,7 +283,7 @@ function MarkdownText({ content }: { content: string }) {
       blocks.push(
         <View key={key++} style={styles.mdCodeBlock}>
           <Text style={styles.mdCodeBlockText}>{codeLines.join("\n")}</Text>
-        </View>
+        </View>,
       );
       i++;
       continue;
@@ -238,7 +299,7 @@ function MarkdownText({ content }: { content: string }) {
       blocks.push(
         <Text key={key++} style={hStyle}>
           {parseInlineMarkdown(hText, hStyle)}
-        </Text>
+        </Text>,
       );
       i++;
       continue;
@@ -269,7 +330,9 @@ function MarkdownText({ content }: { content: string }) {
                 ]}
               >
                 {cells.map((cell, ci) => {
-                  const cellStyle = isHeader ? styles.mdTableHeaderCell : styles.mdTableCell;
+                  const cellStyle = isHeader
+                    ? styles.mdTableHeaderCell
+                    : styles.mdTableCell;
                   return (
                     <Text key={ci} style={cellStyle}>
                       {parseInlineMarkdown(cell.trim(), cellStyle)}
@@ -279,7 +342,7 @@ function MarkdownText({ content }: { content: string }) {
               </View>
             );
           })}
-        </View>
+        </View>,
       );
       continue;
     }
@@ -301,14 +364,14 @@ function MarkdownText({ content }: { content: string }) {
               </Text>
             </View>
           ))}
-        </View>
+        </View>,
       );
       continue;
     }
 
     // Ordered list
     if (/^\d+\. /.test(line)) {
-      const items: Array<{ n: string; t: string }> = [];
+      const items: { n: string; t: string }[] = [];
       while (i < lines.length && /^\d+\. /.test(lines[i])) {
         const m = lines[i].match(/^(\d+)\. (.*)/);
         if (m) items.push({ n: m[1], t: m[2] });
@@ -318,13 +381,16 @@ function MarkdownText({ content }: { content: string }) {
         <View key={key++} style={styles.mdList}>
           {items.map((item, li) => (
             <View key={li} style={styles.mdListItem}>
-              <Text style={styles.mdNumber}>{item.n}{"."}</Text>
+              <Text style={styles.mdNumber}>
+                {item.n}
+                {"."}
+              </Text>
               <Text style={[styles.agentText, styles.mdListItemText]}>
                 {parseInlineMarkdown(item.t, styles.agentText)}
               </Text>
             </View>
           ))}
-        </View>
+        </View>,
       );
       continue;
     }
@@ -346,7 +412,7 @@ function MarkdownText({ content }: { content: string }) {
     blocks.push(
       <Text key={key++} style={styles.agentText}>
         {parseInlineMarkdown(line, styles.agentText)}
-      </Text>
+      </Text>,
     );
     i++;
   }
@@ -377,12 +443,13 @@ export default function ChatScreen() {
 
   // Pin the first non-null serverUrl so it never reverts mid-session
   const serverUrlRef = useRef<string | null>(null);
-  if (serverUrlParam && !serverUrlRef.current) serverUrlRef.current = serverUrlParam;
+  if (serverUrlParam && !serverUrlRef.current)
+    serverUrlRef.current = serverUrlParam;
   const serverUrl = serverUrlRef.current ?? serverUrlParam ?? null;
 
   const repoNameStr = Array.isArray(repoName) ? repoName[0] : (repoName ?? "");
   const repoPathStr = Array.isArray(repoPath) ? repoPath[0] : (repoPath ?? "");
-  const agentStr    = Array.isArray(agent)    ? agent[0]    : (agent ?? "claude-code");
+  const agentStr = Array.isArray(agent) ? agent[0] : (agent ?? "claude-code");
 
   // ── Local state ──
   const [inputText, setInputText] = useState("");
@@ -392,23 +459,27 @@ export default function ChatScreen() {
   const [tempModelKey, setTempModelKey] = useState("claude-sonnet-4-6");
   const [showOptions, setShowOptions] = useState(false);
   const [addBtnMeasure, setAddBtnMeasure] = useState<{
-    x: number; y: number; w: number; h: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
   } | null>(null);
   const [inputContainerHeight, setInputContainerHeight] = useState(0);
-  const [pendingPermission, setPendingPermission] = useState<GlobalPermissionItem | null>(null);
+  const [pendingPermission, setPendingPermission] =
+    useState<GlobalPermissionItem | null>(null);
   const [sessionLabel, setSessionLabelState] = useState<string | null>(
     initialSessionId ? getSessionLabel() : null,
   );
 
   // ── Refs ──
-  const hasSent              = useRef(false);
-  const firstUserMessage     = useRef<string | null>(null);
-  const threadSaved          = useRef(false);
-  const sessionInitialized   = useRef(false);
-  const initialMessageSent   = useRef(false);
-  const scrollViewRef        = useRef<ScrollView>(null);
-  const modelSheetRef        = useRef<BottomSheetModal>(null);
-  const addBtnRef            = useRef<any>(null);
+  const hasSent = useRef(false);
+  const firstUserMessage = useRef<string | null>(null);
+  const threadSaved = useRef(false);
+  const sessionInitialized = useRef(false);
+  const initialMessageSent = useRef(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const modelSheetRef = useRef<BottomSheetModal>(null);
+  const addBtnRef = useRef<any>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   const ws = useServer(serverUrl);
@@ -439,21 +510,24 @@ export default function ChatScreen() {
     const update = () => {
       const entry = getEntry(serverUrl);
       const grassId = entry?.currentSessionId ?? null;
-      const sdkId   = entry?.sessionId ?? null;
+      const sdkId = entry?.sessionId ?? null;
       const match =
         grassId || sdkId
           ? (getPermissions(serverUrl).find(
               (p) =>
                 (grassId && p.sessionId === grassId) ||
-                (sdkId   && p.sdkSessionId === sdkId),
+                (sdkId && p.sdkSessionId === sdkId),
             ) ?? null)
           : null;
       setPendingPermission(match);
     };
     update();
     const unsubPerms = subscribeToPermissions(serverUrl, update);
-    const unsubConn  = subscribeToConnection(serverUrl, update);
-    return () => { unsubPerms(); unsubConn(); };
+    const unsubConn = subscribeToConnection(serverUrl, update);
+    return () => {
+      unsubPerms();
+      unsubConn();
+    };
   }, [serverUrl]);
 
   // ── Save thread after first send ──
@@ -463,7 +537,8 @@ export default function ChatScreen() {
     if (!initialSessionId && !ws.sdkSessionId) return;
     const userText = firstUserMessage.current;
     if (!userText) return;
-    const title = userText.length > 80 ? userText.slice(0, 80) + "..." : userText;
+    const title =
+      userText.length > 80 ? userText.slice(0, 80) + "..." : userText;
     if (!sessionLabel) {
       setSessionLabelState(title);
       setSessionLabel(title);
@@ -491,22 +566,31 @@ export default function ChatScreen() {
 
   // ── Auto-send initialMessage once session grassId is ready ──
   useEffect(() => {
-    if (initialMessageSent.current || !initialMessage || !ws.grassId || ws.streaming) return;
-    const text = Array.isArray(initialMessage) ? initialMessage[0] : initialMessage;
+    if (
+      initialMessageSent.current ||
+      !initialMessage ||
+      !ws.grassId ||
+      ws.streaming
+    )
+      return;
+    const text = Array.isArray(initialMessage)
+      ? initialMessage[0]
+      : initialMessage;
     if (!text) return;
     initialMessageSent.current = true;
     if (!hasSent.current) firstUserMessage.current = text;
     hasSent.current = true;
     ws.send(text, selectedModelKey, agentMode, ws.permissionMode);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ws.grassId]);
 
   // ── Derived values ──
-  const branch      = repoPathStr ? ws.repoDetails.get(repoPathStr)?.branch : null;
+  const branch = repoPathStr ? ws.repoDetails.get(repoPathStr)?.branch : null;
   const headerTitle = sessionLabel ?? repoNameStr ?? "New Chat";
-  const canSend     = !!inputText.trim() && !ws.streaming;
+  const canSend = !!inputText.trim() && !ws.streaming;
 
-  const selectedModel = MODELS.find((m) => m.key === selectedModelKey) ?? MODELS[1];
+  const selectedModel =
+    MODELS.find((m) => m.key === selectedModelKey) ?? MODELS[1];
 
   // ── Send ──
   const handleSubmit = () => {
@@ -554,7 +638,11 @@ export default function ChatScreen() {
 
   const renderModelBackdrop = useCallback(
     (props: any) => (
-      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+      />
     ),
     [],
   );
@@ -563,10 +651,12 @@ export default function ChatScreen() {
   const openOptions = () => {
     Keyboard.dismiss();
     setTimeout(() => {
-      addBtnRef.current?.measureInWindow((x: number, y: number, w: number, h: number) => {
-        setAddBtnMeasure({ x, y, w, h });
-        setShowOptions(true);
-      });
+      addBtnRef.current?.measureInWindow(
+        (x: number, y: number, w: number, h: number) => {
+          setAddBtnMeasure({ x, y, w, h });
+          setShowOptions(true);
+        },
+      );
     }, 50);
   };
 
@@ -590,7 +680,10 @@ export default function ChatScreen() {
         "Please enable camera access in Settings.",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Open Settings", onPress: () => Linking.openURL("app-settings:") },
+          {
+            text: "Open Settings",
+            onPress: () => Linking.openURL("app-settings:"),
+          },
         ],
       );
     }
@@ -615,9 +708,9 @@ export default function ChatScreen() {
 
       if (msg.role === "tool") {
         const label = msg.badge ?? msg.content.substring(0, 60);
-        const isRead  = /read|search|view|cat|ls|get/i.test(label);
+        const isRead = /read|search|view|cat|ls|get/i.test(label);
         const isWrite = /write|edit|create|patch|insert|update/i.test(label);
-        if (isRead)  return <ReadingPill key={msg.msgId} path={label} />;
+        if (isRead) return <ReadingPill key={msg.msgId} path={label} />;
         if (isWrite) return <WritingPill key={msg.msgId} path={label} />;
         return <ToolPill key={msg.msgId} label={label} />;
       }
@@ -633,7 +726,9 @@ export default function ChatScreen() {
       if (msg.role === "error") {
         return (
           <View key={msg.msgId} style={styles.agentBlock}>
-            <Text style={[styles.agentText, { color: "#B20000" }]}>{msg.content}</Text>
+            <Text style={[styles.agentText, { color: "#B20000" }]}>
+              {msg.content}
+            </Text>
           </View>
         );
       }
@@ -645,7 +740,12 @@ export default function ChatScreen() {
   // ── Permission card data ──
   function getPermissionCommand(item: GlobalPermissionItem): string {
     const input = item.input as Record<string, unknown>;
-    const val = input.command ?? input.path ?? input.file_path ?? input.url ?? Object.values(input)[0];
+    const val =
+      input.command ??
+      input.path ??
+      input.file_path ??
+      input.url ??
+      Object.values(input)[0];
     return String(val ?? "");
   }
 
@@ -668,7 +768,8 @@ export default function ChatScreen() {
           <View style={styles.branchRow}>
             {branch ? (
               <Text style={styles.branchName}>
-                {repoNameStr} · <GitBranchIcon width={13} height={13} /> {branch}
+                {repoNameStr} · <GitBranchIcon width={13} height={13} />{" "}
+                {branch}
               </Text>
             ) : (
               <Text style={styles.branchName}>{repoNameStr}</Text>
@@ -750,9 +851,10 @@ export default function ChatScreen() {
             )}
 
             {/* Typing indicator */}
-            {ws.streaming && ws.messages.some((m) => m.role === "assistant") && (
-              <AgentTypingskeleton theme="light" />
-            )}
+            {ws.streaming &&
+              ws.messages.some((m) => m.role === "assistant") && (
+                <AgentTypingskeleton theme="light" />
+              )}
 
             {/* Chat actions shown after session has messages and is idle */}
             {ws.messages.length > 0 && !ws.streaming && <ChatActions />}
@@ -800,7 +902,9 @@ export default function ChatScreen() {
             <TouchableOpacity
               style={styles.buildBtn}
               activeOpacity={0.7}
-              onPress={() => setAgentMode((m) => (m === "build" ? "plan" : "build"))}
+              onPress={() =>
+                setAgentMode((m) => (m === "build" ? "plan" : "build"))
+              }
             >
               <Text style={styles.buildText}>
                 {agentMode === "build" ? "Build" : "Plan"}
@@ -849,22 +953,38 @@ export default function ChatScreen() {
           <View
             style={[
               styles.optionsPanel,
-              { position: "absolute", left: 16, bottom: inputContainerHeight + 12 },
+              {
+                position: "absolute",
+                left: 16,
+                bottom: inputContainerHeight + 12,
+              },
             ]}
           >
-            <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={handleCameraPress}>
+            <TouchableOpacity
+              style={styles.optionRow}
+              activeOpacity={0.7}
+              onPress={handleCameraPress}
+            >
               <View style={styles.optionIconBg}>
                 <CameraIcon width={22} height={22} />
               </View>
               <Text style={styles.optionLabel}>Camera</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={handlePhotosPress}>
+            <TouchableOpacity
+              style={styles.optionRow}
+              activeOpacity={0.7}
+              onPress={handlePhotosPress}
+            >
               <View style={styles.optionIconBg}>
                 <PhotosIcon width={22} height={22} />
               </View>
               <Text style={styles.optionLabel}>Photos</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={handleFilesPress}>
+            <TouchableOpacity
+              style={styles.optionRow}
+              activeOpacity={0.7}
+              onPress={handleFilesPress}
+            >
               <View style={styles.optionIconBg}>
                 <FilesIcon width={22} height={22} />
               </View>
@@ -874,7 +994,11 @@ export default function ChatScreen() {
           <TouchableOpacity
             style={[
               styles.addBtn,
-              { position: "absolute", left: addBtnMeasure.x, top: addBtnMeasure.y },
+              {
+                position: "absolute",
+                left: addBtnMeasure.x,
+                top: addBtnMeasure.y,
+              },
             ]}
             activeOpacity={0.7}
             onPress={closeOptions}
@@ -925,7 +1049,9 @@ export default function ChatScreen() {
                   <Text style={styles.modelLabel}>{m.label}</Text>
                   <Text style={styles.modelSubtitle}>{m.subtitle}</Text>
                 </View>
-                {tempModelKey === m.key && <SelectedIcon width={16} height={16} />}
+                {tempModelKey === m.key && (
+                  <SelectedIcon width={16} height={16} />
+                )}
               </TouchableOpacity>
             ))}
           </View>

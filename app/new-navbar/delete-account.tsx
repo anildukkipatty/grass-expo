@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -194,7 +195,7 @@ export default function DeleteAccountScreen() {
               <TouchableOpacity
                 style={styles.issueCard}
                 activeOpacity={0.8}
-                onPress={() => router.push("/new-navbar/support")}
+                onPress={() => Linking.openURL("https://calendly.com/sahil-revise/30min-meeting")}
               >
                 <View style={styles.issueIconWrap}>
                   <IssueIcon width={20} height={19} />

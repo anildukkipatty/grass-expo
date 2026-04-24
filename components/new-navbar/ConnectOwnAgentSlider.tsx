@@ -908,6 +908,18 @@ const styles = StyleSheet.create({
   learnMoreWrap: { alignItems: "center" },
   learnMoreText: { fontFamily: SFPro.semiBold, fontSize: 13, color: "#3D841E", letterSpacing: -0.2 },
 
+  greenDragArea: {
+    alignItems: "center",
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  greenDragger: {
+    width: 36,
+    height: 5,
+    borderRadius: 100,
+    backgroundColor: "#CCC",
+    mixBlendMode: "plus-darker",
+  },
   // Green success overlay
   successOverlay: {
     position: "absolute",

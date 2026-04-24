@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -33,6 +34,7 @@ import VmTimeIcon from "@/assets/images/new-design/settings/vm-time.svg";
 import XIcon from "@/assets/images/new-design/settings/x.svg";
 
 import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
+import { EditMachineSlider } from "@/components/new-navbar/EditMachineSlider";
 import { LogoutSlider } from "@/components/new-navbar/LogoutSlider";
 import { NotificationPermissionSlider } from "@/components/new-navbar/NotificationPermissionSlider";
 import { SFPro } from "@/constants/theme";
@@ -49,6 +51,7 @@ type SectionRowProps = {
   isLast?: boolean;
   onPress?: () => void;
   labelColor?: string;
+  onDeletePress?: () => void;
 };
 
 function SectionRow({
@@ -95,6 +98,7 @@ function MachineRow({
   showChevron = true,
   isLast,
   onPress,
+  onDeletePress,
 }: SectionRowProps) {
   return (
     <TouchableOpacity
@@ -118,7 +122,11 @@ function MachineRow({
           {sublabel ? <Text style={styles.rowLabel}>{sublabel}</Text> : null}
         </View>
       </View>
-      {external ? (
+      {onDeletePress ? (
+        <TouchableOpacity onPress={onDeletePress} hitSlop={8}>
+          <DeleteIcon width={15} height={18} />
+        </TouchableOpacity>
+      ) : external ? (
         <ExternalLinkIcon width={18} height={18} />
       ) : showChevron ? (
         <RightArrow width={20} height={20} />
@@ -133,6 +141,7 @@ export default function SettingsScreen() {
   const [connectMoreVisible, setConnectMoreVisible] = useState(false);
   const [notifPermVisible, setNotifPermVisible] = useState(false);
   const [logoutVisible, setLogoutVisible] = useState(false);
+  const [editMachineUrl, setEditMachineUrl] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [grassVmName, setGrassVmName] = useState<string | null>(null);
   const [vmMetadataMap, setVmMetadataMap] = useState<Record<string, { name: string; iconIndex: number }>>({});
@@ -264,6 +273,11 @@ export default function SettingsScreen() {
                 icon={<MachineIcon />}
                 label={vmDisplayName(url)}
                 sublabel={url === primaryVmUrl ? "Your virtual machine" : "Custom machine"}
+                onDeletePress={
+                  url !== primaryVmUrl
+                    ? () => setEditMachineUrl(url)
+                    : undefined
+                }
               />
             ))}
             <MachineRow
@@ -280,6 +294,22 @@ export default function SettingsScreen() {
           <ConnectMoreSlider
             visible={connectMoreVisible}
             onClose={() => setConnectMoreVisible(false)}
+          />
+          <EditMachineSlider
+            visible={editMachineUrl !== null}
+            onClose={() => {
+              setEditMachineUrl(null);
+              getAllVmMetadata().then(setVmMetadataMap);
+            }}
+            machineUrl={editMachineUrl ?? ""}
+            initialName={
+              editMachineUrl
+                ? (vmMetadataMap[editMachineUrl]?.name ?? extractHost(editMachineUrl))
+                : ""
+            }
+            initialIconIndex={
+              editMachineUrl ? (vmMetadataMap[editMachineUrl]?.iconIndex ?? 0) : 0
+            }
           />
 
           {/* ── Support ── */}
@@ -301,12 +331,8 @@ export default function SettingsScreen() {
                 </View>
               }
               label="Report a bug"
-              onPress={() =>
-                router.push({
-                  pathname: "/new-navbar/coming-soon",
-                  params: { title: "Report a Bug" },
-                })
-              }
+              external
+              onPress={() => Linking.openURL("https://forms.gle/me8GxWugXTgASyZR7")}
             />
             <MachineRow
               icon={
@@ -315,6 +341,12 @@ export default function SettingsScreen() {
                 </View>
               }
               label="Request a feature"
+              external
+              onPress={() =>
+                Linking.openURL(
+                  "mailto:support@codeongrass.com?subject=Feature%20Request%3A%20%5BYour%20idea%20in%20one%20line%5D&body=What's%20the%20feature%3F%0A%0A%0AWhy%20do%20you%20need%20it%3F%20What%20problem%20does%20it%20solve%3F%0A%0A%0AHow%20are%20you%20currently%20working%20around%20it%3F%0A"
+                )
+              }
             />
             <MachineRow
               icon={
@@ -339,6 +371,7 @@ export default function SettingsScreen() {
               }
               label="Privacy Policy"
               external
+              onPress={() => Linking.openURL("https://codeongrass.com/privacypolicy")}
             />
             <MachineRow
               icon={
@@ -348,6 +381,7 @@ export default function SettingsScreen() {
               }
               label="Terms of Service"
               external
+              onPress={() => Linking.openURL("https://codeongrass.com/terms")}
             />
             <MachineRow
               icon={
@@ -381,6 +415,7 @@ export default function SettingsScreen() {
               label="Follow us on X"
               external
               isLast
+              onPress={() => Linking.openURL("https://x.com/Grasshq")}
             />
           </View>
 
