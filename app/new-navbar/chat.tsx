@@ -681,7 +681,7 @@ export default function ChatScreen() {
           activeOpacity={0.7}
           onPress={() =>
             router.push({
-              pathname: "/diffs" as any,
+              pathname: "/new-navbar/diffs" as any,
               params: { serverUrl: serverUrl ?? "", repoPath: repoPathStr },
             })
           }

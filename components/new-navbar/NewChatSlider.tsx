@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 
-import BranchIcon from "@/assets/images/new-design/new-chat/branch.svg";
+// import BranchIcon from "@/assets/images/new-design/new-chat/branch.svg";
 import MachinesIcon from "@/assets/images/new-design/new-chat/machines.svg";
 import RepositoryIcon from "@/assets/images/new-design/new-chat/repository.svg";
 import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
@@ -23,6 +23,9 @@ import ClaudeIcon from "@/assets/images/new-design/chat/claude.svg";
 import OpenCodeIcon from "@/assets/images/new-design/chat/opencode.svg";
 import { SFPro } from "@/constants/theme";
 import { extractHost, RepoItem, useNavbar } from "@/contexts/navbar-context";
+
+const LAST_REPO_KEY = (serverUrl: string) => `@grass/last_repo:${serverUrl}`;
+const LAST_AGENT_KEY = "@grass/last_agent";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CLOSE_THRESHOLD = 80;
@@ -79,14 +82,44 @@ export function NewChatSlider({ visible, onClose }: Props) {
     showRepoPickerRef.current = showRepoPicker;
   }, [showRepoPicker]);
 
-  // Reset state when slider opens
+  // Reset state and pre-populate from last-used values when slider opens
   useEffect(() => {
-    if (visible) {
-      setSelectedRepo(null);
-      setSelectedAgent("claude-code");
-      setShowRepoPicker(false);
-    }
-  }, [visible]);
+    if (!visible) return;
+    setShowRepoPicker(false);
+
+    const load = async () => {
+      let lastRepoRaw: string | null = null;
+      let lastAgent: string | null = null;
+      try {
+        [lastRepoRaw, lastAgent] = await Promise.all([
+          selectedVmUrl ? AsyncStorage.getItem(LAST_REPO_KEY(selectedVmUrl)) : Promise.resolve(null),
+          AsyncStorage.getItem(LAST_AGENT_KEY),
+        ]);
+      } catch {
+        // AsyncStorage unavailable — fall through to defaults
+      }
+
+      setSelectedAgent(lastAgent === "claude-code" || lastAgent === "opencode" ? lastAgent : "claude-code");
+
+      if (lastRepoRaw) {
+        try {
+          const parsed = JSON.parse(lastRepoRaw);
+          // Guard against corrupt/partial data — require the fields handleStart depends on
+          if (parsed && typeof parsed.path === "string" && typeof parsed.name === "string") {
+            setSelectedRepo(parsed as RepoItem);
+          } else {
+            setSelectedRepo(null);
+          }
+        } catch {
+          setSelectedRepo(null);
+        }
+      } else {
+        setSelectedRepo(null);
+      }
+    };
+
+    load();
+  }, [visible, selectedVmUrl]);
 
   const vmLabel = selectedVmUrl
     ? extractHost(selectedVmUrl)
@@ -172,7 +205,11 @@ export function NewChatSlider({ visible, onClose }: Props) {
 
   async function handleStart() {
     if (!selectedRepo || !selectedVmUrl) return;
-    const pendingTask = await AsyncStorage.getItem("GRASS_PENDING_FIRST_TASK");
+    const [pendingTask] = await Promise.all([
+      AsyncStorage.getItem("GRASS_PENDING_FIRST_TASK"),
+      AsyncStorage.setItem(LAST_REPO_KEY(selectedVmUrl), JSON.stringify(selectedRepo)),
+      AsyncStorage.setItem(LAST_AGENT_KEY, selectedAgent),
+    ]);
     if (pendingTask) await AsyncStorage.removeItem("GRASS_PENDING_FIRST_TASK");
     close(() => {
       router.push({
@@ -275,13 +312,16 @@ export function NewChatSlider({ visible, onClose }: Props) {
                 value={selectedRepo?.name ?? "Select a repo"}
                 placeholder={!selectedRepo}
                 onPress={() => setShowRepoPicker(true)}
+                isLast
               />
+              {/* Branch row commented out
               <SelectionRow
                 icon={<BranchIcon width={22} height={22} />}
                 label="Branch"
                 value={selectedRepo?.branch ?? "—"}
                 isLast
               />
+              */}
             </View>
 
             {/* Agent selection */}
