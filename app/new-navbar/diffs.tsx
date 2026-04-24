@@ -208,7 +208,8 @@ export default function DiffsScreen() {
 
   const serverUrlStr = Array.isArray(serverUrl) ? serverUrl[0] : serverUrl;
   const repoPathStr = Array.isArray(repoPath) ? repoPath[0] : repoPath;
-  const repoStr = Array.isArray(repoName) ? repoName[0] : (repoName || repoPathStr);
+  const repoStrRaw = Array.isArray(repoName) ? repoName[0] : (repoName || repoPathStr);
+  const repoStr = repoStrRaw.split("/").filter(Boolean).pop() ?? repoStrRaw;
   const branchStr = Array.isArray(branchName) ? branchName[0] : branchName;
 
   const [diffsText, setDiffsText] = useState<string | null>(null);

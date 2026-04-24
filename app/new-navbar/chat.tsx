@@ -1,6 +1,5 @@
 import AddIcon from "@/assets/images/new-design/chat/add.svg";
 import BackButtonIcon from "@/assets/images/new-design/chat/back-button.svg";
-import BuildIcon from "@/assets/images/new-design/chat/build.svg";
 import CameraIcon from "@/assets/images/new-design/chat/camera.svg";
 import CopyIcon from "@/assets/images/new-design/chat/copy.svg";
 import DiffButtonIcon from "@/assets/images/new-design/chat/diff-button.svg";
@@ -12,7 +11,6 @@ import SearchIcon from "@/assets/images/new-design/chat/search-icon.svg";
 import SelectedIcon from "@/assets/images/new-design/chat/selected.svg";
 import ShareIcon from "@/assets/images/new-design/chat/share.svg";
 import WriteIcon from "@/assets/images/new-design/chat/write.svg";
-import DownArrowIcon from "@/assets/images/new-design/down-arrow.svg";
 import ApproveIcon from "@/assets/images/new-design/navbar/approve-icon.svg";
 import DenyIcon from "@/assets/images/new-design/navbar/deny-icon.svg";
 import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
@@ -914,13 +912,14 @@ export default function ChatScreen() {
               <AddIcon width={18} height={18} />
             </TouchableOpacity>
 
+            <View style={styles.toolbarSpacer} />
+
             <TouchableOpacity
               style={styles.modelDropdown}
               activeOpacity={0.7}
               onPress={openModelSheet}
             >
               <Text style={styles.dropdownText} numberOfLines={1}>{selectedModel.label}</Text>
-              <DownArrowIcon width={14} height={14} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -937,10 +936,7 @@ export default function ChatScreen() {
                   ? ` · ${ws.permissionMode === "allow-all-edits" ? "Edits" : "YOLO"}`
                   : ""}
               </Text>
-              <BuildIcon width={16} height={16} />
             </TouchableOpacity>
-
-            <View style={styles.toolbarSpacer} />
 
             {ws.streaming ? (
               <TouchableOpacity
@@ -1516,7 +1512,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#1A1A1A",
     letterSpacing: -0.2,
-    maxWidth: 80,
+    maxWidth: 95,
   },
   buildBtn: {
     flexDirection: "row",
@@ -1534,7 +1530,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#1A1A1A",
     letterSpacing: -0.2,
-    maxWidth: 72,
+    maxWidth: 85,
   },
   submitBtn: {
     width: 40,
