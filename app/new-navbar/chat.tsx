@@ -514,11 +514,10 @@ export default function ChatScreen() {
     sessionConfigFetched.current = true;
     ws.getSessionConfig(initialSessionId).then((config) => {
       if (!config) return;
-      if (config.model) {
-        setSelectedModelKey(config.model);
-        setTempModelKey(config.model);
-      }
-      if (config.mode) setAgentMode(config.mode);
+      const model = config.model ?? getDefaultModel(agentStr);
+      setSelectedModelKey(model);
+      setTempModelKey(model);
+      setAgentMode(config.mode ?? "build");
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

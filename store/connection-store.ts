@@ -759,8 +759,8 @@ export async function getSessionConfigStore(serverUrl: string, sessionId: string
     const res = await fetch(`${entry.baseUrl}/sessions/${encodeURIComponent(sessionId)}/config`);
     if (!res.ok) return null;
     const json = await res.json() as { model?: string | null; mode?: 'plan' | 'build' | null; permissionMode?: PermissionMode | null };
-    if (_connections.has(key) && json.permissionMode) {
-      entry.permissionMode = json.permissionMode;
+    if (_connections.has(key)) {
+      entry.permissionMode = json.permissionMode ?? 'ask-permissions';
       notifyListeners(key);
     }
     return {
