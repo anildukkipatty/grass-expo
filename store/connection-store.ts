@@ -111,14 +111,37 @@ const _globalListeners = new Set<() => void>();
 
 // --- Global permissions SSE (one per server URL) ---
 
+export interface SessionStatusItem {
+  grassId: string;
+  sessionId: string | null;
+  status: 'running' | 'awaiting_permissions' | 'done' | 'error';
+}
+
 interface PermissionsSSEEntry {
   abortController: AbortController | null;
   permissions: GlobalPermissionItem[];
+  sessions: SessionStatusItem[];
   listeners: Set<() => void>;
   resolvedUrl: string | null;
 }
 
 const _permissionsSSE = new Map<string, PermissionsSSEEntry>();
+
+// grassId → whether the done dot should be shown.
+// Defaults to true (show) for any unseen thread.
+// Set to false when user opens a thread that is currently 'done'.
+// Reset to true when a thread transitions to 'running' or 'awaiting_permissions'.
+const _showDoneIndicator = new Map<string, boolean>();
+
+export function markThreadSeen(serverUrl: string, grassId: string) {
+  _showDoneIndicator.set(grassId, false);
+  notifyPermissionsListeners(resolveServerKey(serverUrl));
+}
+
+export function shouldShowDoneIndicator(grassId: string): boolean {
+  // If never explicitly hidden, default to showing
+  return _showDoneIndicator.get(grassId) !== false;
+}
 
 function notifyPermissionsListeners(serverUrl: string) {
   const e = _permissionsSSE.get(serverUrl);
@@ -131,7 +154,7 @@ async function openPermissionsSSE(serverUrl: string) {
   const realUrl = _connections.get(key)?.baseUrl ?? resolveServerUrl(serverUrl);
   let entry = _permissionsSSE.get(key);
   if (!entry) {
-    entry = { abortController: null, permissions: [], listeners: new Set(), resolvedUrl: null };
+    entry = { abortController: null, permissions: [], sessions: [], listeners: new Set(), resolvedUrl: null };
     _permissionsSSE.set(key, entry);
   }
 
@@ -163,10 +186,23 @@ async function openPermissionsSSE(serverUrl: string) {
       for (const frame of frames) {
         if (frame.event === 'permissions' && frame.data) {
           try {
-            const parsed = JSON.parse(frame.data) as { permissions: GlobalPermissionItem[] };
+            const parsed = JSON.parse(frame.data) as { permissions: GlobalPermissionItem[]; sessions?: SessionStatusItem[] };
             const e2 = _permissionsSSE.get(key);
             if (e2) {
+              const prevSessions = e2.sessions;
+              const nextSessions = parsed.sessions ?? [];
+              // Reset done indicator for any thread that transitions to an active state
+              const prevMap = new Map(prevSessions.map(s => [s.grassId, s.status]));
+              for (const next of nextSessions) {
+                if (next.status === 'running' || next.status === 'awaiting_permissions') {
+                  const prev = prevMap.get(next.grassId);
+                  if (prev !== next.status) {
+                    _showDoneIndicator.set(next.grassId, true);
+                  }
+                }
+              }
               e2.permissions = parsed.permissions ?? [];
+              e2.sessions = nextSessions;
               notifyPermissionsListeners(key);
             }
           } catch { /* ignore parse error */ }
@@ -195,7 +231,7 @@ export function subscribeToPermissions(serverUrl: string, fn: () => void): () =>
   const key = resolveServerKey(serverUrl);
   let entry = _permissionsSSE.get(key);
   if (!entry) {
-    entry = { abortController: null, permissions: [], listeners: new Set(), resolvedUrl: null };
+    entry = { abortController: null, permissions: [], sessions: [], listeners: new Set(), resolvedUrl: null };
     _permissionsSSE.set(key, entry);
   }
   entry.listeners.add(fn);
@@ -209,6 +245,11 @@ export function subscribeToPermissions(serverUrl: string, fn: () => void): () =>
 export function getPermissions(serverUrl: string): GlobalPermissionItem[] {
   const key = resolveServerKey(serverUrl);
   return _permissionsSSE.get(key)?.permissions ?? [];
+}
+
+export function getSessionStatuses(serverUrl: string): SessionStatusItem[] {
+  const key = resolveServerKey(serverUrl);
+  return _permissionsSSE.get(key)?.sessions ?? [];
 }
 
 export async function respondGlobalPermission(

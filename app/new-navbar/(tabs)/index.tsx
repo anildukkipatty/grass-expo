@@ -1,6 +1,8 @@
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   ScrollView,
   StyleSheet,
@@ -11,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import FloatIcon from "@/assets/images/new-design/navbar/float-icon.svg";
+import { ConnectLaptopSlider } from "@/components/new-navbar/ConnectLaptopSlider";
 import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
 import {
   Machine,
@@ -21,6 +24,13 @@ import { posthog } from "@/constants/posthog";
 import { VM_ICONS } from "@/constants/vm-icons";
 import { extractHost, useNavbar } from "@/contexts/navbar-context";
 import { setSessionLabel } from "@/store/session-label-store";
+import {
+  getSessionStatuses,
+  markThreadSeen,
+  SessionStatusItem,
+  shouldShowDoneIndicator,
+  subscribeToPermissions,
+} from "@/store/connection-store";
 import { formatRelativeTime } from "@/store/thread-store";
 import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
 
@@ -98,6 +108,7 @@ export default function HomeScreen() {
   const { bottom } = useSafeAreaInsets();
   const router = useRouter();
   const [connectMoreVisible, setConnectMoreVisible] = React.useState(false);
+  const [connectLaptopVisible, setConnectLaptopVisible] = React.useState(false);
   const [newChatVisible, setNewChatVisible] = React.useState(false);
   const [vmMetadataMap, setVmMetadataMap] = useState<
     Record<string, { name: string; iconIndex: number }>
@@ -114,6 +125,25 @@ export default function HomeScreen() {
     threads,
     selectedVmUrl,
   } = useNavbar();
+
+  const [sessionStatuses, setSessionStatuses] = useState<SessionStatusItem[]>([]);
+  const [focusTick, setFocusTick] = useState(0);
+
+  useEffect(() => {
+    if (!selectedVmUrl) { setSessionStatuses([]); return; }
+    setSessionStatuses(getSessionStatuses(selectedVmUrl));
+    const unsub = subscribeToPermissions(selectedVmUrl, () => {
+      setSessionStatuses(getSessionStatuses(selectedVmUrl));
+    });
+    return unsub;
+  }, [selectedVmUrl]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (selectedVmUrl) setSessionStatuses(getSessionStatuses(selectedVmUrl));
+      setFocusTick(n => n + 1);
+    }, [selectedVmUrl])
+  );
 
   // Load stored names + icons whenever the VM list changes
   useEffect(() => {
@@ -198,6 +228,86 @@ export default function HomeScreen() {
 
   const isLoading = vmUrls.length === 0;
 
+  function renderThreadList() {
+    if (isLoading) {
+      return Array.from({ length: 7 }).map((_, i) => (
+        <SkeletonItem key={i} opacity={shimmerAnim} />
+      ));
+    }
+    if (threads.length === 0) {
+      return (
+        <View style={styles.emptyWrap}>
+          <Text style={styles.emptyText}>
+            Start a new thread to see chats here
+          </Text>
+        </View>
+      );
+    }
+    const statusMap = new Map(sessionStatuses.map(s => [s.grassId, s.status]));
+    return threads.map((thread) => {
+      const AgentIcon = AGENT_ICONS[thread.tool] ?? ClaudeIcon;
+      const status = statusMap.get(thread.grassId);
+      return (
+        <TouchableOpacity
+          key={thread.grassId}
+          style={styles.threadItem}
+          activeOpacity={0.7}
+          onPress={() => {
+            posthog.capture("thread_resumed", {
+              agent: thread.tool,
+              repo_name: thread.repo,
+            });
+            markThreadSeen(thread.serverUrl, thread.grassId);
+            setSessionLabel(thread.title);
+            router.push({
+              pathname: "/new-navbar/chat",
+              params: {
+                serverUrl: thread.serverUrl,
+                sessionId: thread.grassId,
+                repoName: thread.repo,
+                repoPath: thread.repoPath,
+                agent: thread.tool,
+              },
+            });
+          }}
+        >
+          <View style={styles.agentIconBox}>
+            <AgentIcon width={50} height={50} />
+          </View>
+          <View style={styles.threadContent}>
+            <View style={styles.threadTopRow}>
+              <Text style={styles.threadMessage} numberOfLines={1}>
+                {thread.title}
+              </Text>
+              <View style={styles.threadMeta}>
+                <Text style={styles.threadTime}>
+                  {formatRelativeTime(thread.time)}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.threadBottomRow}>
+              <View style={styles.threadCommandRow}>
+                <FolderIcon height={16} width={16} />
+                <Text style={styles.commandText}>{thread.repo}</Text>
+              </View>
+              <View style={styles.threadStatusCell}>
+                {status === 'running' && (
+                  <ActivityIndicator size="small" color="#4CAF50" />
+                )}
+                {status === 'done' && shouldShowDoneIndicator(thread.grassId) && (
+                  <View style={styles.threadStatusDotGreen} />
+                )}
+                {status === 'awaiting_permissions' && (
+                  <View style={styles.threadStatusDotYellow} />
+                )}
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    });
+  }
+
   return (
     <View style={styles.container}>
       <MachineCarousel
@@ -207,11 +317,15 @@ export default function HomeScreen() {
           const idx = vmUrls.indexOf(id);
           if (idx >= 0) setActiveVmTab(idx);
         }}
-        onAddNew={() => setConnectMoreVisible(true)}
+        onAddNew={() => setConnectLaptopVisible(true)}
       />
       <ConnectMoreSlider
         visible={connectMoreVisible}
         onClose={() => setConnectMoreVisible(false)}
+      />
+      <ConnectLaptopSlider
+        visible={connectLaptopVisible}
+        onClose={() => setConnectLaptopVisible(false)}
       />
       <NewChatSlider2
         visible={newChatVisible}
@@ -239,65 +353,7 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: bottom }}
         showsVerticalScrollIndicator={false}
       >
-        {isLoading ? (
-          Array.from({ length: 7 }).map((_, i) => (
-            <SkeletonItem key={i} opacity={shimmerAnim} />
-          ))
-        ) : threads.length === 0 ? (
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyText}>
-              Start a new thread to see chats here
-            </Text>
-          </View>
-        ) : (
-          threads.map((thread) => {
-            const AgentIcon = AGENT_ICONS[thread.tool] ?? ClaudeIcon;
-            return (
-              <TouchableOpacity
-                key={thread.grassId}
-                style={styles.threadItem}
-                activeOpacity={0.7}
-                onPress={() => {
-                  posthog.capture("thread_resumed", {
-                    agent: thread.tool,
-                    repo_name: thread.repo,
-                  });
-                  setSessionLabel(thread.title);
-                  router.push({
-                    pathname: "/new-navbar/chat",
-                    params: {
-                      serverUrl: thread.serverUrl,
-                      sessionId: thread.grassId,
-                      repoName: thread.repo,
-                      repoPath: thread.repoPath,
-                      agent: thread.tool,
-                    },
-                  });
-                }}
-              >
-                <View style={styles.agentIconBox}>
-                  <AgentIcon width={50} height={50} />
-                </View>
-                <View style={styles.threadContent}>
-                  <View style={styles.threadTopRow}>
-                    <Text style={styles.threadMessage} numberOfLines={1}>
-                      {thread.title}
-                    </Text>
-                    <Text style={styles.threadTime}>
-                      {formatRelativeTime(thread.time)}
-                    </Text>
-                  </View>
-                  <View style={styles.threadBottomRow}>
-                    <View style={styles.threadCommandRow}>
-                      <FolderIcon height={16} width={16} />
-                      <Text style={styles.commandText}>{thread.repo}</Text>
-                    </View>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
+        {renderThreadList()}
       </ScrollView>
 
       <TouchableOpacity
@@ -373,21 +429,49 @@ const styles = StyleSheet.create({
   },
   threadTopRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 5,
+    marginBottom: 0,
   },
   threadMessage: {
     flex: 1,
     fontFamily: SFPro.medium,
-    fontSize: 17,
+    fontSize: 15,
     color: "#000",
     marginRight: 8,
   },
   threadTime: {
     fontFamily: SFPro.regular,
-    fontSize: 15,
+    fontSize: 13,
     color: "#808080",
+  },
+  threadMeta: {
+    alignItems: "flex-end",
+  },
+  threadStatusCell: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  threadStatusSpinner: {
+    marginTop: 4,
+  },
+  threadStatusDotGreen: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#4CAF50",
+    marginTop: 4,
+    alignSelf: "flex-end",
+  },
+  threadStatusDotYellow: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#F5A623",
+    marginTop: 4,
+    alignSelf: "flex-end",
   },
   threadBottomRow: {
     flexDirection: "row",
@@ -400,7 +484,7 @@ const styles = StyleSheet.create({
   },
   commandText: {
     fontFamily: SFPro.medium,
-    fontSize: 15,
+    fontSize: 13,
     color: "#9F9F9F",
     marginLeft: 5,
     lineHeight: 20,

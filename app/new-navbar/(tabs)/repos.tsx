@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   repoBranchIconSvg: {},
   repoBranchText: {
     fontFamily: SFPro.medium,
-    fontSize: 15,
+    fontSize: 14,
     color: "#9F9F9F",
     lineHeight: 22,
     letterSpacing: -0.5,
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   },
   repoLanguageText: {
     fontFamily: SFPro.medium,
-    fontSize: 13,
+    fontSize: 14,
     color: "#9F9F9F",
     lineHeight: 18,
     letterSpacing: -0.3,

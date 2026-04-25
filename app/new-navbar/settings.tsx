@@ -2,6 +2,7 @@ import { getVmName } from "@/store/vm-metadata-store";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  Dimensions,
   Image,
   Linking,
   ScrollView,
@@ -33,6 +34,7 @@ import TOSIcon from "@/assets/images/new-design/settings/TOS.svg";
 import VmTimeIcon from "@/assets/images/new-design/settings/vm-time.svg";
 import XIcon from "@/assets/images/new-design/settings/x.svg";
 
+import { ConnectLaptopSlider } from "@/components/new-navbar/ConnectLaptopSlider";
 import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
 import { EditMachineSlider } from "@/components/new-navbar/EditMachineSlider";
 import { LogoutSlider } from "@/components/new-navbar/LogoutSlider";
@@ -139,6 +141,7 @@ export default function SettingsScreen() {
   const { top } = useSafeAreaInsets();
   const { vmUrls, primaryVmUrl } = useNavbar();
   const [connectMoreVisible, setConnectMoreVisible] = useState(false);
+  const [connectLaptopVisible, setConnectLaptopVisible] = useState(false);
   const [notifPermVisible, setNotifPermVisible] = useState(false);
   const [logoutVisible, setLogoutVisible] = useState(false);
   const [editMachineUrl, setEditMachineUrl] = useState<string | null>(null);
@@ -184,30 +187,20 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.paddedContent}>
-          {/* ── Profile ── */}
-          <View style={styles.profileRow}>
-            <View style={styles.profileText}>
-              <Text style={styles.profileName}>{displayName}</Text>
-              <Text style={styles.profileEmail}>{userEmail ?? "—"}</Text>
-            </View>
-            <Image
-              source={require("@/assets/images/new-design/settings/profile-icon.png")}
-              style={styles.profileImage}
-            />
-          </View>
-
           {/* ── Machine image ── */}
           <View style={styles.serverImageContainer}>
             <Image
               source={require("@/assets/images/new-design/settings/server.png")}
               style={styles.serverImage}
-              resizeMode="cover"
+              resizeMode="contain"
             />
-            <Text style={styles.serverNameOverlay}>{grassVmName ?? "My Machine"}</Text>
+            {/* <Text style={styles.serverNameOverlay}>
+              {(() => { const n = grassVmName ?? "My Machine"; return n.length > 10 ? n.slice(0, 10) + "..." : n; })()}
+            </Text> */}
           </View>
 
           {/* ── Referral ── */}
-          <Text style={styles.sectionHeader}>Referral</Text>
+          {/* <Text style={styles.sectionHeader}>Referral</Text>
           <TouchableOpacity
             style={styles.inviteCard}
             activeOpacity={0.8}
@@ -228,7 +221,7 @@ export default function SettingsScreen() {
               </Text>
             </View>
             <RightArrow width={20} height={20} />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           {/* ── Account ── */}
           <Text style={styles.sectionHeader}>Account</Text>
@@ -273,6 +266,7 @@ export default function SettingsScreen() {
                 icon={<MachineIcon />}
                 label={vmDisplayName(url)}
                 sublabel={url === primaryVmUrl ? "Your virtual machine" : "Custom machine"}
+                showChevron={url !== primaryVmUrl}
                 onDeletePress={
                   url !== primaryVmUrl
                     ? () => setEditMachineUrl(url)
@@ -288,12 +282,16 @@ export default function SettingsScreen() {
               }
               label="Add more machines"
               isLast
-              onPress={() => setConnectMoreVisible(true)}
+              onPress={() => setConnectLaptopVisible(true)}
             />
           </View>
           <ConnectMoreSlider
             visible={connectMoreVisible}
             onClose={() => setConnectMoreVisible(false)}
+          />
+          <ConnectLaptopSlider
+            visible={connectLaptopVisible}
+            onClose={() => setConnectLaptopVisible(false)}
           />
           <EditMachineSlider
             visible={editMachineUrl !== null}
@@ -446,19 +444,19 @@ export default function SettingsScreen() {
           </View>
 
           {/* ── Footer ── */}
-          <View style={styles.footer}>
+          {/* <View style={styles.footer}>
             <Text style={styles.footerTagline}>
               The grass is greener on this side.
             </Text>
             <Text style={styles.footerVersion}>Version 1.0.15</Text>
-          </View>
+          </View> */}
         </View>
 
         {/* ── Banner ── */}
         <Image
           source={require("@/assets/images/new-design/settings/banner.png")}
           style={styles.banner}
-          resizeMode="cover"
+          resizeMode="stretch"
         />
       </ScrollView>
 
@@ -551,9 +549,8 @@ const styles = StyleSheet.create({
   // Server image
   serverImageContainer: {
     width: "100%",
-    height: 140,
+    aspectRatio: 892 / 502,
     marginVertical: 16,
-    overflow: "hidden",
     borderRadius: 12,
   },
   serverImage: {
@@ -576,7 +573,7 @@ const styles = StyleSheet.create({
   // Section header
   sectionHeader: {
     fontFamily: SFPro.semiBold,
-    fontSize: 17,
+    fontSize: 15,
     color: "#000",
     // textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -610,13 +607,13 @@ const styles = StyleSheet.create({
   },
   inviteTitle: {
     fontFamily: SFPro.medium,
-    fontSize: 17,
+    fontSize: 15,
     color: "#000",
     marginBottom: 2,
   },
   inviteSubtitle: {
     fontFamily: SFPro.medium,
-    fontSize: 17,
+    fontSize: 13,
     color: "#3D841E",
   },
 
@@ -652,12 +649,12 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     fontFamily: SFPro.semiBold,
-    fontSize: 17,
+    fontSize: 15,
     color: "#9F9F9F",
   },
   rowSublabel: {
     fontFamily: SFPro.semiBold,
-    fontSize: 17,
+    fontSize: 13,
     color: "#000",
     marginTop: 2,
   },
@@ -759,7 +756,7 @@ const styles = StyleSheet.create({
 
   // Banner
   banner: {
-    width: "100%",
-    height: 300,
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").width * (610 / 804),
   },
 });
