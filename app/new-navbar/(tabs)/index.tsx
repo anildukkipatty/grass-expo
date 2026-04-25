@@ -243,10 +243,24 @@ export default function HomeScreen() {
         </View>
       );
     }
-    const statusMap = new Map(sessionStatuses.map(s => [s.grassId, s.status]));
+    const statusByGrassId = new Map(sessionStatuses.map((s) => [s.grassId, s]));
+    const statusBySessionId = new Map(
+      sessionStatuses
+        .filter((s) => !!s.sessionId)
+        .map((s) => [s.sessionId as string, s]),
+    );
+
     return threads.map((thread) => {
       const AgentIcon = AGENT_ICONS[thread.tool] ?? ClaudeIcon;
-      const status = statusMap.get(thread.grassId);
+      const matchedStatus =
+        statusByGrassId.get(thread.grassId) ??
+        (thread.sdkSessionId
+          ? statusBySessionId.get(thread.sdkSessionId)
+          : undefined) ??
+        statusBySessionId.get(thread.grassId);
+      const status = matchedStatus?.status;
+      const indicatorKey = matchedStatus?.grassId ?? thread.grassId;
+
       return (
         <TouchableOpacity
           key={thread.grassId}
@@ -257,7 +271,7 @@ export default function HomeScreen() {
               agent: thread.tool,
               repo_name: thread.repo,
             });
-            markThreadSeen(thread.serverUrl, thread.grassId);
+            markThreadSeen(thread.serverUrl, indicatorKey);
             setSessionLabel(thread.title);
             router.push({
               pathname: "/new-navbar/chat",
@@ -294,7 +308,7 @@ export default function HomeScreen() {
                 {status === 'running' && (
                   <ActivityIndicator size="small" color="#4CAF50" />
                 )}
-                {status === 'done' && shouldShowDoneIndicator(thread.grassId) && (
+                {status === 'done' && shouldShowDoneIndicator(indicatorKey) && (
                   <View style={styles.threadStatusDotGreen} />
                 )}
                 {status === 'awaiting_permissions' && (
