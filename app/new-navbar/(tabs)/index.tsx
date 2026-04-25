@@ -13,7 +13,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import FloatIcon from "@/assets/images/new-design/navbar/float-icon.svg";
-import { ConnectLaptopSlider } from "@/components/new-navbar/ConnectLaptopSlider";
 import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
 import {
   Machine,
@@ -108,7 +107,6 @@ export default function HomeScreen() {
   const { bottom } = useSafeAreaInsets();
   const router = useRouter();
   const [connectMoreVisible, setConnectMoreVisible] = React.useState(false);
-  const [connectLaptopVisible, setConnectLaptopVisible] = React.useState(false);
   const [newChatVisible, setNewChatVisible] = React.useState(false);
   const [vmMetadataMap, setVmMetadataMap] = useState<
     Record<string, { name: string; iconIndex: number }>
@@ -127,7 +125,6 @@ export default function HomeScreen() {
   } = useNavbar();
 
   const [sessionStatuses, setSessionStatuses] = useState<SessionStatusItem[]>([]);
-  const [focusTick, setFocusTick] = useState(0);
 
   useEffect(() => {
     if (!selectedVmUrl) { setSessionStatuses([]); return; }
@@ -141,7 +138,7 @@ export default function HomeScreen() {
   useFocusEffect(
     React.useCallback(() => {
       if (selectedVmUrl) setSessionStatuses(getSessionStatuses(selectedVmUrl));
-      setFocusTick(n => n + 1);
+      getAllVmMetadata().then(setVmMetadataMap);
     }, [selectedVmUrl])
   );
 
@@ -331,15 +328,11 @@ export default function HomeScreen() {
           const idx = vmUrls.indexOf(id);
           if (idx >= 0) setActiveVmTab(idx);
         }}
-        onAddNew={() => setConnectLaptopVisible(true)}
+        onAddNew={() => setConnectMoreVisible(true)}
       />
       <ConnectMoreSlider
         visible={connectMoreVisible}
         onClose={() => setConnectMoreVisible(false)}
-      />
-      <ConnectLaptopSlider
-        visible={connectLaptopVisible}
-        onClose={() => setConnectLaptopVisible(false)}
       />
       <NewChatSlider2
         visible={newChatVisible}
@@ -392,7 +385,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 4,
+    marginTop: 20,
     marginBottom: 5,
     paddingHorizontal: 16,
   },

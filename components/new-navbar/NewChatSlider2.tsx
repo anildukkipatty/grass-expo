@@ -1,5 +1,4 @@
-import { Image } from "expo-image";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -20,19 +19,10 @@ import { ConfigureGitAccessSlider } from "./ConfigureGitAccessSlider";
 import { ConnectLaptopSlider } from "./ConnectLaptopSlider";
 import { ConnectOwnAgentSlider } from "./ConnectOwnAgentSlider";
 
-import AppleIcon from "@/assets/images/new-design/connect-more/apple.svg";
-import BulbIcon from "@/assets/images/new-design/connect-more/bulb.svg";
-import ClaudeIcon from "@/assets/images/new-design/connect-more/claude.svg";
-import GitLabIcon from "@/assets/images/new-design/connect-more/gitLab.svg";
-import GithubIcon from "@/assets/images/new-design/connect-more/github.svg";
-import LinuxIcon from "@/assets/images/new-design/connect-more/linux.svg";
-import OpenCodeIcon from "@/assets/images/new-design/connect-more/open-code.svg";
-import WindowsIcon from "@/assets/images/new-design/connect-more/windows.svg";
 import { SFPro } from "@/constants/theme";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
 import ClaudeIconChat from "@/assets/images/new-design/chat/claude.svg";
 import OpenCodeIconChat from "@/assets/images/new-design/chat/opencode.svg";
 import MachinesIcon from "@/assets/images/new-design/new-chat/machines.svg";
@@ -42,58 +32,6 @@ import { extractHost, RepoItem, useNavbar } from "@/contexts/navbar-context";
 
 const LAST_REPO_KEY = (serverUrl: string) => `@grass/last_repo:${serverUrl}`;
 const LAST_AGENT_KEY = "@grass/last_agent";
-
-type CardProps = {
-  title: string;
-  subtitle: string;
-  footerText?: string;
-  footerIcons: React.ReactNode;
-  image?: ReturnType<typeof require>;
-  style?: object;
-};
-
-function ConnectCard({
-  title,
-  subtitle,
-  footerText,
-  footerIcons,
-  image,
-  style,
-}: CardProps) {
-  return (
-    <View style={[styles.card, style]}>
-      {image ? (
-        <View style={styles.cardTopWithImage}>
-          <View style={styles.cardTopLeft}>
-            <Text style={styles.cardTitle}>{title}</Text>
-            <View style={styles.subtitleRow}>
-              <BulbIcon width={18} height={18} />
-              <Text style={styles.subtitleText}>{subtitle}</Text>
-            </View>
-          </View>
-          <Image
-            source={image}
-            style={styles.cardImage}
-            contentFit="cover"
-            contentPosition={{ right: 0 }}
-          />
-        </View>
-      ) : (
-        <View style={styles.cardTop}>
-          <Text style={styles.cardTitle}>{title}</Text>
-          <View style={styles.subtitleRow}>
-            <BulbIcon width={18} height={18} />
-            <Text style={styles.subtitleText}>{subtitle}</Text>
-          </View>
-        </View>
-      )}
-      <View style={styles.cardBottom}>
-        <View style={styles.footerIcons}>{footerIcons}</View>
-        <Text style={styles.footerText}>{footerText}</Text>
-      </View>
-    </View>
-  );
-}
 
 type Props = {
   visible: boolean;
@@ -125,7 +63,7 @@ export function NewChatSlider2({ visible, onClose }: Props) {
     [],
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible) {
       bottomSheetRef.current?.present();
     } else {

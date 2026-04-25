@@ -289,7 +289,7 @@ export default function DiffsScreen() {
             </Text>
           </View>
         </View>
-        <View style={styles.headerBtn} />
+        {/* <View style={styles.headerBtn} /> */}
       </View>
 
       {loading ? (

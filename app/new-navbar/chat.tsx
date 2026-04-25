@@ -1,4 +1,4 @@
-import AddIcon from "@/assets/images/new-design/chat/add.svg";
+// import AddIcon from "@/assets/images/new-design/chat/add.svg";
 import BackButtonIcon from "@/assets/images/new-design/chat/back-button.svg";
 import CameraIcon from "@/assets/images/new-design/chat/camera.svg";
 import CopyIcon from "@/assets/images/new-design/chat/copy.svg";
@@ -6,7 +6,6 @@ import DiffButtonIcon from "@/assets/images/new-design/chat/diff-button.svg";
 import ExplandIcon from "@/assets/images/new-design/chat/expland.svg";
 import FilesIcon from "@/assets/images/new-design/chat/files.svg";
 import PhotosIcon from "@/assets/images/new-design/chat/photos.svg";
-import ReloadIcon from "@/assets/images/new-design/chat/reload.svg";
 import SearchIcon from "@/assets/images/new-design/chat/search-icon.svg";
 import SelectedIcon from "@/assets/images/new-design/chat/selected.svg";
 import ShareIcon from "@/assets/images/new-design/chat/share.svg";
@@ -17,8 +16,13 @@ import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg
 import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 import UpArrowIcon from "@/assets/images/new-design/up-arrow.svg";
 import { SFMono, SFPro } from "@/constants/theme";
+import {
+  getToolCallIcon,
+  parseToolNameFromToolMessage,
+} from "@/constants/tool-call-icons";
 import modelsJson from "@/models.json";
 import { AgentTypingskeleton } from "@/components/SkeletonLoader";
+import { SyntaxBlock } from "@/components/SyntaxBlock";
 import { posthog } from "@/constants/posthog";
 import { useServer } from "@/hooks/use-server";
 import type { PermissionMode } from "@/hooks/use-server";
@@ -44,16 +48,18 @@ import {
 } from "@gorhom/bottom-sheet";
 import { BlurView } from "expo-blur";
 import { useCameraPermissions } from "expo-camera";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Clipboard,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -91,28 +97,19 @@ function UserBubble({ text }: { text: string }) {
   );
 }
 
-function ReadingPill({ path }: { path: string }) {
+function ToolCallPill({
+  label,
+  icon,
+}: {
+  label: string;
+  icon: React.ReactNode;
+}) {
   return (
     <View style={styles.actionPill}>
-      <SearchIcon width={14} height={14} />
-      <Text style={styles.actionPillText}>Reading {path}</Text>
-    </View>
-  );
-}
-
-function WritingPill({ path }: { path: string }) {
-  return (
-    <View style={styles.actionPill}>
-      <WriteIcon width={14} height={14} />
-      <Text style={styles.actionPillText}>Writing {path}</Text>
-    </View>
-  );
-}
-
-function ToolPill({ label }: { label: string }) {
-  return (
-    <View style={styles.actionPill}>
-      <Text style={styles.actionPillText}>{label}</Text>
+      {icon}
+      <Text style={styles.actionPillText} numberOfLines={1}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -170,18 +167,32 @@ function PermCard({
   );
 }
 
-function ChatActions() {
+function ChatActions({
+  onShare,
+  onCopy,
+}: {
+  onShare: () => void;
+  onCopy: () => void;
+}) {
   return (
     <View style={styles.chatActionsRow}>
-      <TouchableOpacity style={styles.chatActionBtn} activeOpacity={0.7}>
+      <TouchableOpacity
+        style={styles.chatActionBtn}
+        activeOpacity={0.7}
+        onPress={onShare}
+      >
         <ShareIcon width={16} height={16} />
       </TouchableOpacity>
-      <TouchableOpacity style={styles.chatActionBtn} activeOpacity={0.7}>
+      <TouchableOpacity
+        style={styles.chatActionBtn}
+        activeOpacity={0.7}
+        onPress={onCopy}
+      >
         <CopyIcon width={16} height={16} />
       </TouchableOpacity>
-      <TouchableOpacity style={styles.chatActionBtn} activeOpacity={0.7}>
+      {/* <TouchableOpacity style={styles.chatActionBtn} activeOpacity={0.7}>
         <ReloadIcon width={16} height={16} />
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </View>
   );
 }
@@ -274,15 +285,22 @@ function MarkdownText({ content }: { content: string }) {
     // Code fence
     if (line.startsWith("```")) {
       const codeLines: string[] = [];
+      const language = line
+        .slice(3)
+        .trim()
+        .split(/\s+/)[0] || "tsx";
       i++;
       while (i < lines.length && !lines[i].startsWith("```")) {
         codeLines.push(lines[i]);
         i++;
       }
       blocks.push(
-        <View key={key++} style={styles.mdCodeBlock}>
-          <Text style={styles.mdCodeBlockText}>{codeLines.join("\n")}</Text>
-        </View>,
+        <SyntaxBlock
+          key={key++}
+          code={codeLines.join("\n")}
+          language={language}
+          theme="light"
+        />,
       );
       i++;
       continue;
@@ -424,6 +442,7 @@ function MarkdownText({ content }: { content: string }) {
 export default function ChatScreen() {
   const { top, bottom } = useSafeAreaInsets();
   const router = useRouter();
+  const navigation = useNavigation();
   const {
     serverUrl: serverUrlParam,
     sessionId: initialSessionId,
@@ -470,6 +489,17 @@ export default function ChatScreen() {
   const [sessionLabel, setSessionLabelState] = useState<string | null>(
     initialSessionId ? getSessionLabel() : null,
   );
+  const [showCopiedToast, setShowCopiedToast] = useState(false);
+  const [firstSendOverlayStatus, setFirstSendOverlayStatus] = useState<
+    "idle" | "waiting" | "failed"
+  >("idle");
+  const copyToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const firstSendTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const allowOverlayExitRef = useRef(false);
 
   // ── Refs ──
   const hasSent              = useRef(false);
@@ -480,13 +510,53 @@ export default function ChatScreen() {
   const scrollViewRef        = useRef<ScrollView>(null);
   const modelSheetRef        = useRef<BottomSheetModal>(null);
   const modeSheetRef         = useRef<BottomSheetModal>(null);
-  const addBtnRef            = useRef<any>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   const ws = useServer(serverUrl);
+  const isFirstSendOverlayVisible =
+    firstSendOverlayStatus === "waiting" || firstSendOverlayStatus === "failed";
 
   // ── Session label subscription ──
   useEffect(() => subscribeSessionLabel(setSessionLabelState), []);
+
+  useEffect(() => {
+    return () => {
+      if (copyToastTimeoutRef.current) clearTimeout(copyToastTimeoutRef.current);
+      if (firstSendTimeoutRef.current) clearTimeout(firstSendTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (firstSendOverlayStatus !== "waiting") {
+      if (firstSendTimeoutRef.current) {
+        clearTimeout(firstSendTimeoutRef.current);
+        firstSendTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    firstSendTimeoutRef.current = setTimeout(() => {
+      setFirstSendOverlayStatus((prev) =>
+        prev === "waiting" ? "failed" : prev,
+      );
+    }, 15000);
+
+    return () => {
+      if (firstSendTimeoutRef.current) {
+        clearTimeout(firstSendTimeoutRef.current);
+        firstSendTimeoutRef.current = null;
+      }
+    };
+  }, [firstSendOverlayStatus]);
+
+  useEffect(() => {
+    if (!isFirstSendOverlayVisible) return;
+    const unsub = navigation.addListener("beforeRemove", (e) => {
+      if (allowOverlayExitRef.current) return;
+      e.preventDefault();
+    });
+    return unsub;
+  }, [navigation, isFirstSendOverlayVisible]);
 
   // ── Init session on mount; close SSE on unmount ──
   useEffect(() => {
@@ -561,6 +631,7 @@ export default function ChatScreen() {
     }
     const threadId = ws.sdkSessionId || ws.grassId;
     threadSaved.current = true;
+    setFirstSendOverlayStatus("idle");
     upsertThread({
       grassId: threadId,
       sdkSessionId: ws.sdkSessionId ?? undefined,
@@ -594,7 +665,10 @@ export default function ChatScreen() {
       : initialMessage;
     if (!text) return;
     initialMessageSent.current = true;
-    if (!hasSent.current) firstUserMessage.current = text;
+    if (!hasSent.current) {
+      firstUserMessage.current = text;
+      startFirstSendOverlayIfNeeded();
+    }
     hasSent.current = true;
     ws.send(text, selectedModelKey, agentMode, ws.permissionMode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -607,12 +681,32 @@ export default function ChatScreen() {
 
   const selectedModel = modelList.find((m) => m.key === selectedModelKey) ?? modelList[0];
 
+  const startFirstSendOverlayIfNeeded = () => {
+    if (initialSessionId) return;
+    if (threadSaved.current) return;
+    setFirstSendOverlayStatus("waiting");
+  };
+
+  const handleCancelFirstSend = () => {
+    if (firstSendTimeoutRef.current) {
+      clearTimeout(firstSendTimeoutRef.current);
+      firstSendTimeoutRef.current = null;
+    }
+    setFirstSendOverlayStatus("idle");
+    allowOverlayExitRef.current = true;
+    ws.abort();
+    router.replace("/new-navbar/(tabs)" as any);
+  };
+
   // ── Send ──
   const handleSubmit = () => {
     const text = inputTextRef.current.trim();
     if (!text || ws.streaming) return;
     Keyboard.dismiss();
-    if (!hasSent.current) firstUserMessage.current = text;
+    if (!hasSent.current) {
+      firstUserMessage.current = text;
+      startFirstSendOverlayIfNeeded();
+    }
     hasSent.current = true;
     posthog.capture("chat_message_sent", {
       agent: agentStr,
@@ -637,6 +731,50 @@ export default function ChatScreen() {
     }
     inputTextRef.current = "";
     setInputText("");
+  };
+
+  const getLastAssistantMessage = () =>
+    [...ws.messages]
+      .reverse()
+      .find((m) => m.role === "assistant" && m.content.trim().length > 0) ?? null;
+
+  const handleShareChat = async () => {
+    const lastAssistantMessage = getLastAssistantMessage();
+
+    if (!lastAssistantMessage) {
+      Alert.alert("Nothing to share", "No AI response yet.");
+      return;
+    }
+
+    try {
+      await Share.share({
+        title: headerTitle,
+        message: lastAssistantMessage.content,
+      });
+      posthog.capture("chat_shared", {
+        agent: agentStr,
+        repo_name: repoNameStr,
+        message_count: ws.messages.length,
+      });
+    } catch (error) {
+      console.error("Failed to share chat", error);
+    }
+  };
+
+  const handleCopyLastMessage = () => {
+    const lastAssistantMessage = getLastAssistantMessage();
+    if (!lastAssistantMessage) {
+      Alert.alert("Nothing to copy", "No AI response yet.");
+      return;
+    }
+
+    Clipboard.setString(lastAssistantMessage.content);
+
+    if (copyToastTimeoutRef.current) clearTimeout(copyToastTimeoutRef.current);
+    setShowCopiedToast(true);
+    copyToastTimeoutRef.current = setTimeout(() => {
+      setShowCopiedToast(false);
+    }, 1800);
   };
 
   // ── Model sheet ──
@@ -670,18 +808,6 @@ export default function ChatScreen() {
   );
 
   // ── Options popup ──
-  const openOptions = () => {
-    Keyboard.dismiss();
-    setTimeout(() => {
-      addBtnRef.current?.measureInWindow(
-        (x: number, y: number, w: number, h: number) => {
-          setAddBtnMeasure({ x, y, w, h });
-          setShowOptions(true);
-        },
-      );
-    }, 50);
-  };
-
   const closeOptions = () => {
     setShowOptions(false);
     setAddBtnMeasure(null);
@@ -730,11 +856,19 @@ export default function ChatScreen() {
 
       if (msg.role === "tool") {
         const label = msg.badge ?? msg.content.substring(0, 60);
-        const isRead = /read|search|view|cat|ls|get/i.test(label);
-        const isWrite = /write|edit|create|patch|insert|update/i.test(label);
-        if (isRead) return <ReadingPill key={msg.msgId} path={label} />;
-        if (isWrite) return <WritingPill key={msg.msgId} path={label} />;
-        return <ToolPill key={msg.msgId} label={label} />;
+        const toolName = parseToolNameFromToolMessage(msg.content);
+        const isRead = /read|search|view|cat|ls|get/i.test(toolName);
+        const isWrite = /write|edit|create|patch|insert|update/i.test(toolName);
+
+        const icon = isRead ? (
+          <SearchIcon width={14} height={14} />
+        ) : isWrite ? (
+          <WriteIcon width={14} height={14} />
+        ) : (
+          <Text style={styles.toolCallEmoji}>{getToolCallIcon(toolName)}</Text>
+        );
+
+        return <ToolCallPill key={msg.msgId} label={label} icon={icon} />;
       }
 
       if (msg.role === "assistant") {
@@ -778,7 +912,11 @@ export default function ChatScreen() {
         <TouchableOpacity
           style={styles.headerBtn}
           activeOpacity={0.7}
-          onPress={() => router.back()}
+          disabled={isFirstSendOverlayVisible}
+          onPress={() => {
+            if (isFirstSendOverlayVisible) return;
+            router.back();
+          }}
         >
           <BackButtonIcon width={40} height={40} />
         </TouchableOpacity>
@@ -873,13 +1011,15 @@ export default function ChatScreen() {
             )}
 
             {/* Typing indicator */}
-            {ws.streaming &&
-              ws.messages.some((m) => m.role === "assistant") && (
-                <AgentTypingskeleton theme="light" />
-              )}
+            {ws.streaming && <AgentTypingskeleton theme="light" />}
 
             {/* Chat actions shown after session has messages and is idle */}
-            {ws.messages.length > 0 && !ws.streaming && <ChatActions />}
+            {ws.messages.length > 0 && !ws.streaming && (
+              <ChatActions
+                onShare={handleShareChat}
+                onCopy={handleCopyLastMessage}
+              />
+            )}
           </ScrollView>
         </View>
 
@@ -903,14 +1043,14 @@ export default function ChatScreen() {
             blurOnSubmit={false}
           />
           <View style={styles.toolbarRow}>
-            <TouchableOpacity
+            {/* <TouchableOpacity
               ref={addBtnRef}
               style={styles.addBtn}
               activeOpacity={0.7}
               onPress={openOptions}
             >
               <AddIcon width={18} height={18} />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             <View style={styles.toolbarSpacer} />
 
@@ -933,7 +1073,7 @@ export default function ChatScreen() {
               <Text style={styles.buildText} numberOfLines={1}>
                 {agentMode === "build" ? "Build" : "Plan"}
                 {ws.permissionMode !== "ask-permissions"
-                  ? ` · ${ws.permissionMode === "allow-all-edits" ? "Edits" : "YOLO"}`
+                  ? ` · ${ws.permissionMode === "allow-all-edits" ? "Allow all edits" : "YOLO"}`
                   : ""}
               </Text>
             </TouchableOpacity>
@@ -1030,6 +1170,39 @@ export default function ChatScreen() {
             <CloseIcon width={36} height={36} />
           </TouchableOpacity>
         </>
+      )}
+
+      {showCopiedToast && (
+        <View style={[styles.toast, { bottom: bottom + 96 }]}> 
+          <Text style={styles.toastText}>Message copied</Text>
+        </View>
+      )}
+
+      {isFirstSendOverlayVisible && (
+        <View style={styles.firstSendOverlay}>
+          <View style={styles.firstSendCard}>
+            {firstSendOverlayStatus === "waiting" ? (
+              <ActivityIndicator size="small" color="#3D841E" />
+            ) : null}
+            <Text style={styles.firstSendTitle}>
+              {firstSendOverlayStatus === "waiting"
+                ? "Starting conversation…"
+                : "Failed to start conversation"}
+            </Text>
+            <Text style={styles.firstSendSubtitle}>
+              {firstSendOverlayStatus === "waiting"
+                ? "Sending your first message. Please wait a moment."
+                : "The first message timed out. Please cancel and try again from home."}
+            </Text>
+            <TouchableOpacity
+              style={styles.firstSendCancelBtn}
+              activeOpacity={0.85}
+              onPress={handleCancelFirstSend}
+            >
+              <Text style={styles.firstSendCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
 
       {/* ── Mode / Permission bottom sheet ── */}
@@ -1205,7 +1378,7 @@ const styles = StyleSheet.create({
 
   centeredRow: {
     alignItems: "center",
-    paddingVertical: 40,
+    paddingVertical: 32,
   },
 
   // Header
@@ -1260,9 +1433,9 @@ const styles = StyleSheet.create({
 
   messagesContent: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 20,
-    gap: 15,
+    paddingTop: 10,
+    paddingBottom: 24,
+    gap: 12,
   },
 
   // User bubble
@@ -1277,14 +1450,14 @@ const styles = StyleSheet.create({
     borderColor: "#8CBB67",
     backgroundColor: "#DCF8C6",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   userText: {
-    fontFamily: SFPro.bold,
-    fontSize: 17,
+    fontFamily: SFPro.medium,
+    fontSize: 16,
     color: "#000",
-    lineHeight: 22,
-    letterSpacing: -0.5,
+    lineHeight: 23,
+    letterSpacing: -0.2,
   },
 
   // Reading / Writing pills
@@ -1295,25 +1468,30 @@ const styles = StyleSheet.create({
     gap: 6,
     borderRadius: 17,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   actionPillText: {
-    fontFamily: SFMono.semiBold,
-    fontSize: 15,
+    fontFamily: SFMono.medium,
+    fontSize: 13,
     color: "#929292",
+    flexShrink: 1,
+  },
+  toolCallEmoji: {
+    fontSize: 14,
+    lineHeight: 16,
   },
 
   // Agent text block
   agentBlock: {
     alignSelf: "stretch",
-    gap: 4,
+    gap: 6,
   },
   agentText: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 17,
+    fontFamily: SFPro.regular,
+    fontSize: 16,
     color: "#000",
-    lineHeight: 22,
-    letterSpacing: -0.5,
+    lineHeight: 24,
+    letterSpacing: -0.1,
   },
 
   // Permission card
@@ -1416,7 +1594,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 4,
+    paddingVertical: 8,
   },
   chatActionBtn: {
     width: 30,
@@ -1424,6 +1602,81 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
+  },
+  toast: {
+    position: "absolute",
+    alignSelf: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#DFDFDF",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+    zIndex: 20,
+  },
+  toastText: {
+    fontFamily: SFPro.medium,
+    fontSize: 14,
+    color: "#1A1A1A",
+    letterSpacing: -0.1,
+  },
+
+  firstSendOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 40,
+    backgroundColor: "rgba(0,0,0,0.24)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  firstSendCard: {
+    width: "100%",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#DFDFDF",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 10,
+    alignItems: "center",
+  },
+  firstSendTitle: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 18,
+    color: "#000",
+    letterSpacing: -0.3,
+    textAlign: "center",
+  },
+  firstSendSubtitle: {
+    fontFamily: SFPro.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#505050",
+    letterSpacing: -0.1,
+    textAlign: "center",
+  },
+  firstSendCancelBtn: {
+    marginTop: 6,
+    minWidth: 120,
+    height: 44,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: "#DFDFDF",
+    backgroundColor: "#F7F7F7",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  firstSendCancelText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 15,
+    color: "#1A1A1A",
+    letterSpacing: -0.1,
   },
 
   // Options popup
@@ -1469,12 +1722,13 @@ const styles = StyleSheet.create({
     borderColor: "#DFDFDF",
     backgroundColor: "rgba(249, 249, 249, 0.20)",
     paddingHorizontal: 16,
-    paddingTop: 14,
-    gap: 10,
+    paddingTop: 12,
+    gap: 8,
   },
   textInput: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 17,
+    fontFamily: SFPro.regular,
+    fontSize: 16,
+    lineHeight: 22,
     color: "#1A1A1A",
     padding: 0,
     maxHeight: 100,
@@ -1483,7 +1737,7 @@ const styles = StyleSheet.create({
   toolbarRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   toolbarSpacer: { flex: 1 },
   addBtn: {
@@ -1501,36 +1755,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingVertical: 8,
     borderRadius: 50,
     borderWidth: 1,
     borderColor: "#DFDFDF",
     backgroundColor: "rgba(255, 255, 255, 0.50)",
   },
   dropdownText: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 15,
+    fontFamily: SFPro.medium,
+    fontSize: 14,
     color: "#1A1A1A",
-    letterSpacing: -0.2,
-    maxWidth: 95,
+    letterSpacing: -0.1,
+    maxWidth: 140,
   },
   buildBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingVertical: 8,
     borderRadius: 50,
     borderWidth: 1,
     borderColor: "#DFDFDF",
     backgroundColor: "rgba(255, 255, 255, 0.50)",
   },
   buildText: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 15,
+    fontFamily: SFPro.medium,
+    fontSize: 14,
     color: "#1A1A1A",
-    letterSpacing: -0.2,
-    maxWidth: 85,
+    letterSpacing: -0.1,
+    maxWidth: 150,
   },
   submitBtn: {
     width: 40,
@@ -1678,46 +1932,46 @@ const styles = StyleSheet.create({
 
   // Markdown
   mdBlock: {
-    gap: 6,
+    gap: 8,
     alignSelf: "stretch",
   },
   mdH1: {
     fontFamily: SFPro.bold,
-    fontSize: 22,
+    fontSize: 21,
     color: "#000",
-    lineHeight: 28,
-    letterSpacing: -0.5,
+    lineHeight: 27,
+    letterSpacing: -0.3,
   },
   mdH2: {
     fontFamily: SFPro.bold,
-    fontSize: 19,
+    fontSize: 18,
     color: "#000",
-    lineHeight: 25,
-    letterSpacing: -0.5,
+    lineHeight: 24,
+    letterSpacing: -0.3,
   },
   mdH3: {
-    fontFamily: SFPro.bold,
-    fontSize: 17,
+    fontFamily: SFPro.semiBold,
+    fontSize: 16,
     color: "#000",
     lineHeight: 22,
-    letterSpacing: -0.5,
+    letterSpacing: -0.2,
   },
   mdInlineCode: {
-    fontFamily: SFMono.semiBold,
-    fontSize: 15,
+    fontFamily: SFMono.medium,
+    fontSize: 13,
     color: "#333",
     backgroundColor: "#F0F0F0",
   },
   mdCodeBlock: {
     backgroundColor: "#F2F2F2",
     borderRadius: 10,
-    padding: 12,
+    padding: 10,
   },
   mdCodeBlockText: {
-    fontFamily: SFMono.semiBold,
-    fontSize: 13,
+    fontFamily: SFMono.medium,
+    fontSize: 12,
     color: "#333",
-    lineHeight: 20,
+    lineHeight: 18,
   },
   mdTable: {
     borderRadius: 10,
@@ -1738,50 +1992,50 @@ const styles = StyleSheet.create({
   },
   mdTableCell: {
     flex: 1,
-    fontFamily: SFPro.semiBold,
-    fontSize: 15,
+    fontFamily: SFPro.regular,
+    fontSize: 14,
     color: "#000",
     padding: 8,
     lineHeight: 20,
-    letterSpacing: -0.3,
+    letterSpacing: -0.1,
   },
   mdTableHeaderCell: {
     flex: 1,
-    fontFamily: SFPro.bold,
-    fontSize: 15,
+    fontFamily: SFPro.semiBold,
+    fontSize: 14,
     color: "#000",
     padding: 8,
     lineHeight: 20,
-    letterSpacing: -0.3,
+    letterSpacing: -0.1,
   },
   mdList: {
-    gap: 4,
+    gap: 6,
   },
   mdListItem: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
     alignItems: "flex-start",
   },
   mdListItemText: {
     flex: 1,
   },
   mdBullet: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 17,
+    fontFamily: SFPro.regular,
+    fontSize: 16,
     color: "#000",
-    lineHeight: 22,
+    lineHeight: 24,
     width: 14,
   },
   mdNumber: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 17,
+    fontFamily: SFPro.regular,
+    fontSize: 16,
     color: "#000",
-    lineHeight: 22,
+    lineHeight: 24,
     minWidth: 24,
   },
   mdHr: {
     height: 1,
     backgroundColor: "#DFDFDF",
-    marginVertical: 4,
+    marginVertical: 8,
   },
 });

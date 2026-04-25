@@ -40,7 +40,6 @@ const DIFF_BTN_BORDER = "#cecece";
 const HEADER_BLUR_BG = "rgba(255,255,255,0.7)";
 const HEADER_BORDER = "#d3d3d3";
 const NEW_BTN_GREEN = "#00cc33";
-const NEW_BTN_GLOW = "rgba(0,255,38,0.3)";
 
 const cardShadow = {
   shadowColor: "#000",
@@ -346,7 +345,7 @@ export default function Sessions() {
   const [refreshing, setRefreshing] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [branch, setBranch] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<AgentFilter | null>(
+  const [activeFilter] = useState<AgentFilter | null>(
     agent
       ? (AGENT_FILTERS.find(
           (f) =>

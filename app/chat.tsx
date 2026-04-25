@@ -97,7 +97,7 @@ export default function Chat() {
   const serverUrl = serverUrlRef.current ?? serverUrlParam ?? null;
 
   const showOnboarding = initialOnboarding === "true";
-  const [theme, setTheme] = useTheme();
+  const [theme] = useTheme();
   const [inputText, setInputText] = useState("");
   const inputTextRef = useRef("");
   const flatListRef = useRef<FlatList>(null);

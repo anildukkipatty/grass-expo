@@ -3,9 +3,8 @@ import { NavBanner, VmTabBar } from "@/components/NavBanner";
 import { StickyBannerLayout } from "@/components/StickyBannerLayout";
 import { SwipeableRepoCard, repoStyles } from "@/components/SwipeableRepoCard";
 import { useNavbar } from "@/contexts/navbar-context";
-import { resolveServerUrl } from "@/store/url-store";
 import { useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -20,25 +19,8 @@ export default function ReposTab() {
     setPendingRepo,
     setGetMoreVisible,
     setSheetInitialView,
-    selectedVmUrl,
   } = useNavbar();
 
-  const healthApiUrl = selectedVmUrl ? `${resolveServerUrl(selectedVmUrl)}/health` : null;
-  const [debugResult, setDebugResult] = useState<string>("not fetched");
-
-  useEffect(() => {
-    if (!healthApiUrl) {
-      setDebugResult("no URL");
-      return;
-    }
-    setDebugResult("fetching...");
-    fetch(healthApiUrl)
-      .then(async (res) => {
-        const text = await res.text();
-        setDebugResult(`${res.status} — ${text.slice(0, 300)}`);
-      })
-      .catch((err) => setDebugResult(`error: ${err?.message ?? String(err)}`));
-  }, [healthApiUrl]);
 
   useFocusEffect(
     useCallback(() => {

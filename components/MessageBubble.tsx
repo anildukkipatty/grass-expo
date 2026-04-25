@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { Text, StyleSheet, Animated } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { GrassColors } from '@/constants/theme';
 import { markdownStyles } from '@/constants/markdownStyles';

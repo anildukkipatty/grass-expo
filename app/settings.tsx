@@ -22,21 +22,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const USER = {
-  name: "Donald Trump",
-  email: "maga@america.com",
-  plan: "Free plan",
-  vmRemaining: "10 VM remaining",
-};
-
-const MACHINES = [
-  { id: "1", name: "Grass VM", status: "Online. Ubuntu 24.04" },
-];
-
-function ChevronIcon() {
-  return <View style={styles.chevronIcon} />;
-}
-
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();

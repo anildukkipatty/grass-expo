@@ -29,7 +29,7 @@ if (ErrorUtils) {
         $exception_stack_trace_raw: error?.stack,
         is_fatal: isFatal,
       });
-    } catch (_) {}
+    } catch {}
     _originalHandler(error, isFatal);
   });
 }

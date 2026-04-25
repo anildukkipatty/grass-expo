@@ -289,10 +289,10 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontFamily: SFPro.bold,
-    fontSize: 26,
-    lineHeight: 31,
+    fontSize: 22,
+    lineHeight: 27,
     color: "#000",
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
     marginBottom: 4,
   },
   headerSubtitle: {
@@ -350,13 +350,13 @@ const styles = StyleSheet.create({
   },
   nameInput: {
     fontFamily: SFPro.semiBold,
-    fontSize: 24,
+    fontSize: 20,
     color: "#000",
     textAlign: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#000",
+    borderBottomColor: "#C7C7C7",
     paddingVertical: 8,
-    letterSpacing: -0.3,
+    letterSpacing: -0.1,
   },
   nameLabel: {
     fontFamily: SFPro.medium,

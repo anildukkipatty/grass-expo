@@ -75,6 +75,8 @@ interface ConnectionEntry {
 
   // SSE stream state
   sseAbortController: AbortController | null;
+  // In-flight POST /chat request (before sessionId/SSE is attached)
+  sendAbortController: AbortController | null;
   lastEventId: string | null;
 
   // Reactive state
@@ -610,6 +612,7 @@ export function openConnection(serverUrl: string) {
     currentAgent: null,
     currentSessionId: null,
     sseAbortController: null,
+    sendAbortController: null,
     lastEventId: null,
     streaming: false,
     messages: [],
@@ -650,6 +653,7 @@ export function openConnectionWithKey(key: string, realUrl: string) {
     currentAgent: null,
     currentSessionId: null,
     sseAbortController: null,
+    sendAbortController: null,
     lastEventId: null,
     streaming: false,
     messages: [],
@@ -681,6 +685,11 @@ export function openConnectionWithKey(key: string, realUrl: string) {
 
 export function closeConnection(serverUrl: string) {
   const key = resolveServerKey(serverUrl);
+  const entry = _connections.get(key);
+  if (entry?.sendAbortController) {
+    entry.sendAbortController.abort();
+    entry.sendAbortController = null;
+  }
   closeSSEStream(key);
   closePermissionsSSE(key);
   _permissionsSSE.delete(key);
@@ -717,6 +726,14 @@ export async function sendMessageStore(serverUrl: string, text: string, model?: 
   const entry = _connections.get(key);
   if (!entry || !text.trim()) return;
 
+  // Cancel any previous in-flight send before starting a new one.
+  if (entry.sendAbortController) {
+    entry.sendAbortController.abort();
+    entry.sendAbortController = null;
+  }
+  const sendCtrl = new AbortController();
+  entry.sendAbortController = sendCtrl;
+
   entry.messages = [...entry.messages, { role: 'user', content: text, complete: true, msgId: nextMsgId(entry) }];
   entry.streaming = true;
   entry.activity = { label: 'Thinking' };
@@ -726,6 +743,7 @@ export async function sendMessageStore(serverUrl: string, text: string, model?: 
     const res = await fetch(`${entry.baseUrl}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: sendCtrl.signal,
       body: JSON.stringify({
         repoPath: entry.currentRepoPath,
         agent: entry.currentAgent,
@@ -736,19 +754,33 @@ export async function sendMessageStore(serverUrl: string, text: string, model?: 
         ...(permissionMode ? { permissionMode } : {}),
       }),
     });
+
+    // Ignore stale completions if a newer send replaced this controller.
+    const latest = _connections.get(key);
+    if (!latest || latest.sendAbortController !== sendCtrl) return;
+    latest.sendAbortController = null;
+
     const json = await res.json() as { sessionId?: string };
-    const sid = json.sessionId ?? entry.currentSessionId;
+    const sid = json.sessionId ?? latest.currentSessionId;
     if (sid) {
-      entry.currentSessionId = sid;
-      entry.sessionId = sid;
-      entry.lastEventId = null;
+      latest.currentSessionId = sid;
+      latest.sessionId = sid;
+      latest.lastEventId = null;
       notifyListeners(key);
       openSSEStream(key, sid);
     }
-  } catch (err) {
-    entry.streaming = false;
-    entry.activity = null;
-    entry.messages = [...entry.messages, { role: 'error', content: 'Failed to send message', complete: true, msgId: nextMsgId(entry) }];
+  } catch {
+    const latest = _connections.get(key);
+    if (!latest) return;
+    if (latest.sendAbortController === sendCtrl) {
+      latest.sendAbortController = null;
+    }
+    // User/system cancellation is handled by abortStore/closeConnection.
+    if (sendCtrl.signal.aborted) return;
+
+    latest.streaming = false;
+    latest.activity = null;
+    latest.messages = [...latest.messages, { role: 'error', content: 'Failed to send message', complete: true, msgId: nextMsgId(latest) }];
     notifyListeners(key);
   }
 }
@@ -759,9 +791,22 @@ export const sendMessage = sendMessageStore;
 export async function abortStore(serverUrl: string) {
   const key = resolveServerKey(serverUrl);
   const entry = _connections.get(key);
-  if (!entry || !entry.currentSessionId) return;
+  if (!entry) return;
+
+  // Always reset local UI immediately, even if sessionId hasn't been assigned yet.
   entry.permissionQueue = [];
+  entry.activity = null;
+  entry.streaming = false;
+
+  // Cancel pending POST /chat and active SSE stream.
+  if (entry.sendAbortController) {
+    entry.sendAbortController.abort();
+    entry.sendAbortController = null;
+  }
+  closeSSEStream(key);
   notifyListeners(key);
+
+  if (!entry.currentSessionId) return;
   try {
     await fetch(`${entry.baseUrl}/sessions/${entry.currentSessionId}/abort`, { method: 'POST' });
   } catch { /* ignore */ }

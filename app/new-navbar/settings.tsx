@@ -1,4 +1,3 @@
-import { getVmName } from "@/store/vm-metadata-store";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -22,7 +21,6 @@ import DocumentIcon from "@/assets/images/new-design/settings/document.svg";
 import EmailIcon from "@/assets/images/new-design/settings/email.svg";
 import ExternalLinkIcon from "@/assets/images/new-design/settings/external-link.svg";
 import FeatureIcon from "@/assets/images/new-design/settings/feature.svg";
-import InviteFriendsIcon from "@/assets/images/new-design/settings/invite-friends.svg";
 import LicenceIcon from "@/assets/images/new-design/settings/licence.svg";
 import MachineIcon from "@/assets/images/new-design/settings/machine.svg";
 import NotificationIcon from "@/assets/images/new-design/settings/notification-icon.svg";
@@ -42,7 +40,7 @@ import { NotificationPermissionSlider } from "@/components/new-navbar/Notificati
 import { SFPro } from "@/constants/theme";
 import { extractHost, useNavbar } from "@/contexts/navbar-context";
 import { getUser } from "@/store/auth-store";
-import { getAllVmMetadata } from "@/store/vm-metadata-store";
+import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
 
 type SectionRowProps = {
   icon: React.ReactNode;
@@ -53,7 +51,6 @@ type SectionRowProps = {
   isLast?: boolean;
   onPress?: () => void;
   labelColor?: string;
-  onDeletePress?: () => void;
 };
 
 function SectionRow({
@@ -100,7 +97,6 @@ function MachineRow({
   showChevron = true,
   isLast,
   onPress,
-  onDeletePress,
 }: SectionRowProps) {
   return (
     <TouchableOpacity
@@ -124,11 +120,7 @@ function MachineRow({
           {sublabel ? <Text style={styles.rowLabel}>{sublabel}</Text> : null}
         </View>
       </View>
-      {onDeletePress ? (
-        <TouchableOpacity onPress={onDeletePress} hitSlop={8}>
-          <DeleteIcon width={15} height={18} />
-        </TouchableOpacity>
-      ) : external ? (
+      {external ? (
         <ExternalLinkIcon width={18} height={18} />
       ) : showChevron ? (
         <RightArrow width={20} height={20} />
@@ -154,8 +146,6 @@ export default function SettingsScreen() {
     getVmName().then(setGrassVmName);
     getAllVmMetadata().then(setVmMetadataMap);
   }, []);
-
-  const displayName = userEmail ? userEmail.split("@")[0] : "—";
 
   function vmDisplayName(url: string): string {
     if (url === primaryVmUrl) return grassVmName ?? extractHost(url);
@@ -267,7 +257,7 @@ export default function SettingsScreen() {
                 label={vmDisplayName(url)}
                 sublabel={url === primaryVmUrl ? "Your virtual machine" : "Custom machine"}
                 showChevron={url !== primaryVmUrl}
-                onDeletePress={
+                onPress={
                   url !== primaryVmUrl
                     ? () => setEditMachineUrl(url)
                     : undefined

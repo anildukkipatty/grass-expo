@@ -17,7 +17,7 @@ import {
   View,
 } from "react-native";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function VmNameScreen() {
   const router = useRouter();

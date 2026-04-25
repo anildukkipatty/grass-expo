@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useState, useMemo } from 'react';
+import React, { useRef, useCallback, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated, RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';

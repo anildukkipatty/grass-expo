@@ -17,8 +17,12 @@ import {
   BottomSheetScrollView,
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
-import { Easing } from "react-native-reanimated";
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 
 import ClaudeTransparentIcon from "@/assets/images/new-design/connect-more/claude-transparent.svg";
 import ClaudeIcon from "@/assets/images/new-design/connect-more/claude.svg";

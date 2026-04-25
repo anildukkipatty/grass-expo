@@ -15,8 +15,12 @@ import {
   BottomSheetScrollView,
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
-import { Easing } from "react-native-reanimated";
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 
 import { posthog } from "@/constants/posthog";
 import { SFPro } from "@/constants/theme";
