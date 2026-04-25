@@ -16,6 +16,7 @@ import ClaudeIcon from "@/assets/images/new-design/chat/claude.svg";
 import OpenCodeLightNodeIcon from "@/assets/images/new-design/chat/opencode-light-node.svg";
 import OpenCodeIcon from "@/assets/images/new-design/chat/opencode.svg";
 import SearchIcon from "@/assets/images/new-design/chat/search-icon.svg";
+import FloatIcon from "@/assets/images/new-design/navbar/float-icon.svg";
 import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
 
 import { posthog } from "@/constants/posthog";
@@ -30,13 +31,13 @@ type AgentKey = "claude" | "opencode";
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ChatListScreen() {
-  const { top } = useSafeAreaInsets();
+  const { top, bottom } = useSafeAreaInsets();
   const router = useRouter();
   const { repoName, repoPath } = useLocalSearchParams<{
     repoName?: string;
     repoPath?: string;
   }>();
-  const { threads, repos } = useNavbar();
+  const { threads, repos, selectedVmUrl } = useNavbar();
   const [selectedAgent, setSelectedAgent] = useState<AgentKey>("claude");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -79,6 +80,22 @@ export default function ChatListScreen() {
   }
 
   const displayRepoName = repoName ?? matchedRepo?.name ?? "Threads";
+  const selectedAgentId =
+    selectedAgent === "claude" ? "claude-code" : "opencode";
+  const resolvedRepoPath = repoPath ?? matchedRepo?.path ?? "";
+
+  function handleNewChatTap() {
+    if (!selectedVmUrl) return;
+    router.push({
+      pathname: "/new-navbar/chat",
+      params: {
+        serverUrl: selectedVmUrl,
+        repoName: displayRepoName,
+        repoPath: resolvedRepoPath,
+        agent: selectedAgentId,
+      },
+    });
+  }
 
   return (
     <View style={[styles.container, { paddingTop: top }]}>
@@ -157,7 +174,11 @@ export default function ChatListScreen() {
       </View>
 
       {/* ── Thread list ── */}
-      <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.list}
+        contentContainerStyle={{ paddingBottom: bottom + 150 }}
+        showsVerticalScrollIndicator={false}
+      >
         {filteredThreads.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No threads found</Text>
@@ -182,6 +203,17 @@ export default function ChatListScreen() {
           ))
         )}
       </ScrollView>
+
+      <TouchableOpacity
+        style={[styles.floatButtonWrap, { bottom: bottom + 66 }]}
+        activeOpacity={0.85}
+        onPress={handleNewChatTap}
+      >
+        <View style={styles.floatButton}>
+          <FloatIcon width={24} height={24} />
+        </View>
+        <Text style={styles.floatButtonLabel}>New chat</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -304,17 +336,17 @@ const styles = StyleSheet.create({
   },
   chatTitle: {
     fontFamily: SFPro.semiBold,
-    fontSize: 17,
+    fontSize: 15,
     color: "#000",
-    letterSpacing: -0.5,
-    lineHeight: 22,
+    letterSpacing: -0.3,
+    lineHeight: 20,
   },
   chatTime: {
     fontFamily: SFPro.medium,
-    fontSize: 15,
+    fontSize: 13,
     color: "#808080",
-    letterSpacing: -0.5,
-    lineHeight: 20,
+    letterSpacing: -0.3,
+    lineHeight: 18,
   },
 
   emptyState: {
@@ -324,4 +356,37 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyText: { fontFamily: SFPro.medium, fontSize: 17, color: "#808080" },
+  floatButtonWrap: {
+    position: "absolute",
+    right: 24,
+    zIndex: 9999,
+    alignItems: "center",
+    gap: 6,
+  },
+  floatButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#FFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  floatButtonLabel: {
+    fontFamily: SFPro.medium,
+    fontSize: 12,
+    color: "#4A4A4A",
+    letterSpacing: -0.2,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    borderWidth: 1,
+    borderColor: "#EDEDED",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    overflow: "hidden",
+  },
 });
