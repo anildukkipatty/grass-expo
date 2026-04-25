@@ -33,7 +33,6 @@ import VmTimeIcon from "@/assets/images/new-design/settings/vm-time.svg";
 import XIcon from "@/assets/images/new-design/settings/x.svg";
 
 import { ConnectLaptopSlider } from "@/components/new-navbar/ConnectLaptopSlider";
-import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
 import { EditMachineSlider } from "@/components/new-navbar/EditMachineSlider";
 import { LogoutSlider } from "@/components/new-navbar/LogoutSlider";
 import { NotificationPermissionSlider } from "@/components/new-navbar/NotificationPermissionSlider";
@@ -132,7 +131,6 @@ function MachineRow({
 export default function SettingsScreen() {
   const { top } = useSafeAreaInsets();
   const { vmUrls, primaryVmUrl } = useNavbar();
-  const [connectMoreVisible, setConnectMoreVisible] = useState(false);
   const [connectLaptopVisible, setConnectLaptopVisible] = useState(false);
   const [notifPermVisible, setNotifPermVisible] = useState(false);
   const [logoutVisible, setLogoutVisible] = useState(false);
@@ -225,6 +223,8 @@ export default function SettingsScreen() {
               label="Email"
               sublabel={userEmail ?? "—"}
             />
+            {/* TODO: Temporarily hidden from Account section (VM Time + Notification Settings) */}
+            {/*
             <SectionRow
               icon={
                 <View style={styles.iconBgTeal}>
@@ -245,6 +245,7 @@ export default function SettingsScreen() {
               isLast
               onPress={() => setNotifPermVisible(true)}
             />
+            */}
           </View>
 
           {/* ── Machines ── */}
@@ -275,10 +276,6 @@ export default function SettingsScreen() {
               onPress={() => setConnectLaptopVisible(true)}
             />
           </View>
-          <ConnectMoreSlider
-            visible={connectMoreVisible}
-            onClose={() => setConnectMoreVisible(false)}
-          />
           <ConnectLaptopSlider
             visible={connectLaptopVisible}
             onClose={() => setConnectLaptopVisible(false)}

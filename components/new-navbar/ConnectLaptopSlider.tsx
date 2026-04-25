@@ -385,11 +385,11 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
         {/* ── Machine paired step ── */}
         {step === "paired" && (
           <View style={styles.greenContent}>
-            <View style={styles.greenCenter}>
-              <SuccessMark width={192} height={244} />
+            <View style={[styles.greenCenter, styles.pairedGreenCenter]}>
+              <SuccessMark width={156} height={198} />
               <Text style={styles.greenTitle}>Machine paired</Text>
               <Text style={styles.greenSubtitle}>
-                Your computer is connected to Grass over your local network.
+                Click continue to finish pairing.
               </Text>
             </View>
             <View style={styles.greenFooter}>
@@ -648,6 +648,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 16,
+  },
+  pairedGreenCenter: {
+    flex: 0,
+    justifyContent: "flex-start",
+    paddingTop: 48,
+    paddingBottom: 20,
   },
   greenTitle: {
     fontFamily: SFPro.bold,

@@ -115,8 +115,12 @@ export async function saveVmUrl(url: string): Promise<void> {
 
 export async function removeUrl(url: string): Promise<void> {
   await removePerUserCustomUrl(url);
-  const urls = await getUrls();
-  const filtered = urls.filter(u => u !== url);
+
+  // Do not call getUrls() here: it performs legacy migration side-effects that can
+  // re-add a just-removed custom URL back into the per-user store.
+  const raw = await AsyncStorage.getItem(URLS_KEY);
+  const urls: string[] = raw ? (JSON.parse(raw) as string[]) : [];
+  const filtered = urls.filter((u) => u !== url);
   await AsyncStorage.setItem(URLS_KEY, JSON.stringify(filtered));
 }
 
