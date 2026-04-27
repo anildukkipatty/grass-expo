@@ -57,6 +57,8 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Linking,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   ScrollView,
   Share,
@@ -484,6 +486,7 @@ export default function ChatScreen() {
     h: number;
   } | null>(null);
   const [inputContainerHeight, setInputContainerHeight] = useState(0);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [pendingPermission, setPendingPermission] =
     useState<GlobalPermissionItem | null>(null);
   const [sessionLabel, setSessionLabelState] = useState<string | null>(
@@ -680,6 +683,17 @@ export default function ChatScreen() {
   const canSend = !!inputText.trim() && !ws.streaming;
 
   const selectedModel = modelList.find((m) => m.key === selectedModelKey) ?? modelList[0];
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+    const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    setShowScrollToBottom(distanceFromBottom > 80);
+  };
+
+  const scrollToBottom = () => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+    setShowScrollToBottom(false);
+  };
 
   const startFirstSendOverlayIfNeeded = () => {
     if (initialSessionId) return;
@@ -964,9 +978,12 @@ export default function ChatScreen() {
             contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            onContentSizeChange={() =>
-              scrollViewRef.current?.scrollToEnd({ animated: false })
-            }
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            onContentSizeChange={() => {
+              scrollViewRef.current?.scrollToEnd({ animated: false });
+              setShowScrollToBottom(false);
+            }}
           >
             {/* Session loading (resumed session history) */}
             {ws.sessionLoading && (
@@ -1022,6 +1039,35 @@ export default function ChatScreen() {
             )}
           </ScrollView>
         </View>
+
+        {showScrollToBottom && (
+          <TouchableOpacity
+            style={[
+              styles.scrollToBottomBtn,
+              { bottom: inputContainerHeight + 12 },
+            ]}
+            activeOpacity={0.8}
+            onPress={scrollToBottom}
+          >
+            <View style={styles.scrollToBottomGlyph}>
+              <View style={styles.scrollToBottomStem} />
+              <View style={styles.scrollToBottomChevronRow}>
+                <View
+                  style={[
+                    styles.scrollToBottomChevronArm,
+                    styles.scrollToBottomChevronArmLeft,
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.scrollToBottomChevronArm,
+                    styles.scrollToBottomChevronArmRight,
+                  ]}
+                />
+              </View>
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* ── Bottom input area ── */}
         <View
@@ -1709,6 +1755,61 @@ const styles = StyleSheet.create({
     color: "#000",
     letterSpacing: -0.5,
     lineHeight: 22,
+  },
+
+  scrollToBottomBtn: {
+    position: "absolute",
+    left: "50%",
+    marginLeft: -20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#D8D8D8",
+    backgroundColor: "#F6F6F6",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+    zIndex: 15,
+  },
+  scrollToBottomGlyph: {
+    width: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    marginTop: 1,
+    overflow: "visible",
+  },
+  scrollToBottomStem: {
+    width: 3,
+    height: 8,
+    borderRadius: 2,
+    backgroundColor: "#000",
+  },
+  scrollToBottomChevronRow: {
+    marginTop: -1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "visible",
+  },
+  scrollToBottomChevronArm: {
+    width: 8,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#000",
+  },
+  scrollToBottomChevronArmLeft: {
+    marginRight: -2,
+    transform: [{ rotate: "45deg" }],
+  },
+  scrollToBottomChevronArmRight: {
+    marginLeft: -2,
+    transform: [{ rotate: "-45deg" }],
   },
 
   // Bottom input container

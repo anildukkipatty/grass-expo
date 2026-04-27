@@ -1023,31 +1023,22 @@ export function resetFileViewStore(serverUrl: string) {
 
 // --- Sessions ---
 
-export async function listSessionsStore(serverUrl: string, repoPath?: string, agent?: string): Promise<boolean> {
+export async function listSessionsStore(serverUrl: string, repoPath?: string, agent?: string) {
   const key = resolveServerKey(serverUrl);
-  let entry = _connections.get(key);
-  if (!entry) {
-    openConnection(serverUrl);
-    entry = _connections.get(key);
-  }
-  if (!entry) return false;
+  const entry = _connections.get(key);
+  if (!entry) return;
   try {
     const params = new URLSearchParams();
     if (repoPath) params.set('repoPath', repoPath);
     if (agent) params.set('agent', agent);
     const qs = params.toString();
     const res = await fetch(`${entry.baseUrl}/sessions${qs ? '?' + qs : ''}`);
-    if (!res.ok) throw new Error(`Failed to list sessions: ${res.status}`);
     const json = await res.json() as { sessions?: Session[] };
     if (_connections.has(key)) {
       entry.sessionsList = json.sessions ?? [];
       notifyListeners(key);
-      return true;
     }
-    return false;
-  } catch {
-    return false;
-  }
+  } catch { /* ignore */ }
 }
 
 export async function initSessionStore(serverUrl: string, id: string | null, agent?: string | null, repoPath?: string | null) {
