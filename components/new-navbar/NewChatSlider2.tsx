@@ -28,7 +28,8 @@ import OpenCodeIconChat from "@/assets/images/new-design/chat/opencode.svg";
 import MachinesIcon from "@/assets/images/new-design/new-chat/machines.svg";
 import RepositoryIcon from "@/assets/images/new-design/new-chat/repository.svg";
 import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
-import { extractHost, RepoItem, useNavbar } from "@/contexts/navbar-context";
+import { RepoItem, useNavbar } from "@/contexts/navbar-context";
+import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
 
 const LAST_REPO_KEY = (serverUrl: string) => `@grass/last_repo:${serverUrl}`;
 const LAST_AGENT_KEY = "@grass/last_agent";
@@ -51,6 +52,8 @@ export function NewChatSlider2({ visible, onClose }: Props) {
   const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<"claude-code" | "opencode">("claude-code");
   const [showRepoPicker, setShowRepoPicker] = useState(false);
+  const [vmMetadataMap, setVmMetadataMap] = useState<Record<string, { name: string; iconIndex: number }>>({});
+  const [grassVmName, setGrassVmName] = useState<string | null>(null);
 
   const animationConfigs = useBottomSheetTimingConfigs({
     duration: 300,
@@ -74,15 +77,28 @@ export function NewChatSlider2({ visible, onClose }: Props) {
   useEffect(() => {
     if (!visible) return;
     setShowRepoPicker(false);
+
+    let cancelled = false;
+
     const load = async () => {
       let lastRepoRaw: string | null = null;
       let lastAgent: string | null = null;
+      let metadataMap: Record<string, { name: string; iconIndex: number }> = {};
+      let storedGrassVmName: string | null = null;
+
       try {
-        [lastRepoRaw, lastAgent] = await Promise.all([
+        [lastRepoRaw, lastAgent, metadataMap, storedGrassVmName] = await Promise.all([
           selectedVmUrl ? AsyncStorage.getItem(LAST_REPO_KEY(selectedVmUrl)) : Promise.resolve(null),
           AsyncStorage.getItem(LAST_AGENT_KEY),
+          getAllVmMetadata(),
+          getVmName(),
         ]);
       } catch {}
+
+      if (cancelled) return;
+
+      setVmMetadataMap(metadataMap);
+      setGrassVmName(storedGrassVmName);
       setSelectedAgent(
         lastAgent === "claude-code" || lastAgent === "opencode" ? lastAgent : "claude-code",
       );
@@ -101,10 +117,22 @@ export function NewChatSlider2({ visible, onClose }: Props) {
         setSelectedRepo(null);
       }
     };
+
     load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [visible, selectedVmUrl]);
 
-  const vmLabel = selectedVmUrl ? extractHost(selectedVmUrl) : extractHost(primaryVmUrl ?? "");
+  const truncateLabel = (value: string, max = 21) =>
+    value.length > max ? `${value.slice(0, max - 1)}…` : value;
+
+  const currentVmUrl = selectedVmUrl ?? primaryVmUrl ?? "";
+  const vmNameFromMetadata = currentVmUrl ? vmMetadataMap[currentVmUrl]?.name : undefined;
+  const vmNameFromPrimary =
+    currentVmUrl && primaryVmUrl && currentVmUrl === primaryVmUrl ? grassVmName : null;
+  const vmLabel = truncateLabel(vmNameFromMetadata || vmNameFromPrimary || currentVmUrl);
 
   async function handleStart() {
     if (!selectedRepo || !selectedVmUrl) return;
