@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
+  Animated,
   Image,
   ScrollView,
   StyleSheet,
@@ -24,12 +25,43 @@ export type Machine = {
   backgroundColor: string;
 };
 
+type MachineStatusValue = "online" | "offline" | "checking";
+
+function StatusDot({ status }: { status: MachineStatusValue }) {
+  const blinkAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (status === "checking") {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(blinkAnim, { toValue: 0.15, duration: 500, useNativeDriver: true }),
+          Animated.timing(blinkAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ]),
+      );
+      loop.start();
+      return () => loop.stop();
+    } else {
+      blinkAnim.setValue(1);
+    }
+  }, [status, blinkAnim]);
+
+  const color =
+    status === "online" ? "#4CAF50" : status === "offline" ? "#EF4444" : "#F5A623";
+
+  return (
+    <Animated.View style={[styles.statusDot, { backgroundColor: color, opacity: blinkAnim }]} />
+  );
+}
+
 type Props = {
   machines: Machine[];
   selectedId?: string;
   onSelect?: (id: string) => void;
   onAddNew?: () => void;
   paddingHorizontal?: number;
+  vmUrlStatuses?: Map<string, boolean>;
+  vmRunning?: boolean;
+  primaryVmUrl?: string;
 };
 
 export function MachineCarousel({
@@ -38,7 +70,26 @@ export function MachineCarousel({
   onSelect,
   onAddNew,
   paddingHorizontal = 16,
+  vmUrlStatuses,
+  vmRunning,
+  primaryVmUrl,
 }: Props) {
+  function getMachineStatus(url: string): MachineStatusValue {
+    const health = vmUrlStatuses?.get(url);
+    if (primaryVmUrl && url === primaryVmUrl) {
+      // Hard offline: heartbeat confirmed container is down
+      if (vmRunning === false) return "offline";
+      // Health poll confirmed down (works even when user is on a different tab)
+      if (health === false) return "offline";
+      // Health poll confirmed up
+      if (health === true) return "online";
+      // No poll result yet — vmRunning starts as true, trust it during startup
+      return vmRunning === true ? "online" : "checking";
+    }
+    if (health === undefined) return "checking";
+    return health ? "online" : "offline";
+  }
+
   return (
     <ScrollView
       horizontal
@@ -55,6 +106,7 @@ export function MachineCarousel({
 
       {machines.map((machine) => {
         const isSelected = selectedId === machine.id;
+        const status = getMachineStatus(machine.id);
         return (
           <TouchableOpacity
             key={machine.id}
@@ -84,16 +136,19 @@ export function MachineCarousel({
                 )}
               </View>
             </View>
-            <Text
-              style={[
-                styles.name,
-                isSelected && styles.nameSelected,
-                { color: machine.borderColor },
-              ]}
-              numberOfLines={1}
-            >
-              {machine.name}
-            </Text>
+            <View style={styles.nameRow}>
+              <StatusDot status={status} />
+              <Text
+                style={[
+                  styles.name,
+                  isSelected && styles.nameSelected,
+                  { color: machine.borderColor },
+                ]}
+                numberOfLines={1}
+              >
+                {machine.name}
+              </Text>
+            </View>
           </TouchableOpacity>
         );
       })}
@@ -152,7 +207,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   selectedOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "rgba(0, 0, 0, 0.50)",
     borderRadius: "50%",
     alignItems: "center",
@@ -160,18 +219,31 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#FFF",
   },
-
   image: {
     width: 62,
     height: 62,
     resizeMode: "contain",
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    width: 80,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    flexShrink: 0,
   },
   name: {
     fontFamily: SFPro.bold,
     fontSize: 13,
     color: "#808080",
     textAlign: "center",
-    maxWidth: 80,
+    flexShrink: 1,
+    maxWidth: 70,
     lineHeight: 18,
     letterSpacing: -0.3,
   },

@@ -377,6 +377,7 @@ export default function SettingsScreen() {
               label="Open Source Licenses"
               external
               isLast
+              onPress={() => Linking.openURL("https://github.com/anildukkipatty/grass-expo/blob/main/LICENSES.md")}
             />
           </View>
 

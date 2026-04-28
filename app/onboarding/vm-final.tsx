@@ -3,6 +3,7 @@ import { heartbeat, requestContainer, signedPreviewUrl } from "@/api/containers"
 import { posthog } from "@/constants/posthog";
 import { SFPro } from "@/constants/theme";
 import { getToken, getUser } from "@/store/auth-store";
+import { getVmName } from "@/store/vm-metadata-store";
 import { notifyGrassSandboxUsageLimitHit, notifyGrassVmReady } from "@/store/grass-vm-events";
 import { saveVmUrl } from "@/store/url-store";
 import { Image } from "expo-image";
@@ -21,7 +22,7 @@ import {
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const ITEM_DELAY_MS = 700;
+const ITEM_DELAY_MS = 1500;
 // Show retry option if provisioning takes longer than 15s
 const PROVISION_TIMEOUT_MS = 15000;
 // Cooldown before retry button becomes active again
@@ -29,13 +30,18 @@ const RETRY_COOLDOWN_S = 15;
 
 export default function VmFinalScreen() {
   const router = useRouter();
-  const { vmName } = useLocalSearchParams<{ vmName: string }>();
-  const name = vmName || "Your VM";
+  const { vmName: vmNameParam } = useLocalSearchParams<{ vmName: string }>();
+  const [name, setName] = useState(vmNameParam || "Your VM");
+
+  useEffect(() => {
+    if (vmNameParam) return;
+    getVmName().then((stored) => { if (stored) setName(stored); });
+  }, [vmNameParam]);
 
   const ANIMATED_ITEMS = [
     `Setting up ${name}'s workspace`,
-    "Installing tools",
-    "Connecting to Opencode",
+    "Starting the container",
+    "Establishing a secure connection",
     "Running a quick health check",
   ];
   const FINAL_ITEM = `${name} is ready for work`;

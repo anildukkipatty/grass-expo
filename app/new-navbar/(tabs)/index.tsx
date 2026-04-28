@@ -120,6 +120,7 @@ export default function HomeScreen() {
     setActiveVmTab,
     primaryVmUrl,
     vmRunning,
+    vmUrlStatuses,
     threads,
     selectedVmUrl,
   } = useNavbar();
@@ -329,6 +330,9 @@ export default function HomeScreen() {
           if (idx >= 0) setActiveVmTab(idx);
         }}
         onAddNew={() => setConnectMoreVisible(true)}
+        vmUrlStatuses={vmUrlStatuses}
+        vmRunning={vmRunning}
+        primaryVmUrl={primaryVmUrl}
       />
       <ConnectMoreSlider
         visible={connectMoreVisible}

@@ -80,6 +80,8 @@ export default function ReposScreen() {
     activeVmTab,
     setActiveVmTab,
     primaryVmUrl,
+    vmRunning,
+    vmUrlStatuses,
     repos,
     reposLoading,
     refreshRepos,
@@ -151,6 +153,9 @@ export default function ReposScreen() {
           if (idx >= 0) setActiveVmTab(idx);
         }}
         onAddNew={() => setConnectMoreVisible(true)}
+        vmUrlStatuses={vmUrlStatuses}
+        vmRunning={vmRunning}
+        primaryVmUrl={primaryVmUrl}
       />
       <ConnectMoreSlider
         visible={connectMoreVisible}

@@ -617,6 +617,12 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       const results = await Promise.all(
         vmUrls.map(async (url) => {
           try {
+            // Ensure a connection entry exists — healthStore returns { compatible: true }
+            // immediately without making any HTTP request if no entry is found.
+            const key = resolveServerKey(url);
+            const realUrl = resolveServerUrl(url);
+            openConnectionWithKey(key, realUrl);
+
             const result = await Promise.race<CompatResult>([
               healthStore(url),
               new Promise<never>((_, reject) =>
@@ -660,7 +666,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     pollAll();
     const interval = setInterval(pollAll, 15000);
     return () => clearInterval(interval);
-  }, [vmUrls, primaryVmUrl, selectedVmUrl]);
+  }, [vmUrls, primaryVmUrl]);
 
   // Fetch repos for the selected server. GrassVM needs vmRunning; custom machines work even if Grass is down or usage-limited.
   useEffect(() => {
