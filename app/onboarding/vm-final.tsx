@@ -10,21 +10,21 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   Dimensions,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const ITEM_DELAY_MS = 1500;
 // Show retry option if provisioning takes longer than 15s
-const PROVISION_TIMEOUT_MS = 15000;
+const PROVISION_TIMEOUT_MS = 2000;
 // Cooldown before retry button becomes active again
 const RETRY_COOLDOWN_S = 15;
 
@@ -213,18 +213,18 @@ export default function VmFinalScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.container}>
-        {/* Full-screen illustration with name overlay */}
         <View style={styles.illustrationContainer}>
           <Image
             source={require("@/assets/images/new-design/onboarding/vm-illustration.png")}
             style={StyleSheet.absoluteFill}
             contentFit="contain"
           />
-          <View style={styles.vmNameOverlayWrapper}>
-            <Text style={styles.vmNameOverlay}>
-              {name.length > 9 ? name.slice(0, 9) + "..." : name}
-            </Text>
-          </View>
+        </View>
+
+        <View style={styles.vmNameOverlayWrapper} pointerEvents="none">
+          <Text style={[styles.vmNameOverlay, styles.vmNameShadow]}>{name}</Text>
+          <Text style={[styles.vmNameOverlay, styles.vmNameHighlight]}>{name}</Text>
+          <Text style={styles.vmNameOverlay}>{name}</Text>
         </View>
 
         <LinearGradient
@@ -343,65 +343,83 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    height: SCREEN_HEIGHT * 1.3,
-    bottom: 0,
+    top: -8,
+    height: SCREEN_HEIGHT * 0.56,
   },
   vmNameOverlayWrapper: {
     position: "absolute",
-    top: "47%",
-    left: "10%",
-    right: "-5%",
-    transform: [{ rotate: "30deg" }],
+    top: SCREEN_HEIGHT * 0.235,
+    left: SCREEN_WIDTH * 0.415,
+    width: 98,
+    transform: [{ rotate: "28deg" }, { skewX: "-30deg" }, { scaleY: 0.87 }],
+    alignItems: "center",
+    justifyContent: "center",
   },
   vmNameOverlay: {
-    fontFamily: SFPro.bold,
-    fontSize: 17,
-    color: "#d2d2d1",
+    position: "absolute",
+    fontFamily: SFPro.condensedBold,
+    fontSize: 19,
+    color: "#D2D2D1",
     letterSpacing: -0.5,
-    lineHeight: 22,
+    lineHeight: 19,
     textAlign: "center",
-    textShadowColor: "rgba(255, 255, 255, 0.6)",
-    textShadowOffset: { width: 0.5, height: 0.5 },
-    textShadowRadius: 1,
+    opacity: 1,
+  },
+  vmNameShadow: {
+    color: "#5A5A58",
+    opacity: 0.5,
+    transform: [{ translateX: 0.85 }, { translateY: 1.2 }],
+  },
+  vmNameHighlight: {
+    color: "#FFFFFF",
+    opacity: 0.8,
+    transform: [{ translateX: -0.85 }, { translateY: -0.8 }],
   },
   gradientOverlay: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 16,
-    height: SCREEN_HEIGHT * 0.42,
+    left: 20,
+    right: 20,
+    bottom: 0,
+    height: SCREEN_HEIGHT * 0.76,
     justifyContent: "flex-end",
-    borderRadius: 24,
-    overflow: "hidden",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    zIndex: 10,
   },
   safeContent: {
     width: "100%",
   },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 22,
     alignItems: "center",
   },
   statusList: {
     width: "100%",
-    gap: 12,
-    marginBottom: 24,
+    gap: 14,
+    marginBottom: 28,
   },
   statusRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    alignItems: "flex-start",
+    gap: 12,
   },
   dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: "#3D841E",
+    marginTop: 4,
+    flexShrink: 0,
   },
   statusText: {
     fontFamily: SFPro.semiBold,
-    fontSize: 17,
+    fontSize: 18,
     color: "#000",
-    lineHeight: 22,
+    lineHeight: 25,
+    letterSpacing: -0.4,
+    flex: 1,
   },
   spinner: {
     alignSelf: "flex-start",
@@ -421,14 +439,18 @@ const styles = StyleSheet.create({
   buttonShadowWrap: {
     width: "100%",
     borderRadius: 50,
-    elevation: 12,
+    shadowColor: "#2E6E16",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
   },
   button: {
     borderRadius: 50,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: "#72C44E",
     backgroundColor: "#3D841E",
-    height: 52,
+    height: 56,
     width: "100%",
     alignItems: "center",
     justifyContent: "center",

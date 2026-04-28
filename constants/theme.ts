@@ -94,6 +94,7 @@ export const SFPro = {
   medium:         'SFProText-Medium',
   semiBold:       'SFProText-Semibold',
   bold:           'SFProText-Bold',
+  condensedBold:  'SFProText-CondensedBold',
   displayRegular: 'SFProDisplay-Regular',
   displayMedium:  'SFProDisplay-Medium',
   displaySemiBold:'SFProDisplay-Semibold',

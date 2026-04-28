@@ -102,6 +102,7 @@ export default function RootLayout() {
     [SFPro.medium]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Medium.otf"),
     [SFPro.semiBold]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Semibold.otf"),
     [SFPro.bold]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Bold.otf"),
+    [SFPro.condensedBold]: require("../assets/fonts/SF-Pro/SF-Pro-Text-CondensedBold.otf"),
     [SFPro.displayRegular]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Regular.otf"),
     [SFPro.displayMedium]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Medium.otf"),
     [SFPro.displaySemiBold]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Semibold.otf"),
