@@ -1,3 +1,10 @@
+import {
+  BlurMask,
+  Canvas,
+  Mask,
+  Text as SkiaText,
+  useFont,
+} from "@shopify/react-native-skia";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -23,13 +30,11 @@ import ExternalLinkIcon from "@/assets/images/new-design/settings/external-link.
 import FeatureIcon from "@/assets/images/new-design/settings/feature.svg";
 import LicenceIcon from "@/assets/images/new-design/settings/licence.svg";
 import MachineIcon from "@/assets/images/new-design/settings/machine.svg";
-import NotificationIcon from "@/assets/images/new-design/settings/notification-icon.svg";
 import PrivacyIcon from "@/assets/images/new-design/settings/privacy.svg";
 import RateIcon from "@/assets/images/new-design/settings/rate.svg";
 import ReportBugIcon from "@/assets/images/new-design/settings/report-a-bug.svg";
 import SignOutIcon from "@/assets/images/new-design/settings/sign-out.svg";
 import TOSIcon from "@/assets/images/new-design/settings/TOS.svg";
-import VmTimeIcon from "@/assets/images/new-design/settings/vm-time.svg";
 import XIcon from "@/assets/images/new-design/settings/x.svg";
 
 import { ConnectLaptopSlider } from "@/components/new-navbar/ConnectLaptopSlider";
@@ -128,6 +133,66 @@ function MachineRow({
   );
 }
 
+type ServerNameSkiaOverlayProps = {
+  name: string;
+  width: number;
+  height: number;
+};
+
+function ServerNameSkiaOverlay({ name, width, height }: ServerNameSkiaOverlayProps) {
+  const font = useFont(require("@/assets/fonts/SF-Pro/SF-Pro-Text-Bold.otf"), 20);
+
+  if (!name) return null;
+
+  if (!font || width <= 0 || height <= 0) {
+    return <Text style={styles.serverNameOverlay}>{name}</Text>;
+  }
+
+  const textWidth = font.measureText(name).width;
+  const x = Math.max((width - textWidth) / 2, 0);
+  const y = height * 0.31 + 5;
+  const outlineOffsets = [
+    [-0.6, 0],
+    [0.6, 0],
+    [0, -0.6],
+    [0, 0.6],
+    [-0.45, -0.45],
+    [0.45, -0.45],
+    [-0.45, 0.45],
+    [0.45, 0.45],
+  ] as const;
+
+  return (
+    <Canvas style={styles.serverNameCanvas} pointerEvents="none">
+      {outlineOffsets.map(([ox, oy], idx) => (
+        <SkiaText
+          key={`outline-${idx}`}
+          text={name}
+          x={x + ox}
+          y={y + oy}
+          font={font}
+          color="rgba(0, 0, 0, 0.05)"
+        />
+      ))}
+      <SkiaText text={name} x={x} y={y} font={font} color="rgb(209, 209, 209)" />
+      <Mask
+        mode="alpha"
+        mask={<SkiaText text={name} x={x} y={y} font={font} color="white" />}
+      >
+        <SkiaText
+          text={name}
+          x={x}
+          y={y + 0.5}
+          font={font}
+          color="rgba(0, 0, 0, 0.2)"
+        >
+          <BlurMask blur={1} style="normal" />
+        </SkiaText>
+      </Mask>
+    </Canvas>
+  );
+}
+
 export default function SettingsScreen() {
   const { top } = useSafeAreaInsets();
   const { vmUrls, primaryVmUrl } = useNavbar();
@@ -138,6 +203,7 @@ export default function SettingsScreen() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [grassVmName, setGrassVmName] = useState<string | null>(null);
   const [vmMetadataMap, setVmMetadataMap] = useState<Record<string, { name: string; iconIndex: number }>>({});
+  const [serverImageSize, setServerImageSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     getUser().then((u) => setUserEmail(u?.email ?? null));
@@ -176,15 +242,25 @@ export default function SettingsScreen() {
       >
         <View style={styles.paddedContent}>
           {/* ── Machine image ── */}
-          <View style={styles.serverImageContainer}>
+          <View
+            style={styles.serverImageContainer}
+            onLayout={(e) => {
+              const { width, height } = e.nativeEvent.layout;
+              setServerImageSize((prev) =>
+                prev.width === width && prev.height === height ? prev : { width, height }
+              );
+            }}
+          >
             <Image
               source={require("@/assets/images/new-design/settings/server.png")}
               style={styles.serverImage}
               resizeMode="contain"
             />
-            {/* <Text style={styles.serverNameOverlay}>
-              {(() => { const n = grassVmName ?? "My Machine"; return n.length > 10 ? n.slice(0, 10) + "..." : n; })()}
-            </Text> */}
+            <ServerNameSkiaOverlay
+              name={grassVmName?.trim() || "Son of ana"}
+              width={serverImageSize.width}
+              height={serverImageSize.height}
+            />
           </View>
 
           {/* ── Referral ── */}
@@ -545,17 +621,22 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
+  serverNameCanvas: {
+    ...StyleSheet.absoluteFillObject,
+  },
   serverNameOverlay: {
     position: "absolute",
-    top: "15%",
-    left: "2%",
-    right: "0%",
-    fontFamily: SFPro.bold,
-    fontSize: 22,
-    color: "#b3b3b1",
-    letterSpacing: 1,
-    transform: [{ rotate: "0deg" }],
+    top: "31%",
+    left: 0,
+    right: 0,
+    transform: [{ translateY: -11 }],
+    color: "rgb(209, 209, 209)",
     textAlign: "center",
+    fontFamily: SFPro.bold,
+    fontSize: 20,
+    fontWeight: "700",
+    lineHeight: 22,
+    letterSpacing: -0.5,
   },
 
   // Section header
