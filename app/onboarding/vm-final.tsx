@@ -28,6 +28,11 @@ const PROVISION_TIMEOUT_MS = 2000;
 // Cooldown before retry button becomes active again
 const RETRY_COOLDOWN_S = 15;
 
+function truncateWithEllipsis(value: string, maxChars = 13) {
+  if (value.length <= maxChars) return value;
+  return `${value.slice(0, Math.max(maxChars - 1, 0))}…`;
+}
+
 export default function VmFinalScreen() {
   const router = useRouter();
   const { vmName: vmNameParam } = useLocalSearchParams<{ vmName: string }>();
@@ -45,6 +50,7 @@ export default function VmFinalScreen() {
     "Running a quick health check",
   ];
   const FINAL_ITEM = `${name} is ready for work`;
+  const overlayName = truncateWithEllipsis(name, 13);
 
   const [visibleCount, setVisibleCount] = useState(0);
   const [provisioned, setProvisioned] = useState(false);
@@ -222,9 +228,9 @@ export default function VmFinalScreen() {
         </View>
 
         <View style={styles.vmNameOverlayWrapper} pointerEvents="none">
-          <Text style={[styles.vmNameOverlay, styles.vmNameShadow]}>{name}</Text>
-          <Text style={[styles.vmNameOverlay, styles.vmNameHighlight]}>{name}</Text>
-          <Text style={styles.vmNameOverlay}>{name}</Text>
+          <Text style={[styles.vmNameOverlay, styles.vmNameShadow]}>{overlayName}</Text>
+          <Text style={[styles.vmNameOverlay, styles.vmNameHighlight]}>{overlayName}</Text>
+          <Text style={styles.vmNameOverlay}>{overlayName}</Text>
         </View>
 
         <LinearGradient

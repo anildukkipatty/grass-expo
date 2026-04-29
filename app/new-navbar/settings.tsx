@@ -1,10 +1,3 @@
-import {
-  BlurMask,
-  Canvas,
-  Mask,
-  Text as SkiaText,
-  useFont,
-} from "@shopify/react-native-skia";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -133,63 +126,26 @@ function MachineRow({
   );
 }
 
-type ServerNameSkiaOverlayProps = {
+type ServerNameOverlayProps = {
   name: string;
-  width: number;
-  height: number;
 };
 
-function ServerNameSkiaOverlay({ name, width, height }: ServerNameSkiaOverlayProps) {
-  const font = useFont(require("@/assets/fonts/SF-Pro/SF-Pro-Text-Bold.otf"), 20);
+function truncateWithEllipsis(value: string, maxChars = 13) {
+  if (value.length <= maxChars) return value;
+  return `${value.slice(0, Math.max(maxChars - 1, 0))}…`;
+}
 
+function ServerNameOverlay({ name }: ServerNameOverlayProps) {
   if (!name) return null;
 
-  if (!font || width <= 0 || height <= 0) {
-    return <Text style={styles.serverNameOverlay}>{name}</Text>;
-  }
-
-  const textWidth = font.measureText(name).width;
-  const x = Math.max((width - textWidth) / 2, 0);
-  const y = height * 0.31 + 5;
-  const outlineOffsets = [
-    [-0.6, 0],
-    [0.6, 0],
-    [0, -0.6],
-    [0, 0.6],
-    [-0.45, -0.45],
-    [0.45, -0.45],
-    [-0.45, 0.45],
-    [0.45, 0.45],
-  ] as const;
+  const displayName = truncateWithEllipsis(name, 13);
 
   return (
-    <Canvas style={styles.serverNameCanvas} pointerEvents="none">
-      {outlineOffsets.map(([ox, oy], idx) => (
-        <SkiaText
-          key={`outline-${idx}`}
-          text={name}
-          x={x + ox}
-          y={y + oy}
-          font={font}
-          color="rgba(0, 0, 0, 0.05)"
-        />
-      ))}
-      <SkiaText text={name} x={x} y={y} font={font} color="rgb(209, 209, 209)" />
-      <Mask
-        mode="alpha"
-        mask={<SkiaText text={name} x={x} y={y} font={font} color="white" />}
-      >
-        <SkiaText
-          text={name}
-          x={x}
-          y={y + 0.5}
-          font={font}
-          color="rgba(0, 0, 0, 0.2)"
-        >
-          <BlurMask blur={1} style="normal" />
-        </SkiaText>
-      </Mask>
-    </Canvas>
+    <View style={styles.serverNameOverlayWrap} pointerEvents="none">
+      <Text style={[styles.serverNameOverlay, styles.serverNameShadow]}>{displayName}</Text>
+      <Text style={[styles.serverNameOverlay, styles.serverNameHighlight]}>{displayName}</Text>
+      <Text style={styles.serverNameOverlay}>{displayName}</Text>
+    </View>
   );
 }
 
@@ -203,7 +159,6 @@ export default function SettingsScreen() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [grassVmName, setGrassVmName] = useState<string | null>(null);
   const [vmMetadataMap, setVmMetadataMap] = useState<Record<string, { name: string; iconIndex: number }>>({});
-  const [serverImageSize, setServerImageSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     getUser().then((u) => setUserEmail(u?.email ?? null));
@@ -242,25 +197,13 @@ export default function SettingsScreen() {
       >
         <View style={styles.paddedContent}>
           {/* ── Machine image ── */}
-          <View
-            style={styles.serverImageContainer}
-            onLayout={(e) => {
-              const { width, height } = e.nativeEvent.layout;
-              setServerImageSize((prev) =>
-                prev.width === width && prev.height === height ? prev : { width, height }
-              );
-            }}
-          >
+          <View style={styles.serverImageContainer}>
             <Image
               source={require("@/assets/images/new-design/settings/server.png")}
               style={styles.serverImage}
               resizeMode="contain"
             />
-            <ServerNameSkiaOverlay
-              name={grassVmName?.trim() || "Son of ana"}
-              width={serverImageSize.width}
-              height={serverImageSize.height}
-            />
+            <ServerNameOverlay name={grassVmName?.trim() || "Son of ana"} />
           </View>
 
           {/* ── Referral ── */}
@@ -621,22 +564,32 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  serverNameCanvas: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  serverNameOverlay: {
+  serverNameOverlayWrap: {
     position: "absolute",
     top: "31%",
     left: 0,
     right: 0,
-    transform: [{ translateY: -11 }],
-    color: "rgb(209, 209, 209)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  serverNameOverlay: {
+    position: "absolute",
+    color: "#D2D2D1",
     textAlign: "center",
     fontFamily: SFPro.bold,
     fontSize: 20,
-    fontWeight: "700",
     lineHeight: 22,
     letterSpacing: -0.5,
+  },
+  serverNameShadow: {
+    color: "#5A5A58",
+    opacity: 0.5,
+    transform: [{ translateX: 0.85 }, { translateY: 1.2 }],
+  },
+  serverNameHighlight: {
+    color: "#FFFFFF",
+    opacity: 0.8,
+    transform: [{ translateX: -0.85 }, { translateY: -0.8 }],
   },
 
   // Section header

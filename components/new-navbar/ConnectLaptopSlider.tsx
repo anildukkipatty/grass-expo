@@ -8,6 +8,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Clipboard,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
@@ -117,6 +118,7 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
   }, [visible, successTranslateY]);
 
   const handleCopy = useCallback(() => {
+    Clipboard.setString(COMMAND);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, []);
