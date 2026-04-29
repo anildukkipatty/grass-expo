@@ -441,7 +441,6 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         }
 
         setVmRunning(false);
-        router.replace("/onboarding/vm-final" as any);
       } finally {
         grassLimitRecheckInFlightRef.current = false;
       }
@@ -507,7 +506,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        router.replace("/onboarding/vm-final" as any);
+        setVmRunning(false);
       } finally {
         if (!cancelled) setGrassVmChecking(false);
       }
@@ -580,7 +579,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         setGrassSandboxBlockedByUsageLimit(false);
         setVmRunning(false);
         if (wasOnGrassVm) {
-          router.replace("/onboarding/vm-final" as any);
+          setVmRunning(false);
         }
       } else {
         setGrassSandboxBlockedByUsageLimit(false);
