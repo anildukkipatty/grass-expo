@@ -121,7 +121,7 @@ export function usePushNotifications() {
             router.push("/new-navbar/(tabs)");
           }
         } else if (data.type === "container_ready" || data.type === "limit_exceeded") {
-          router.replace("/(tabs)/home");
+          router.replace("/new-navbar/(tabs)");
         }
       }
     );
