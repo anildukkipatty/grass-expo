@@ -682,46 +682,59 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
         setReposLoading(false);
         return;
       }
+
       setReposLoading(true);
       const serverUrl = selectedVmUrl;
-      if (cancelled) {
-        setReposLoading(false);
-        return;
-      }
 
-      const key = resolveServerKey(serverUrl);
-      const realUrl = resolveServerUrl(serverUrl);
-      openConnectionWithKey(key, realUrl);
-      await listReposStore(key);
-      if (cancelled) return;
+      try {
+        if (cancelled) {
+          setReposLoading(false);
+          return;
+        }
 
-      const entry = getEntry(key);
-      const repoList = entry?.repos ?? [];
+        const key = resolveServerKey(serverUrl);
+        const realUrl = resolveServerUrl(serverUrl);
+        openConnectionWithKey(key, realUrl);
+        await listReposStore(key);
+        if (cancelled) {
+          setReposLoading(false);
+          return;
+        }
 
-      await Promise.all(
-        repoList.map((r) => getRepoDetailsStore(key, r.path)),
-      );
-      if (cancelled) return;
+        const entry = getEntry(key);
+        const repoList = entry?.repos ?? [];
 
-      const updatedEntry = getEntry(key);
-      const details = updatedEntry?.repoDetails ?? new Map();
+        await Promise.all(
+          repoList.map((r) => getRepoDetailsStore(key, r.path)),
+        );
+        if (cancelled) {
+          setReposLoading(false);
+          return;
+        }
 
-      const mapped: RepoItem[] = repoList.map((r, i) => {
-        const d = details.get(r.path);
-        return {
-          id: String(i),
-          name: r.name,
-          path: r.path,
-          branch: d?.branch ?? "main",
-          action: "Open Code",
-          badge: d?.dominantLanguage ?? (r.isGit ? "Git" : "Folder"),
-          badgeType: "gray" as const,
-        };
-      });
+        const updatedEntry = getEntry(key);
+        const details = updatedEntry?.repoDetails ?? new Map();
 
-      if (!cancelled) {
-        setRepos(mapped);
-        setReposLoading(false);
+        const mapped: RepoItem[] = repoList.map((r, i) => {
+          const d = details.get(r.path);
+          return {
+            id: String(i),
+            name: r.name,
+            path: r.path,
+            branch: d?.branch ?? "main",
+            action: "Open Code",
+            badge: d?.dominantLanguage ?? (r.isGit ? "Git" : "Folder"),
+            badgeType: "gray" as const,
+          };
+        });
+
+        if (!cancelled) {
+          setRepos(mapped);
+        }
+      } catch {
+        // Keep previous repos on fetch failure.
+      } finally {
+        if (!cancelled) setReposLoading(false);
       }
     }
 
@@ -736,28 +749,34 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     const onGrassVm =
       !!primaryVmUrl && selectedVmUrl === primaryVmUrl;
     if (onGrassVm && !vmRunning) return;
+
     setReposLoading(true);
-    const key = resolveServerKey(selectedVmUrl);
-    const realUrl = resolveServerUrl(selectedVmUrl);
-    openConnectionWithKey(key, realUrl);
-    await listReposStore(key);
-    const entry = getEntry(key);
-    const repoList = entry?.repos ?? [];
-    await Promise.all(repoList.map((r) => getRepoDetailsStore(key, r.path)));
-    const updatedEntry = getEntry(key);
-    const details = updatedEntry?.repoDetails ?? new Map();
-    setRepos(
-      repoList.map((r, i) => ({
-        id: String(i),
-        name: r.name,
-        path: r.path,
-        branch: details.get(r.path)?.branch ?? "main",
-        action: "Open Code",
-        badge: details.get(r.path)?.dominantLanguage ?? (r.isGit ? "Git" : "Folder"),
-        badgeType: "gray" as const,
-      }))
-    );
-    setReposLoading(false);
+    try {
+      const key = resolveServerKey(selectedVmUrl);
+      const realUrl = resolveServerUrl(selectedVmUrl);
+      openConnectionWithKey(key, realUrl);
+      await listReposStore(key);
+      const entry = getEntry(key);
+      const repoList = entry?.repos ?? [];
+      await Promise.all(repoList.map((r) => getRepoDetailsStore(key, r.path)));
+      const updatedEntry = getEntry(key);
+      const details = updatedEntry?.repoDetails ?? new Map();
+      setRepos(
+        repoList.map((r, i) => ({
+          id: String(i),
+          name: r.name,
+          path: r.path,
+          branch: details.get(r.path)?.branch ?? "main",
+          action: "Open Code",
+          badge: details.get(r.path)?.dominantLanguage ?? (r.isGit ? "Git" : "Folder"),
+          badgeType: "gray" as const,
+        }))
+      );
+    } catch {
+      // Keep previous repos on refresh failure.
+    } finally {
+      setReposLoading(false);
+    }
   }, [selectedVmUrl, primaryVmUrl, vmRunning]);
 
   const handleRemoveUserVm = useCallback(async (idx: number) => {

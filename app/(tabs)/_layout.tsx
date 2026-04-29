@@ -90,25 +90,30 @@ function TabsLayoutInner() {
           if (!selectedVmUrl) return;
           const key = resolveServerKey(selectedVmUrl);
           setReposLoading(true);
-          await listReposStore(key);
-          const entry = getEntry(key);
-          const repoList = entry?.repos ?? [];
-          await Promise.all(repoList.map((r) => getRepoDetailsStore(key, r.path)));
-          const updatedEntry = getEntry(key);
-          const details = updatedEntry?.repoDetails ?? new Map();
-          setRepos(
-            repoList.map((r, i) => ({
-              id: String(i),
-              name: r.name,
-              path: r.path,
-              branch: details.get(r.path)?.branch ?? "main",
-              action: "Open Code",
-              badge: details.get(r.path)?.dominantLanguage ?? (r.isGit ? "Git" : "Folder"),
-              badgeType: "gray" as const,
-            }))
-          );
-          setReposLoading(false);
-          router.navigate("/(tabs)/repos");
+          try {
+            await listReposStore(key);
+            const entry = getEntry(key);
+            const repoList = entry?.repos ?? [];
+            await Promise.all(repoList.map((r) => getRepoDetailsStore(key, r.path)));
+            const updatedEntry = getEntry(key);
+            const details = updatedEntry?.repoDetails ?? new Map();
+            setRepos(
+              repoList.map((r, i) => ({
+                id: String(i),
+                name: r.name,
+                path: r.path,
+                branch: details.get(r.path)?.branch ?? "main",
+                action: "Open Code",
+                badge: details.get(r.path)?.dominantLanguage ?? (r.isGit ? "Git" : "Folder"),
+                badgeType: "gray" as const,
+              }))
+            );
+            router.navigate("/(tabs)/repos");
+          } catch {
+            // Keep previous repos on failure.
+          } finally {
+            setReposLoading(false);
+          }
         }}
       />
 
