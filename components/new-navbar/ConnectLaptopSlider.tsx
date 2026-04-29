@@ -38,7 +38,7 @@ import { openConnectionWithKey } from "@/store/connection-store";
 import { saveUrl } from "@/store/url-store";
 import { setVmMetadata } from "@/store/vm-metadata-store";
 
-const COMMAND = "npx grass start";
+const COMMAND = "npx @grass-ai/ide start";
 type Step = "scan" | "paired" | "setup" | "ready";
 const ICONS = VM_ICONS;
 

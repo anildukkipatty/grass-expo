@@ -376,7 +376,7 @@ const MACHINES: Machine[] = [
     icon: <LaptopIcon style={styles.machineIcon} />,
     status: "offline",
     offlineNote:
-      "Run  grass start  in your terminal\nto bring this machine online.",
+      "Run  npx @grass-ai/ide start  in your terminal\nto bring this machine online.",
   },
 ];
 
@@ -460,7 +460,7 @@ export default function MachinesScreen() {
           <View style={styles.offlineRow}>
             <Text style={styles.offlineNote}>{"Run "}</Text>
             <View style={styles.grassStartTag}>
-              <Text style={styles.grassStartText}>grass start</Text>
+              <Text style={styles.grassStartText}>npx @grass-ai/ide start</Text>
             </View>
             <Text style={styles.offlineNote}>{" in your terminal"}</Text>
           </View>

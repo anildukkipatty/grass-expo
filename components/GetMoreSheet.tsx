@@ -5,18 +5,18 @@ import {
   claudeStatus,
 } from "@/api/claude";
 import {
-  opencodeConnect,
-  opencodeDisconnect,
-  opencodeStatus,
-} from "@/api/opencode";
-import {
   githubListRepos,
   githubOauthDisconnect,
   githubOauthStart,
   githubOauthStatus,
   type GithubRepo,
 } from "@/api/github";
-import { useNavbar } from "@/contexts/navbar-context";
+import { registerRelayToken } from "@/api/notifications";
+import {
+  opencodeConnect,
+  opencodeDisconnect,
+  opencodeStatus,
+} from "@/api/opencode";
 import AddRepoSvg from "@/assets/images/get-more/add-repo.svg";
 import AppleSvg from "@/assets/images/get-more/apple.svg";
 import BackArrow from "@/assets/images/get-more/back-arrow.svg";
@@ -28,12 +28,12 @@ import LinuxSvg from "@/assets/images/get-more/linux.svg";
 import MicrosoftSvg from "@/assets/images/get-more/microsoft.svg";
 import OpencodeLightSvg from "@/assets/images/get-more/opencode-logo-light.svg";
 import OpencodeSvg from "@/assets/images/get-more/opencode.svg";
-import { NationalPark } from "@/constants/theme";
 import { posthog } from "@/constants/posthog";
+import { NationalPark } from "@/constants/theme";
+import { useNavbar } from "@/contexts/navbar-context";
 import { getToken } from "@/store/auth-store";
 import { cloneRepoStore, getEntry } from "@/store/connection-store";
-import { saveUrl, isRelayUrl } from "@/store/url-store";
-import { registerRelayToken } from "@/api/notifications";
+import { isRelayUrl, saveUrl } from "@/store/url-store";
 import { Ionicons } from "@expo/vector-icons";
 import {
   BottomSheetBackdrop,
@@ -521,7 +521,7 @@ export function GetMoreSheet({
   }
 
   function handleCopyTerminalCommand() {
-    Clipboard.setString("npx grass start");
+    Clipboard.setString("npx @grass-ai/ide start");
     Alert.alert("Copied!", "Command copied to clipboard.");
   }
 
@@ -1108,7 +1108,7 @@ export function GetMoreSheet({
 
         <View style={styles.urlRow}>
           <Text style={styles.urlText} numberOfLines={1} ellipsizeMode="tail">
-            npx grass start
+            npx @grass-ai/ide start
           </Text>
           <TouchableOpacity
             style={styles.copyBtnWrap}
