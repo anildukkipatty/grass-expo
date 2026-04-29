@@ -1,15 +1,83 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { Text, StyleSheet, Animated } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { GrassColors } from '@/constants/theme';
 import { markdownStyles } from '@/constants/markdownStyles';
 import { SyntaxBlock } from '@/components/SyntaxBlock';
 
 interface Props {
-  role: 'user' | 'assistant' | 'error';
+  role: 'user' | 'assistant' | 'error' | 'tool';
   content: string;
   badge?: string;
   theme: 'light' | 'dark';
+}
+
+// Normalize tool name: lowercase, strip underscores/spaces (handles both PascalCase and snake_case)
+function toolIcon(toolName: string): string {
+  const key = toolName.toLowerCase().replace(/[_\s]/g, '');
+  switch (key) {
+    // File read
+    case 'read':
+    case 'readfile':
+    case 'notebookread':
+      return '📖';
+    // File write / create
+    case 'write':
+    case 'writefile':
+      return '✏️';
+    // File edit / patch
+    case 'edit':
+    case 'editfile':
+    case 'multiedit':
+    case 'patch':
+      return '📝';
+    // Shell / terminal
+    case 'bash':
+    case 'shell':
+    case 'terminal':
+    case 'execute':
+      return '⚡';
+    // Content search
+    case 'grep':
+    case 'search':
+      return '🔍';
+    // File/path search
+    case 'glob':
+    case 'ls':
+    case 'listdir':
+    case 'listfiles':
+      return '🗂️';
+    // Web fetch
+    case 'webfetch':
+    case 'fetch':
+    case 'http':
+      return '🌐';
+    // Web search
+    case 'websearch':
+      return '🔎';
+    // Notebook
+    case 'notebookedit':
+      return '📒';
+    // Task / subagent
+    case 'task':
+    case 'agent':
+    case 'subagent':
+      return '🤖';
+    // Todo
+    case 'todoread':
+    case 'todowrite':
+      return '📋';
+    // Git / diff
+    case 'diff':
+    case 'gitdiff':
+      return '🔀';
+    // MCP / plugin tools
+    case 'mcptool':
+    case 'mcp':
+      return '🔌';
+    default:
+      return '🔧';
+  }
 }
 
 function makeFenceRules(theme: 'light' | 'dark') {
@@ -22,6 +90,12 @@ function makeFenceRules(theme: 'light' | 'dark') {
         <SyntaxBlock key={node.key} code={content} language={language} theme={theme} />
       );
     },
+    text: (node: any, children: any, parent: any, styles: any) => (
+      <Text key={node.key} selectable style={styles.text}>{node.content}</Text>
+    ),
+    textgroup: (node: any, children: any, parent: any, styles: any) => (
+      <Text key={node.key} selectable style={styles.textgroup}>{children}</Text>
+    ),
   };
 }
 
@@ -42,37 +116,60 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
     ]).start();
   }, [fadeAnim, slideAnim]);
 
-  const bubbleStyle = role === 'user'
-    ? { backgroundColor: c.userBubble, alignSelf: 'flex-end' as const, borderBottomRightRadius: 5 }
-    : role === 'assistant'
-    ? { backgroundColor: c.assistantBubble, alignSelf: 'flex-start' as const, borderBottomLeftRadius: 5, borderWidth: 1, borderColor: c.border }
-    : { backgroundColor: c.errorBubble, alignSelf: 'center' as const, borderWidth: 1, borderColor: c.errorText };
+  // Tool call row
+  if (role === 'tool') {
+    const toolName = content.split(': ')[0];
+    const icon = toolIcon(toolName);
+    return (
+      <Animated.View
+        style={[styles.toolRow, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
+      >
+        <Text style={[styles.toolIcon, { color: c.badgeText }]}>{icon}</Text>
+        <Text selectable style={[styles.toolLabel, { color: c.badgeText }]} numberOfLines={1}>{content}</Text>
+      </Animated.View>
+    );
+  }
 
-  const textColor = role === 'user'
-    ? c.userBubbleText
-    : role === 'assistant'
-    ? c.assistantBubbleText
-    : c.errorText;
+  // User bubble (right-aligned, colored)
+  if (role === 'user') {
+    return (
+      <Animated.View
+        style={[
+          styles.bubble,
+          styles.userBubble,
+          { backgroundColor: c.userBubble, borderColor: c.userBubbleBorder, opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+        ]}
+      >
+        <Text selectable style={[styles.text, { color: c.userBubbleText }]}>{content}</Text>
+        {badge ? <Text selectable style={[styles.badge, { color: c.badgeText }]}>{badge}</Text> : null}
+      </Animated.View>
+    );
+  }
 
+  // Error bubble (centered)
+  if (role === 'error') {
+    return (
+      <Animated.View
+        style={[
+          styles.bubble,
+          styles.errorBubble,
+          { backgroundColor: c.errorBubble, borderColor: c.errorText, opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+        ]}
+      >
+        <Text selectable style={[styles.text, { color: c.errorText }]}>{content}</Text>
+      </Animated.View>
+    );
+  }
+
+  // Assistant — full width, no bubble
   return (
     <Animated.View
-      style={[
-        styles.bubble,
-        bubbleStyle,
-        role === 'assistant' && styles.assistantBubbleLayout,
-        { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-      ]}
+      style={[styles.assistantRow, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
     >
-      {role === 'assistant' ? (
-        <View style={styles.markdownWrapper}>
-          <Markdown style={markdownStyles(theme)} rules={fenceRules}>
-            {content}
-          </Markdown>
-        </View>
-      ) : (
-        <Text style={[styles.text, { color: textColor }]}>{content}</Text>
-      )}
-      {badge ? <Text style={[styles.badge, { color: c.badgeText }]}>{badge}</Text> : null}
+      <Markdown style={markdownStyles(theme)} rules={fenceRules}>
+        {content}
+      </Markdown>
+      {badge ? <Text selectable style={[styles.badge, { color: c.badgeText }]}>{badge}</Text> : null}
     </Animated.View>
   );
 }
@@ -80,16 +177,45 @@ export function MessageBubble({ role, content, badge, theme }: Props) {
 const styles = StyleSheet.create({
   bubble: {
     maxWidth: '88%',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
+    paddingHorizontal: 15,
+    paddingVertical: 15,
+    borderRadius: 20,
     marginVertical: 4,
   },
-  assistantBubbleLayout: {
-    width: '88%',
+  userBubble: {
+    alignSelf: 'flex-end',
+    marginRight: 12,
+    borderWidth: 1,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 5,
+    borderBottomLeftRadius: 20,
   },
-  markdownWrapper: {
-    width: '100%',
+  errorBubble: {
+    alignSelf: 'center',
+    borderWidth: 1,
+  },
+  assistantRow: {
+    alignSelf: 'stretch',
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    marginVertical: 4,
+  },
+  toolRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+  },
+  toolIcon: {
+    fontSize: 14,
+    fontFamily: 'ui-monospace',
+  },
+  toolLabel: {
+    fontSize: 13,
+    fontFamily: 'ui-monospace',
+    flex: 1,
   },
   text: {
     fontSize: 16,

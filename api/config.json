@@ -1,0 +1,14 @@
+{
+  "command": {},
+  "plugin": [],
+  "username": "madhan",
+  "mode": {},
+  "agent": {},
+  "permission": {
+    "edit": "ask",
+    "bash": "ask",
+    "webfetch": "ask",
+    "doom_loop": "ask",
+    "external_directory": "ask"
+  }
+}

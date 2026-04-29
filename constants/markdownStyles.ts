@@ -1,4 +1,4 @@
-import { GrassColors, Fonts } from '@/constants/theme';
+import { GrassColors, Fonts, NationalPark } from '@/constants/theme';
 
 type Theme = 'light' | 'dark';
 
@@ -15,14 +15,14 @@ export function markdownStyles(theme: Theme) {
   const mono = Fonts?.mono ?? 'monospace';
   const fence = fenceColors(theme);
   return {
-    body:                 { color: c.assistantBubbleText, fontSize: 15, lineHeight: 23, backgroundColor: 'transparent' },
-    paragraph:            { marginTop: 4, marginBottom: 4, color: c.assistantBubbleText },
-    heading1:             { fontWeight: '700' as const, fontSize: 20, marginTop: 10, marginBottom: 4, color: c.assistantBubbleText, letterSpacing: -0.3 },
-    heading2:             { fontWeight: '700' as const, fontSize: 18, marginTop: 8, marginBottom: 4, color: c.assistantBubbleText, letterSpacing: -0.2 },
-    heading3:             { fontWeight: '600' as const, fontSize: 16, marginTop: 6, marginBottom: 2, color: c.assistantBubbleText },
-    strong:               { fontWeight: '700' as const, color: c.assistantBubbleText },
-    em:                   { fontStyle: 'italic' as const, color: c.assistantBubbleText },
-    code_inline:          { fontFamily: mono, fontSize: 13, backgroundColor: theme === 'light' ? '#ede9fe' : '#1e1a40', color: theme === 'light' ? '#5b4af7' : '#a89dff', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
+    body:                 { color: c.assistantBubbleText, fontSize: 15, lineHeight: 23, backgroundColor: 'transparent', fontFamily: NationalPark.regular },
+    paragraph:            { marginTop: 4, marginBottom: 4, color: c.assistantBubbleText, fontFamily: NationalPark.regular },
+    heading1:             { fontFamily: NationalPark.bold, fontSize: 20, marginTop: 10, marginBottom: 4, color: c.assistantBubbleText, letterSpacing: -0.3 },
+    heading2:             { fontFamily: NationalPark.bold, fontSize: 18, marginTop: 8, marginBottom: 4, color: c.assistantBubbleText, letterSpacing: -0.2 },
+    heading3:             { fontFamily: NationalPark.semiBold, fontSize: 16, marginTop: 6, marginBottom: 2, color: c.assistantBubbleText },
+    strong:               { fontFamily: NationalPark.bold, color: c.assistantBubbleText },
+    em:                   { fontStyle: 'italic' as const, color: c.assistantBubbleText, fontFamily: NationalPark.regular },
+    code_inline:          { fontFamily: mono, fontSize: 13, backgroundColor: theme === 'light' ? '#E4E3E3' : '#1e1a40', color: theme === 'light' ? '#1f2328' : '#a89dff', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 5, borderWidth: 1, borderColor: theme === 'light' ? '#D5D5D5' : '#2a2a38' },
     code_block:           { fontFamily: mono, fontSize: 13, lineHeight: 20, backgroundColor: fence.bg, color: fence.text, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginVertical: 6, borderWidth: 1, borderColor: fence.border },
     blockquote:           { borderLeftWidth: 3, borderLeftColor: c.accent, paddingLeft: 12, marginLeft: 0, fontStyle: 'italic' as const, opacity: 0.75 },
     bullet_list:          { marginBottom: 4 },

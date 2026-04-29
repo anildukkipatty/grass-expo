@@ -7,12 +7,16 @@
     "icon": "./assets/images/icon.png",
     "scheme": "grass",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.grass-ide.ios",
+      "bundleIdentifier": "com.codeongrass",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Used to scan QR codes to connect to sandboxes.",
+        "NSLocalNetworkUsageDescription": "GRASS uses the local network to connect to your coding servers.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {
@@ -22,7 +26,6 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
@@ -35,17 +38,31 @@
     },
     "plugins": [
       "expo-router",
+      "expo-updates",
       "expo-camera",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logo.png",
-          "imageWidth": 340,
+          "image": "./assets/images/home-screen/logo.png",
+          "imageWidth": 120,
           "resizeMode": "contain",
-          "backgroundColor": "#a8d97f",
+          "backgroundColor": "#000000",
           "dark": {
-            "backgroundColor": "#a8d97f"
+            "backgroundColor": "#000000"
           }
+        }
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-web-browser",
+      "react-native-bottom-tabs",
+      "expo-localization",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#088120",
+          "sounds": []
         }
       ]
     ],

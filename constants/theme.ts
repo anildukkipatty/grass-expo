@@ -7,12 +7,13 @@ import { Platform } from 'react-native';
 
 export const GrassColors = {
   light: {
-    bg: '#fafafa',
+    bg: 'rgb(245, 245, 247)',
     text: '#111118',
-    barBg: '#f0f0f4',
+    barBg: '#f7f7f7',
     border: '#e2e2e8',
-    userBubble: '#5b4af7',
-    userBubbleText: '#fff',
+    userBubble: '#DCF8C6',
+    userBubbleText: '#1a3a1a',
+    userBubbleBorder: '#8CBB67',
     assistantBubble: '#ffffff',
     assistantBubbleText: '#111118',
     errorBubble: '#fff0f2',
@@ -21,7 +22,7 @@ export const GrassColors = {
     accentSoft: '#ede9fe',
     badgeText: '#9999aa',
     inputBg: '#ffffff',
-    shadow: 'rgba(91, 74, 247, 0.12)',
+    shadow: 'rgba(0, 0, 0, 0.06)',
   },
   dark: {
     bg: '#0e0e12',
@@ -30,6 +31,7 @@ export const GrassColors = {
     border: '#2a2a38',
     userBubble: '#5b4af7',
     userBubbleText: '#ffffff',
+    userBubbleBorder: 'transparent',
     assistantBubble: '#1c1c27',
     assistantBubbleText: '#e8e8f0',
     errorBubble: '#1f0a0a',
@@ -64,27 +66,58 @@ export const Colors = {
   },
 };
 
+export const DMMono = {
+  light:   'DMMono_300Light',
+  regular: 'DMMono_400Regular',
+  medium:  'DMMono_500Medium',
+} as const;
+
+export const NationalPark = {
+  extraLight: 'NationalPark-ExtraLight',
+  light:      'NationalPark-Light',
+  regular:    'NationalPark-Regular',
+  medium:     'NationalPark-Medium',
+  semiBold:   'NationalPark-SemiBold',
+  bold:       'NationalPark-Bold',
+  extraBold:  'NationalPark-ExtraBold',
+} as const;
+
+export const SFMono = {
+  regular:  'SFMono-Regular',
+  medium:   'SFMono-Medium',
+  semiBold: 'SFMono-Semibold',
+  bold:     'SFMono-Bold',
+} as const;
+
+export const SFPro = {
+  regular:        'SFProText-Regular',
+  medium:         'SFProText-Medium',
+  semiBold:       'SFProText-Semibold',
+  bold:           'SFProText-Bold',
+  condensedBold:  'SFProText-CondensedBold',
+  displayRegular: 'SFProDisplay-Regular',
+  displayMedium:  'SFProDisplay-Medium',
+  displaySemiBold:'SFProDisplay-Semibold',
+  displayBold:    'SFProDisplay-Bold',
+} as const;
+
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
+    sans:    NationalPark.regular,
+    serif:   'ui-serif',
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
+    mono:    'ui-monospace',
   },
   default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
+    sans:    NationalPark.regular,
+    serif:   'serif',
+    rounded: NationalPark.regular,
+    mono:    'monospace',
   },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+    sans:    `'NationalPark-Regular', system-ui, -apple-system, sans-serif`,
+    serif:   "Georgia, 'Times New Roman', serif",
+    rounded: `'NationalPark-Regular', system-ui, sans-serif`,
+    mono:    "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });

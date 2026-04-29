@@ -2,6 +2,11 @@ import React, { useRef, useCallback, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Animated, RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import {
+  BottomSheetModal,
+  BottomSheetBackdrop,
+  BottomSheetView,
+} from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -10,8 +15,16 @@ import { BlurView } from 'expo-blur';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { Repo, useWebSocket } from '@/hooks/use-websocket';
-import { listReposStore, cloneRepoStore, createFolderStore } from '@/store/connection-store';
+import { listReposStore, cloneRepoStore, createFolderStore, getRepoDetailsStore, getEntry, RepoDetails } from '@/store/connection-store';
 import { isIPad } from '@/utils/device';
+
+// Green theme palette
+const BG = '#0f1a0f';
+const CARD_BG = 'rgba(30, 42, 30, 0.6)';
+const CARD_BORDER = 'rgba(100, 140, 100, 0.1)';
+const TEXT = '#d4e8d4';
+const SUBTEXT = '#7a9a7a';
+const ACCENT = '#7CB9A8';
 
 const AGENTS = [
   {
@@ -22,7 +35,7 @@ const AGENTS = [
   },
   {
     id: 'opencode',
-    label: 'OpenCode',
+    label: 'Opencode',
     description: 'Open source AI coding agent',
     logo: require('@/assets/images/open-code.png'),
   },
@@ -37,7 +50,7 @@ function AgentCard({ agent, onPress, c }: {
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
-        style={[styles.agentCard, { backgroundColor: c.assistantBubble, borderColor: c.border }]}
+        style={[styles.agentCard, { backgroundColor: CARD_BG, borderColor: CARD_BORDER }]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           onPress();
@@ -52,10 +65,10 @@ function AgentCard({ agent, onPress, c }: {
       >
         <Image source={agent.logo} style={styles.agentLogo} contentFit="contain" />
         <View style={styles.agentTextGroup}>
-          <Text style={[styles.agentLabel, { color: c.text }]}>{agent.label}</Text>
-          <Text style={[styles.agentDesc, { color: c.badgeText }]}>{agent.description}</Text>
+          <Text style={[styles.agentLabel, { color: TEXT }]}>{agent.label}</Text>
+          <Text style={[styles.agentDesc, { color: SUBTEXT }]}>{agent.description}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={c.badgeText} />
+        <Ionicons name="chevron-forward" size={18} color={SUBTEXT} />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -69,17 +82,37 @@ function hostFromUrl(url: string): string {
   }
 }
 
-function RepoItem({ item, onPress, c }: {
+const LANG_COLORS: Record<string, string> = {
+  ts: '#3178c6', tsx: '#3178c6', js: '#f7df1e', jsx: '#f7df1e',
+  py: '#3572A5', go: '#00ADD8', rs: '#dea584', java: '#b07219',
+  rb: '#701516', cpp: '#f34b7d', c: '#555555', cs: '#178600',
+  swift: '#F05138', kt: '#A97BFF', dart: '#00B4AB',
+};
+
+function timeAgo(unixSeconds: number): string {
+  const diff = Math.floor(Date.now() / 1000) - unixSeconds;
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function commitInitial(message: string): string {
+  return message.trim().charAt(0).toUpperCase() || 'C';
+}
+
+function RepoItem({ item, details, onPress }: {
   item: Repo;
+  details?: RepoDetails;
   onPress: () => void;
-  c: typeof GrassColors['light'];
 }) {
   const scale = useRef(new Animated.Value(1)).current;
+  const langColor = details?.dominantLanguage ? (LANG_COLORS[details.dominantLanguage] ?? SUBTEXT) : null;
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
-        style={[styles.repoItem, { backgroundColor: c.assistantBubble, borderColor: c.border }]}
+        style={[styles.repoItem, { backgroundColor: CARD_BG, borderColor: CARD_BORDER }]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           onPress();
@@ -92,28 +125,64 @@ function RepoItem({ item, onPress, c }: {
         }
         activeOpacity={1}
       >
-        <Ionicons
-          name={item.isGit ? 'git-branch-outline' : 'folder-outline'}
-          size={22}
-          color={c.badgeText}
-          style={styles.repoIcon}
-        />
-        <View style={styles.repoTextGroup}>
+        {/* Top row: name + timestamp */}
+        <View style={styles.repoTopRow}>
           <View style={styles.repoNameRow}>
-            <Text style={[styles.repoName, { color: c.text }]} numberOfLines={1}>
+            <Text style={[styles.repoName, { color: TEXT }]} numberOfLines={1}>
               {item.name}
             </Text>
             {item.isGit && (
-              <View style={[styles.gitBadge, { backgroundColor: c.accent }]}>
-                <Text style={styles.gitBadgeText}>git</Text>
-              </View>
+              <View style={[styles.onlineDot, { backgroundColor: '#4ade80' }]} />
             )}
           </View>
-          <Text style={[styles.repoPath, { color: c.badgeText }]} numberOfLines={1}>
-            {item.path}
-          </Text>
+          {details?.lastCommit && (
+            <Text style={[styles.timeAgo, { color: SUBTEXT }]}>
+              {timeAgo(details.lastCommit.timestamp)}
+            </Text>
+          )}
         </View>
-        <Ionicons name="chevron-forward" size={16} color={c.badgeText} />
+
+        {/* Meta row: language, branch */}
+        <View style={styles.repoMetaRow}>
+          {details?.dominantLanguage && langColor && (
+            <View style={styles.metaChip}>
+              <View style={[styles.langDot, { backgroundColor: langColor }]} />
+              <Text style={[styles.metaText, { color: SUBTEXT }]}>
+                {details.dominantLanguage === 'ts' ? 'TypeScript'
+                  : details.dominantLanguage === 'js' ? 'JavaScript'
+                  : details.dominantLanguage === 'py' ? 'Python'
+                  : details.dominantLanguage === 'go' ? 'Go'
+                  : details.dominantLanguage === 'rs' ? 'Rust'
+                  : details.dominantLanguage === 'swift' ? 'Swift'
+                  : details.dominantLanguage.toUpperCase()}
+              </Text>
+            </View>
+          )}
+          {details?.branch && (
+            <View style={styles.metaChip}>
+              <Ionicons name="git-branch-outline" size={13} color={SUBTEXT} />
+              <Text style={[styles.metaText, { color: SUBTEXT }]}>{details.branch}</Text>
+            </View>
+          )}
+          {!details && (
+            <Text style={[styles.metaText, { color: SUBTEXT, opacity: 0.4 }]}>{item.path}</Text>
+          )}
+        </View>
+
+        {/* Commit row */}
+        {details?.lastCommit && (
+          <View style={styles.commitRow}>
+            <View style={styles.commitAvatar}>
+              <Text style={styles.commitAvatarText}>
+                {commitInitial(details.lastCommit.message)}
+              </Text>
+            </View>
+            <Text style={[styles.commitMsg, { color: TEXT }]} numberOfLines={1}>
+              {details.lastCommit.message}
+            </Text>
+            <Ionicons name="chevron-forward" size={13} color={SUBTEXT} style={{ opacity: 0.5 }} />
+          </View>
+        )}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -194,44 +263,44 @@ function AddRepoModal({ visible, serverUrl, c, onClose, onSuccess }: {
           onPress={handleClose}
         />
         <View
-          style={[styles.addModalSheet, { backgroundColor: c.bg, borderTopColor: c.border }]}
+          style={[styles.addModalSheet, { backgroundColor: BG, borderTopColor: CARD_BORDER }]}
           onStartShouldSetResponder={() => true}
         >
-          <View style={[styles.modalHandle, { backgroundColor: c.badgeText }]} />
+          <View style={[styles.modalHandle, { backgroundColor: SUBTEXT }]} />
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: c.badgeText }]}>Add a folder</Text>
+            <Text style={[styles.modalTitle, { color: SUBTEXT }]}>Add a folder</Text>
             <TouchableOpacity onPress={handleClose} hitSlop={8} disabled={busy}>
-              <Ionicons name="close" size={20} color={c.badgeText} />
+              <Ionicons name="close" size={20} color={SUBTEXT} />
             </TouchableOpacity>
           </View>
 
           {/* Tabs */}
-          <View style={[styles.tabRow, { borderBottomColor: c.border }]}>
+          <View style={[styles.tabRow, { borderBottomColor: CARD_BORDER }]}>
             <TouchableOpacity
-              style={[styles.tab, tab === 'clone' && { borderBottomColor: c.accent, borderBottomWidth: 2 }]}
+              style={[styles.tab, tab === 'clone' && { borderBottomColor: ACCENT, borderBottomWidth: 2 }]}
               onPress={() => { setTab('clone'); setCloneError(null); }}
               disabled={busy}
             >
-              <Ionicons name="git-branch-outline" size={15} color={tab === 'clone' ? c.accent : c.badgeText} style={{ marginRight: 5 }} />
-              <Text style={[styles.tabLabel, { color: tab === 'clone' ? c.accent : c.badgeText }]}>Clone repo</Text>
+              <Ionicons name="git-branch-outline" size={15} color={tab === 'clone' ? ACCENT : SUBTEXT} style={{ marginRight: 5 }} />
+              <Text style={[styles.tabLabel, { color: tab === 'clone' ? ACCENT : SUBTEXT }]}>Clone repo</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tab, tab === 'new' && { borderBottomColor: c.accent, borderBottomWidth: 2 }]}
+              style={[styles.tab, tab === 'new' && { borderBottomColor: ACCENT, borderBottomWidth: 2 }]}
               onPress={() => { setTab('new'); setCloneError(null); }}
               disabled={busy}
             >
-              <Ionicons name="folder-open-outline" size={15} color={tab === 'new' ? c.accent : c.badgeText} style={{ marginRight: 5 }} />
-              <Text style={[styles.tabLabel, { color: tab === 'new' ? c.accent : c.badgeText }]}>New folder</Text>
+              <Ionicons name="folder-open-outline" size={15} color={tab === 'new' ? ACCENT : SUBTEXT} style={{ marginRight: 5 }} />
+              <Text style={[styles.tabLabel, { color: tab === 'new' ? ACCENT : SUBTEXT }]}>New folder</Text>
             </TouchableOpacity>
           </View>
 
           {tab === 'clone' ? (
             <View style={styles.tabContent}>
-              <Text style={[styles.inputLabel, { color: c.badgeText }]}>Git repository URL</Text>
+              <Text style={[styles.inputLabel, { color: SUBTEXT }]}>Git repository URL</Text>
               <TextInput
-                style={[styles.textInput, { backgroundColor: c.assistantBubble, borderColor: c.border, color: c.text }]}
+                style={[styles.textInput, { backgroundColor: CARD_BG, borderColor: CARD_BORDER, color: TEXT }]}
                 placeholder="https://github.com/user/repo.git"
-                placeholderTextColor={c.badgeText}
+                placeholderTextColor={SUBTEXT}
                 value={cloneUrl}
                 onChangeText={v => { setCloneUrl(v); setCloneError(null); }}
                 autoCapitalize="none"
@@ -242,30 +311,30 @@ function AddRepoModal({ visible, serverUrl, c, onClose, onSuccess }: {
                 editable={!busy}
               />
               {cloneError && tab === 'clone' && (
-                <Text style={[styles.errorMsg, { color: c.errorText }]}>{cloneError}</Text>
+                <Text style={[styles.errorMsg, { color: '#ef4444' }]}>{cloneError}</Text>
               )}
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: c.accent, opacity: (!cloneUrl.trim() || busy) ? 0.5 : 1 }]}
+                style={[styles.actionBtn, { backgroundColor: ACCENT, opacity: (!cloneUrl.trim() || busy) ? 0.5 : 1 }]}
                 onPress={handleClone}
                 disabled={!cloneUrl.trim() || busy}
               >
                 {busy && tab === 'clone' ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ActivityIndicator color="#0f1a0f" size="small" />
                 ) : (
-                  <Text style={styles.actionBtnText}>Clone</Text>
+                  <Text style={[styles.actionBtnText, { color: '#0f1a0f' }]}>Clone</Text>
                 )}
               </TouchableOpacity>
               {busy && tab === 'clone' && (
-                <Text style={[styles.statusMsg, { color: c.badgeText }]}>Cloning repository…</Text>
+                <Text style={[styles.statusMsg, { color: SUBTEXT }]}>Cloning repository…</Text>
               )}
             </View>
           ) : (
             <View style={styles.tabContent}>
-              <Text style={[styles.inputLabel, { color: c.badgeText }]}>Folder name</Text>
+              <Text style={[styles.inputLabel, { color: SUBTEXT }]}>Folder name</Text>
               <TextInput
-                style={[styles.textInput, { backgroundColor: c.assistantBubble, borderColor: c.border, color: c.text }]}
+                style={[styles.textInput, { backgroundColor: CARD_BG, borderColor: CARD_BORDER, color: TEXT }]}
                 placeholder="my-project"
-                placeholderTextColor={c.badgeText}
+                placeholderTextColor={SUBTEXT}
                 value={folderName}
                 onChangeText={v => { setFolderName(v); setCloneError(null); }}
                 autoCapitalize="none"
@@ -275,17 +344,17 @@ function AddRepoModal({ visible, serverUrl, c, onClose, onSuccess }: {
                 editable={!busy}
               />
               {cloneError && tab === 'new' && (
-                <Text style={[styles.errorMsg, { color: c.errorText }]}>{cloneError}</Text>
+                <Text style={[styles.errorMsg, { color: '#ef4444' }]}>{cloneError}</Text>
               )}
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: c.accent, opacity: (!folderName.trim() || busy) ? 0.5 : 1 }]}
+                style={[styles.actionBtn, { backgroundColor: ACCENT, opacity: (!folderName.trim() || busy) ? 0.5 : 1 }]}
                 onPress={handleCreate}
                 disabled={!folderName.trim() || busy}
               >
                 {busy && tab === 'new' ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ActivityIndicator color="#0f1a0f" size="small" />
                 ) : (
-                  <Text style={styles.actionBtnText}>Create</Text>
+                  <Text style={[styles.actionBtnText, { color: '#0f1a0f' }]}>Create</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -306,20 +375,32 @@ export default function Folders() {
 
   const ws = useWebSocket(serverUrl ?? null);
   const [pendingRepo, setPendingRepo] = useState<Repo | null>(null);
-
-  useFocusEffect(useCallback(() => {
-    if (serverUrl) listReposStore(serverUrl);
-  }, [serverUrl]));
+  const agentSheetRef = useRef<BottomSheetModal>(null);
+  const renderAgentBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+    ),
+    []
+  );
+  const [repoDetails, setRepoDetails] = useState<Map<string, RepoDetails>>(new Map());
 
   // Show loading if repos haven't loaded yet
   const [fetching, setFetching] = useState(true);
   useFocusEffect(useCallback(() => {
+    if (!serverUrl) { setFetching(false); return; }
     setFetching(true);
-    if (serverUrl) {
-      listReposStore(serverUrl).then(() => setFetching(false));
-    } else {
+    listReposStore(serverUrl).then(() => {
       setFetching(false);
-    }
+      const entry = getEntry(serverUrl);
+      if (!entry) return;
+      // Fire detail fetches in parallel, update state as each one lands
+      entry.repos.forEach(r => {
+        getRepoDetailsStore(serverUrl, r.path).then(() => {
+          const e = getEntry(serverUrl);
+          if (e) setRepoDetails(new Map(e.repoDetails));
+        });
+      });
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverUrl]));
 
@@ -333,12 +414,13 @@ export default function Folders() {
       });
     } else {
       setPendingRepo(repo);
+      agentSheetRef.current?.present();
     }
   }
 
   function handleSelectAgent(agentId: string) {
     if (!pendingRepo || !serverUrl) return;
-    setPendingRepo(null);
+    agentSheetRef.current?.dismiss();
     router.push({
       pathname: '/sessions',
       params: { serverUrl, repoPath: pendingRepo.path, repoName: pendingRepo.name, agent: agentId },
@@ -351,6 +433,14 @@ export default function Folders() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await listReposStore(serverUrl);
     setRefreshing(false);
+    const entry = getEntry(serverUrl);
+    if (!entry) return;
+    entry.repos.forEach(r => {
+      getRepoDetailsStore(serverUrl, r.path).then(() => {
+        const e = getEntry(serverUrl);
+        if (e) setRepoDetails(new Map(e.repoDetails));
+      });
+    });
   }
 
   function handleAddSuccess(repo: Repo) {
@@ -359,18 +449,18 @@ export default function Folders() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
-      <View style={[styles.headerWrap, { borderBottomColor: c.border }]}>
-        <BlurView intensity={80} tint={theme === 'dark' ? 'dark' : 'light'} style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: BG }]}>
+      <View style={[styles.headerWrap, { borderBottomColor: CARD_BORDER }]}>
+        <BlurView intensity={40} tint="dark" style={styles.header}>
           <TouchableOpacity
             style={styles.backBtn}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
             hitSlop={8}
           >
-            <Text style={[styles.backBtnText, { color: c.text }]}>‹</Text>
+            <Text style={[styles.backBtnText, { color: TEXT }]}>‹</Text>
           </TouchableOpacity>
           <View style={styles.headerTitleGroup}>
-            <Text style={[styles.headerTitle, { color: c.text }]} numberOfLines={1}>
+            <Text style={[styles.headerTitle, { color: TEXT }]} numberOfLines={1}>
               {serverUrl ? hostFromUrl(serverUrl) : 'Folders'}
             </Text>
           </View>
@@ -379,21 +469,21 @@ export default function Folders() {
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAddModalVisible(true); }}
             hitSlop={8}
           >
-            <Ionicons name="add" size={26} color={c.accent} />
+            <Ionicons name="add" size={26} color={ACCENT} />
           </TouchableOpacity>
         </BlurView>
       </View>
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={c.accent} size="large" />
-          <Text style={[styles.statusText, { color: c.badgeText }]}>Loading folders…</Text>
+          <ActivityIndicator color={ACCENT} size="large" />
+          <Text style={[styles.statusText, { color: SUBTEXT }]}>Loading folders…</Text>
         </View>
       ) : ws.repos.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="folder-open-outline" size={44} color={c.badgeText} style={styles.emptyIcon} />
-          <Text style={[styles.emptyTitle, { color: c.text }]}>No folders found</Text>
-          <Text style={[styles.statusText, { color: c.badgeText }]}>Pull down to refresh or tap + to add</Text>
+          <Ionicons name="folder-open-outline" size={44} color={SUBTEXT} style={styles.emptyIcon} />
+          <Text style={[styles.emptyTitle, { color: TEXT }]}>No folders found</Text>
+          <Text style={[styles.statusText, { color: SUBTEXT }]}>Pull down to refresh or tap + to add</Text>
         </View>
       ) : (
         <FlatList
@@ -404,12 +494,12 @@ export default function Folders() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={c.accent}
-              colors={[c.accent]}
+              tintColor={ACCENT}
+              colors={[ACCENT]}
             />
           }
           renderItem={({ item }) => (
-            <RepoItem item={item} c={c} onPress={() => openAgentPicker(item)} />
+            <RepoItem item={item} details={repoDetails.get(item.path)} onPress={() => openAgentPicker(item)} />
           )}
         />
       )}
@@ -425,48 +515,41 @@ export default function Folders() {
         />
       )}
 
-      {/* iPhone-only: agent picker modal */}
+      {/* iPhone-only: agent picker bottom sheet */}
       {!isIPad && (
-        <Modal
-          visible={!!pendingRepo}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setPendingRepo(null)}
+        <BottomSheetModal
+          ref={agentSheetRef}
+          enableDynamicSizing
+          enablePanDownToClose
+          backdropComponent={renderAgentBackdrop}
+          onDismiss={() => setPendingRepo(null)}
+          backgroundStyle={[styles.agentSheetBg, { backgroundColor: BG }]}
+          handleIndicatorStyle={[styles.agentSheetHandle, { backgroundColor: SUBTEXT }]}
         >
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
-            onPress={() => setPendingRepo(null)}
-          >
-            <View
-              style={[styles.modalSheet, { backgroundColor: c.bg, borderTopColor: c.border }]}
-              onStartShouldSetResponder={() => true}
-            >
-              <View style={[styles.modalHandle, { backgroundColor: c.badgeText }]} />
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: c.badgeText }]}>Select an agent</Text>
-                <TouchableOpacity onPress={() => setPendingRepo(null)} hitSlop={8}>
-                  <Ionicons name="close" size={20} color={c.badgeText} />
-                </TouchableOpacity>
-              </View>
-              {pendingRepo && (
-                <Text style={[styles.modalRepo, { color: c.text }]} numberOfLines={1}>
-                  {pendingRepo.name}
-                </Text>
-              )}
-              <View style={styles.agentList}>
-                {AGENTS.map(agent => (
-                  <AgentCard
-                    key={agent.id}
-                    agent={agent}
-                    c={c}
-                    onPress={() => handleSelectAgent(agent.id)}
-                  />
-                ))}
-              </View>
+          <BottomSheetView style={styles.agentSheetContent}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: SUBTEXT }]}>Select an agent</Text>
+              <TouchableOpacity onPress={() => agentSheetRef.current?.dismiss()} hitSlop={8}>
+                <Ionicons name="close" size={20} color={SUBTEXT} />
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        </Modal>
+            {pendingRepo && (
+              <Text style={[styles.modalRepo, { color: TEXT }]} numberOfLines={1}>
+                {pendingRepo.name}
+              </Text>
+            )}
+            <View style={styles.agentList}>
+              {AGENTS.map(agent => (
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  c={c}
+                  onPress={() => handleSelectAgent(agent.id)}
+                />
+              ))}
+            </View>
+          </BottomSheetView>
+        </BottomSheetModal>
       )}
     </SafeAreaView>
   );
@@ -513,48 +596,84 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   repoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
+    padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    gap: 12,
+    gap: 8,
   },
-  repoIcon: {
-    flexShrink: 0,
-  },
-  repoTextGroup: {
-    flex: 1,
-    gap: 3,
+  repoTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   repoNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
+    flex: 1,
   },
   repoName: {
     fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: -0.2,
+    fontWeight: '700',
+    letterSpacing: -0.3,
     flexShrink: 1,
   },
-  gitBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  onlineDot: {
+    width: 7,
+    height: 7,
     borderRadius: 4,
     flexShrink: 0,
   },
-  gitBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  repoPath: {
+  timeAgo: {
     fontSize: 12,
-    fontFamily: 'ui-monospace',
-    letterSpacing: -0.2,
-    opacity: 0.55,
+    flexShrink: 0,
+    marginLeft: 8,
+  },
+  repoMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  langDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+  },
+  metaText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  commitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 2,
+  },
+  commitAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#c4a47c',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  commitAvatarText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1a0f00',
+  },
+  commitMsg: {
+    fontSize: 14,
+    fontWeight: '400',
+    flex: 1,
+    opacity: 0.85,
   },
   center: {
     flex: 1,
@@ -573,6 +692,20 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: -0.2,
+  },
+  agentSheetBg: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  agentSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.3,
+  },
+  agentSheetContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 32,
   },
   modalBackdrop: {
     flex: 1,
