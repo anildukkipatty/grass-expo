@@ -147,6 +147,7 @@ export default function RootLayout() {
         <Stack.Screen name="machines" options={{ headerShown: false }} />
         <Stack.Screen name="welcome" options={{ headerShown: false }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+        <Stack.Screen name="onboarding-mockups" options={{ headerShown: false }} />
         <Stack.Screen name="folders" options={{ headerShown: false }} />
         <Stack.Screen name="agent-picker" options={{ headerShown: false }} />
         <Stack.Screen name="project" options={{ headerShown: false }} />
