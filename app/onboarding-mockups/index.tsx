@@ -36,6 +36,14 @@ const VARIANTS = [
     bg: "#A6E2FF",
     fg: "#102B5C",
   },
+  {
+    id: "refined",
+    label: "Refined",
+    blurb: "Production-leaning polish on the current flow — the realistic one.",
+    accent: "#3D841E",
+    bg: "#FFFFFF",
+    fg: "#0E0E12",
+  },
 ] as const;
 
 const CHAT_VARIANTS = [
