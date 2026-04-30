@@ -246,10 +246,11 @@ const styles = StyleSheet.create({
   // ── Text ──────────────────────────────────────────
   title: {
     fontFamily: SFPro.bold,
-    fontSize: 28,
+    fontSize: 34,
     color: "#000000",
     textAlign: "center",
-    lineHeight: 32,
+    lineHeight: 40,
+    letterSpacing: -1,
     marginBottom: 12,
   },
   subtitle: {
@@ -258,6 +259,7 @@ const styles = StyleSheet.create({
     color: "#404040",
     textAlign: "center",
     lineHeight: 22,
+    letterSpacing: -0.3,
     marginBottom: 36,
   },
 
@@ -270,9 +272,9 @@ const styles = StyleSheet.create({
   button: {
     borderRadius: 50,
     borderWidth: 2,
-    borderColor: "#72C44E",
+    borderColor: "rgba(114, 196, 78, 0.4)",
     backgroundColor: "#3D841E",
-    height: 52,
+    height: 57,
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
