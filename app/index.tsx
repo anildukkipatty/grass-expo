@@ -10,7 +10,7 @@ export default function Index() {
 
   useEffect(() => {
     getToken().then((token) => {
-      setRoute(token ? "/new-navbar" : "/onboarding");
+      setRoute("/onboarding");
     });
   }, []);
 
