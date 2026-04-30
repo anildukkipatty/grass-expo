@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
     fontFamily: SFPro.bold,
     fontSize: 17,
     color: "#000",
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
   },
   scrollContent: {},
   paddedContent: {
@@ -595,10 +595,10 @@ const styles = StyleSheet.create({
   // Section header
   sectionHeader: {
     fontFamily: SFPro.semiBold,
-    fontSize: 15,
+    fontSize: 17,
     color: "#000",
     // textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: -0.5,
     marginBottom: 8,
     marginTop: 16,
   },
@@ -671,14 +671,16 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     fontFamily: SFPro.semiBold,
-    fontSize: 15,
+    fontSize: 17,
     color: "#9F9F9F",
+    letterSpacing: -0.5,
   },
   rowSublabel: {
     fontFamily: SFPro.semiBold,
-    fontSize: 13,
+    fontSize: 17,
     color: "#000",
     marginTop: 2,
+    letterSpacing: -0.5,
   },
 
   // Icon backgrounds
