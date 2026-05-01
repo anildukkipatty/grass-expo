@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Clipboard,
-  Image,
   Keyboard,
   Linking,
   StyleSheet,
@@ -27,11 +26,15 @@ import Animated, {
 import ClaudeTransparentIcon from "@/assets/images/new-design/connect-more/claude-transparent.svg";
 import ClaudeIcon from "@/assets/images/new-design/connect-more/claude.svg";
 import CopyIcon from "@/assets/images/new-design/connect-more/copy-icon.svg";
+import LockArrowIcon from "@/assets/images/new-design/connect-more/lock-arrow.svg";
 import LogoIcon from "@/assets/images/new-design/connect-more/logo.svg";
 import OpenCodeIcon from "@/assets/images/new-design/connect-more/opencode-transparent.svg";
 import SecureIcon from "@/assets/images/new-design/connect-more/secure.svg";
 import SuccessMark from "@/assets/images/new-design/connect-more/success-mark.svg";
 
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import { SymbolView } from "expo-symbols";
 import { SFPro } from "@/constants/theme";
 import { claudeComplete, claudeDisconnect, claudeStart, claudeStatus } from "@/api/claude";
 import { opencodeConnect, opencodeDisconnect, opencodeStatus } from "@/api/opencode";
@@ -311,14 +314,14 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
         style={styles.closeButton}
         hitSlop={8}
       >
-        <View style={styles.closeX}>
-          <Text style={styles.closeXText}>✕</Text>
-        </View>
+        <BlurView intensity={60} tint="light" style={[styles.closeX, { backgroundColor: "#F2F2F2" }]}>
+          <SymbolView name="xmark" size={17} weight="semibold" tintColor="#1A1A1A" />
+        </BlurView>
       </TouchableOpacity>
 
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <Text style={styles.headerTitle}>Connect your own agent</Text>
+          <Text style={styles.headerTitle}>Connect your{"\n"}own agent</Text>
           <Text style={styles.headerSubtitle}>
             All optional. Set up whenever you&#39;re ready.
           </Text>
@@ -382,11 +385,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 ) : (
                   <OpenCodeIcon width={44} height={44} />
                 )}
-                <Image
-                  source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
-                  style={styles.arrowImage}
-                  resizeMode="contain"
-                />
+                <LockArrowIcon width={60} height={28} />
                 <LogoIcon width={44} height={44} />
               </View>
 
@@ -425,11 +424,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                   ) : (
                     <OpenCodeIcon width={44} height={44} />
                   )}
-                  <Image
-                    source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
-                    style={styles.arrowImage}
-                    resizeMode="contain"
-                  />
+                  <LockArrowIcon width={60} height={28} />
                   {isLoading ? (
                     <SkeletonBox width={44} height={44} borderRadius={10} />
                   ) : (
@@ -660,13 +655,20 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#EBEBEB",
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 40,
   },
   closeXText: {
-    fontSize: 14,
-    color: "#333",
+    fontFamily: undefined,
+    fontWeight: "700",
+    fontSize: 17,
+    color: "#1A1A1A",
+    letterSpacing: -0.5,
   },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 },
   headerText: { gap: 4 },
@@ -707,7 +709,7 @@ const styles = StyleSheet.create({
   },
   tabActive: { borderColor: "#3D841E", backgroundColor: "#E3FDD7" },
   tabText: { fontFamily: SFPro.semiBold, fontSize: 17, color: "#000", letterSpacing: -0.2 },
-  tabTextActive: { color: "#000", fontFamily: SFPro.semiBold },
+  tabTextActive: { color: "#000", fontFamily: SFPro.medium },
   tabConnectedDot: {
     width: 7,
     height: 7,
@@ -788,15 +790,15 @@ const styles = StyleSheet.create({
   arrowImage: { width: 60, height: 28 },
   stepHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
   stepBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: "#3D841E",
     alignItems: "center",
     justifyContent: "center",
   },
-  stepBadgeText: { fontFamily: SFPro.bold, fontSize: 13, color: "#FFF", lineHeight: 16 },
-  stepTitle: { fontFamily: SFPro.bold, fontSize: 17, color: "#000", letterSpacing: -0.3 },
+  stepBadgeText: { fontFamily: SFPro.bold, fontSize: 17, color: "#FFF" },
+  stepTitle: { fontFamily: SFPro.semiBold, fontSize: 17, color: "#000", letterSpacing: -0.3 },
   stepDesc: {
     fontFamily: SFPro.regular,
     fontSize: 15,
@@ -815,8 +817,8 @@ const styles = StyleSheet.create({
   },
   urlInputText: {
     fontFamily: "DM Mono",
-    fontSize: 16,
-    color: "#000",
+    fontSize: 14,
+    color: "#202020",
     fontWeight: "400",
     letterSpacing: -0.2,
   },
