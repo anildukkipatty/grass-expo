@@ -91,6 +91,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
   } | null>(null);
 
   const authInputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<any>(null);
 
   const snapPoints = ["90%"];
   const animationConfigs = useBottomSheetTimingConfigs({
@@ -202,8 +203,9 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
     Linking.openURL(url);
   }, [authUrl]);
 
-  const handleConnect = useCallback(async () => {
-    if (authCode.trim().length < 1) { setAuthError(true); return; }
+  const handleConnect = useCallback(async (codeOverride?: string) => {
+    const code = (codeOverride ?? authCode).trim();
+    if (code.length < 1) { setAuthError(true); return; }
     setAuthError(false);
     setConnectError(null);
     setIsConnecting(true);
@@ -214,7 +216,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       if (activeTab === "Claude Code") {
         if (!claudeSession) return;
         const res = await claudeComplete(token, {
-          authCode: authCode.trim(),
+          authCode: code,
           sessionId: claudeSession.sessionId,
           cmdId: claudeSession.cmdId,
         });
@@ -229,7 +231,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
           );
         }
       } else {
-        const res = await opencodeConnect(token, { apiKey: authCode.trim() });
+        const res = await opencodeConnect(token, { apiKey: code });
         if (res.ok && res.data.success) {
           setOpencodeConnected(true);
           slideSuccessIn();
@@ -247,6 +249,18 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       setIsConnecting(false);
     }
   }, [activeTab, authCode, claudeSession, slideSuccessIn]);
+
+  const handlePasteAndConnect = useCallback(async () => {
+    const text = await Clipboard.getString();
+    const code = text?.trim() ?? "";
+    if (!code) {
+      setAuthError(true);
+      setConnectError("Nothing found on clipboard. Copy your code first.");
+      return;
+    }
+    setAuthCode(code);
+    handleConnect(code);
+  }, [handleConnect]);
 
   const handleDisconnect = useCallback(async () => {
     const token = await getToken();
@@ -300,6 +314,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       ref={bottomSheetRef}
       snapPoints={snapPoints}
       enablePanDownToClose
+      enableOverDrag={false}
       animationConfigs={animationConfigs}
       backdropComponent={renderBackdrop}
       onDismiss={onClose}
@@ -329,6 +344,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       </View>
 
       <BottomSheetScrollView
+        ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -530,6 +546,9 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                       setAuthError(false);
                       setConnectError(null);
                     }}
+                    onFocus={() => {
+                      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 150);
+                    }}
                     autoCapitalize="none"
                     autoCorrect={false}
                     secureTextEntry={activeTab === "Opencode"}
@@ -548,18 +567,17 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                   <View
                     style={[
                       styles.connectButtonWrap,
-                      (authCode.trim().length === 0 || isConnecting) &&
-                        styles.connectButtonWrapNoShadow,
+                      isConnecting && styles.connectButtonWrapNoShadow,
                     ]}
                   >
                     <TouchableOpacity
                       style={[
                         styles.connectButton,
-                        authCode.trim().length > 0 && !isConnecting
+                        !isConnecting
                           ? styles.connectButtonActive
                           : styles.connectButtonDisabled,
                       ]}
-                      onPress={handleConnect}
+                      onPress={authCode.trim().length > 0 ? () => handleConnect() : handlePasteAndConnect}
                       activeOpacity={0.88}
                       disabled={isConnecting}
                     >
@@ -567,7 +585,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                         <ActivityIndicator color="#FFF" size="small" />
                       ) : (
                         <Text style={styles.connectButtonText}>
-                          Connect {agentLabel}
+                          {authCode.trim().length > 0 ? `Connect ${agentLabel}` : `Paste & Connect ${agentLabel}`}
                         </Text>
                       )}
                     </TouchableOpacity>
@@ -579,13 +597,15 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
         </View>
 
         {/* Footer */}
-        <View style={styles.footerRow}>
-          <SecureIcon width={14} height={14} />
-          <Text style={styles.footerNote}>{footerNote}</Text>
+        <View style={styles.footerGroup}>
+          <View style={styles.footerRow}>
+            <SecureIcon width={14} height={14} />
+            <Text style={styles.footerNote}>{footerNote}</Text>
+          </View>
+          <TouchableOpacity activeOpacity={0.7} style={styles.learnMoreWrap}>
+            <Text style={styles.learnMoreText}>Learn more →</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity activeOpacity={0.7} style={styles.learnMoreWrap}>
-          <Text style={styles.learnMoreText}>Learn more →</Text>
-        </TouchableOpacity>
       </BottomSheetScrollView>
 
       {/* ── Green success overlay (slides up from bottom within the sheet) ── */}
@@ -824,16 +844,15 @@ const styles = StyleSheet.create({
   },
   buttonRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   copyButton: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 6,
     borderRadius: 40,
     borderWidth: 1,
     borderColor: "#808080",
-    paddingHorizontal: 16,
-    paddingVertical: 9,
+    paddingLeft: 16,
+    paddingRight: 37,
+    height: 52,
   },
   copyButtonText: {
     fontFamily: SFPro.semiBold,
@@ -845,17 +864,15 @@ const styles = StyleSheet.create({
   openBrowserButton: {
     flex: 1,
     borderRadius: 40,
-    borderWidth: 1,
-    borderColor: "#72C44E",
     backgroundColor: "#3D841E",
     paddingHorizontal: 16,
-    paddingVertical: 9,
+    height: 52,
     alignItems: "center",
     justifyContent: "center",
   },
   openBrowserText: {
     fontFamily: SFPro.semiBold,
-    fontSize: 14,
+    fontSize: 17,
     color: "#FFF",
     letterSpacing: -0.2,
     textAlign: "center",
@@ -909,8 +926,9 @@ const styles = StyleSheet.create({
   },
 
   // Footer
+  footerGroup: { gap: 8, alignItems: "center" },
   footerRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  footerNote: { fontFamily: SFPro.regular, fontSize: 13, color: "#888", lineHeight: 18, letterSpacing: -0.2 },
+  footerNote: { fontFamily: SFPro.semiBold, fontSize: 13, color: "#888", lineHeight: 18, letterSpacing: -0.2 },
   learnMoreWrap: { alignItems: "center" },
   learnMoreText: { fontFamily: SFPro.semiBold, fontSize: 13, color: "#3D841E", letterSpacing: -0.2 },
 
