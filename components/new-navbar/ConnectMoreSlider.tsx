@@ -1,11 +1,26 @@
 import { Image } from "expo-image";
 import React, { useCallback, useRef, useState } from "react";
 import {
+  Animated,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+
+function ScaleCard({ onPress, style, children }: { onPress: () => void; style?: object; children: React.ReactNode }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const onPressIn = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
+  const onPressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 4 }).start();
+  return (
+    <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={style}>
+      <Animated.View style={{ transform: [{ scale }] }}>
+        {children}
+      </Animated.View>
+    </Pressable>
+  );
+}
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -19,14 +34,14 @@ import { ConfigureGitAccessSlider } from "./ConfigureGitAccessSlider";
 import { ConnectLaptopSlider } from "./ConnectLaptopSlider";
 import { ConnectOwnAgentSlider } from "./ConnectOwnAgentSlider";
 
-import AppleIcon from "@/assets/images/new-design/connect-more/apple.svg";
+import AppleIcon from "@/assets/images/new-design/connect-more/apple-new.svg";
 import BulbIcon from "@/assets/images/new-design/connect-more/bulb.svg";
 import ClaudeIcon from "@/assets/images/new-design/connect-more/claude-new.svg";
-import GitLabIcon from "@/assets/images/new-design/connect-more/gitLab.svg";
-import GithubIcon from "@/assets/images/new-design/connect-more/github.svg";
-import LinuxIcon from "@/assets/images/new-design/connect-more/linux.svg";
+import GitLabIcon from "@/assets/images/new-design/connect-more/gitlab-new.svg";
+import GithubIcon from "@/assets/images/new-design/connect-more/github-new.svg";
+import LinuxIcon from "@/assets/images/new-design/connect-more/linux-new.svg";
 import OpenCodeIcon from "@/assets/images/new-design/connect-more/opencode-new.svg";
-import WindowsIcon from "@/assets/images/new-design/connect-more/windows.svg";
+import WindowsIcon from "@/assets/images/new-design/connect-more/windows-new.svg";
 import { SFPro } from "@/constants/theme";
 
 type CardProps = {
@@ -61,7 +76,7 @@ function ConnectCard({
             source={image}
             style={styles.cardImage}
             contentFit="cover"
-            contentPosition={{ right: 0 }}
+            contentPosition="top"
           />
         </View>
       ) : (
@@ -139,87 +154,79 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          <TouchableOpacity
-            onPress={() => setOwnAgentVisible(true)}
-            activeOpacity={0.85}
-          >
+          <ScaleCard onPress={() => setOwnAgentVisible(true)}>
             <ConnectCard
               title={"Connect your\nown agent"}
               subtitle={"Used by 95%\nGrass users"}
               footerText={"We are working on\nsupporting more agents"}
               image={require("@/assets/images/new-design/connect-more/own-agent.png")}
               footerIcons={
-                <>
-                  <ClaudeIcon width={22} height={22} style={{ transform: [{ rotate: "1deg" }] }} />
-                  <OpenCodeIcon width={24} height={24} style={{ transform: [{ rotate: "-2deg" }] }} />
-                </>
+                <View style={{ flexDirection: "row" }}>
+                  <View style={{ transform: [{ rotate: "1deg" }], shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.15, shadowRadius: 4 }}>
+                    <ClaudeIcon width={22} height={22} />
+                  </View>
+                  <View style={{ marginLeft: -2, transform: [{ rotate: "-2deg" }], shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.15, shadowRadius: 4 }}>
+                    <OpenCodeIcon width={22} height={22} />
+                  </View>
+                </View>
               }
             />
-          </TouchableOpacity>
+          </ScaleCard>
 
-          <TouchableOpacity
-            onPress={() => setLaptopVisible(true)}
-            activeOpacity={0.85}
-          >
+          <ScaleCard onPress={() => setLaptopVisible(true)}>
             <ConnectCard
               title={"Connect your\nLaptop"}
               subtitle={"Your machine,\nyour rules"}
               footerText={"Your code never leaves\nyour machine."}
               image={require("@/assets/images/new-design/connect-more/laptop.png")}
               footerIcons={
-                <>
-                  <AppleIcon
-                    width={30}
-                    height={30}
-                    style={{ marginRight: -14 }}
-                  />
-                  <WindowsIcon
-                    width={30}
-                    height={30}
-                    style={{ marginRight: -14 }}
-                  />
-                  <LinuxIcon width={30} height={30} />
-                </>
+                <View style={{ flexDirection: "row" }}>
+                  <View style={{ transform: [{ rotate: "-1deg" }], shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.15, shadowRadius: 4, marginLeft: -2 }}>
+                    <AppleIcon width={22} height={22} />
+                  </View>
+                  <View style={{ transform: [{ rotate: "2deg" }], shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.15, shadowRadius: 4, marginLeft: -2 }}>
+                    <WindowsIcon width={22} height={22} />
+                  </View>
+                  <View style={{ transform: [{ rotate: "-1deg" }], shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.15, shadowRadius: 4, marginLeft: -2 }}>
+                    <LinuxIcon width={22} height={22} />
+                  </View>
+                </View>
               }
             />
-          </TouchableOpacity>
+          </ScaleCard>
 
           <View style={styles.halfRow}>
-            <TouchableOpacity
-              style={styles.halfCardWrapper}
-              onPress={() => setAddRepoVisible(true)}
-              activeOpacity={0.85}
-            >
+            <ScaleCard onPress={() => setAddRepoVisible(true)} style={styles.halfCardWrapper}>
               <ConnectCard
                 title={"Add a\nrepository"}
                 subtitle={"Agents need a\nrepo to work on"}
                 // footerText={"GitHub and GitLab\nsupported"}
                 style={{ flex: 1 }}
                 footerIcons={
-                  <>
-                    <GithubIcon
-                      width={30}
-                      height={30}
-                      style={{ marginRight: -14 }}
-                    />
-                    <GitLabIcon width={30} height={30} />
-                  </>
+                  <View style={{ flexDirection: "row" }}>
+                    <View style={{ transform: [{ rotate: "-2deg" }], shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.15, shadowRadius: 4, marginLeft: -2 }}>
+                      <GithubIcon width={22} height={22} />
+                    </View>
+                    <View style={{ transform: [{ rotate: "1deg" }], shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.15, shadowRadius: 4, marginLeft: -2 }}>
+                      <GitLabIcon width={22} height={22} />
+                    </View>
+                  </View>
                 }
               />
-            </TouchableOpacity>
+            </ScaleCard>
 
-            <TouchableOpacity
-              style={styles.halfCardWrapper}
-              onPress={() => setGitAccessVisible(true)}
-              activeOpacity={0.85}
-            >
+            <ScaleCard onPress={() => setGitAccessVisible(true)} style={styles.halfCardWrapper}>
               <ConnectCard
                 title={"Configure\nGit Access"}
                 subtitle={"GitHub OAuth\nfor your VM"}
                 style={{ flex: 1 }}
-                footerIcons={<GithubIcon width={30} height={30} />}
+                footerIcons={
+                  <View style={{ transform: [{ rotate: "2deg" }], shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.15, shadowRadius: 4 }}>
+                    <GithubIcon width={22} height={22} />
+                  </View>
+                }
               />
-            </TouchableOpacity>
+            </ScaleCard>
           </View>
         </BottomSheetScrollView>
       </BottomSheetModal>
@@ -294,9 +301,9 @@ const styles = StyleSheet.create({
   cardTop: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 10,
+    paddingBottom: 12,
     backgroundColor: "#FFF",
-    gap: 8,
+    gap: 16,
   },
   cardTitle: {
     fontFamily: SFPro.semiBold,
@@ -357,13 +364,14 @@ const styles = StyleSheet.create({
   cardImage: {
     flex: 1,
     height: "100%",
+    transform: [{ scale: 1.2 }],
   },
   footerText: {
     fontFamily: SFPro.semiBold,
     fontSize: 12,
     color: "#b2b2b2",
     textAlign: "right",
-    lineHeight: 18,
+    lineHeight: 16,
     letterSpacing: -0.2,
   },
 });
