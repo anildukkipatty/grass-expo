@@ -21,11 +21,11 @@ import { ConnectOwnAgentSlider } from "./ConnectOwnAgentSlider";
 
 import AppleIcon from "@/assets/images/new-design/connect-more/apple.svg";
 import BulbIcon from "@/assets/images/new-design/connect-more/bulb.svg";
-import ClaudeIcon from "@/assets/images/new-design/connect-more/claude.svg";
+import ClaudeIcon from "@/assets/images/new-design/connect-more/claude-new.svg";
 import GitLabIcon from "@/assets/images/new-design/connect-more/gitLab.svg";
 import GithubIcon from "@/assets/images/new-design/connect-more/github.svg";
 import LinuxIcon from "@/assets/images/new-design/connect-more/linux.svg";
-import OpenCodeIcon from "@/assets/images/new-design/connect-more/open-code.svg";
+import OpenCodeIcon from "@/assets/images/new-design/connect-more/opencode-new.svg";
 import WindowsIcon from "@/assets/images/new-design/connect-more/windows.svg";
 import { SFPro } from "@/constants/theme";
 
@@ -150,12 +150,8 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
               image={require("@/assets/images/new-design/connect-more/own-agent.png")}
               footerIcons={
                 <>
-                  <ClaudeIcon
-                    width={16}
-                    height={16}
-                    style={{ marginRight: -8, marginTop: -10 }}
-                  />
-                  <OpenCodeIcon width={30} height={30} />
+                  <ClaudeIcon width={22} height={22} style={{ transform: [{ rotate: "1deg" }] }} />
+                  <OpenCodeIcon width={24} height={24} style={{ transform: [{ rotate: "-2deg" }] }} />
                 </>
               }
             />
@@ -263,10 +259,10 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 10,
+    paddingBottom: 20,
   },
   headerText: {
-    gap: 8,
+    gap: 4,
   },
   headerTitle: {
     fontFamily: SFPro.bold,
@@ -318,7 +314,7 @@ const styles = StyleSheet.create({
     fontFamily: SFPro.semiBold,
     fontSize: 13,
     color: "#808080",
-    lineHeight: 20,
+    lineHeight: 16,
     letterSpacing: -0.3,
   },
   cardBottom: {

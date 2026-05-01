@@ -17,9 +17,6 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const [loginVisible, setLoginVisible] = useState(false);
 
-  // TEMP: jump straight to vm-name for design preview
-  React.useEffect(() => { router.replace("/onboarding/vm-name" as any); }, []);
-
   const handleVerified = async (type: "new" | "old") => {
     const existingName = await getVmName();
     if (type === "old" || existingName) {
