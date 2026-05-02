@@ -4,7 +4,9 @@ import {
   BottomSheetScrollView,
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
+import { BlurView } from "expo-blur";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { SymbolView } from "expo-symbols";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -164,6 +166,7 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
       ref={bottomSheetRef}
       snapPoints={snapPoints}
       enablePanDownToClose
+      enableOverDrag={false}
       animationConfigs={animationConfigs}
       backdropComponent={renderBackdrop}
       onDismiss={() => {
@@ -176,15 +179,16 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
       {/* Close button */}
       <TouchableOpacity
         onPress={() => {
+          Keyboard.dismiss();
           setCameraEnabled(false);
           bottomSheetRef.current?.dismiss();
         }}
         style={styles.closeButton}
         hitSlop={8}
       >
-        <View style={styles.closeX}>
-          <Text style={styles.closeXText}>✕</Text>
-        </View>
+        <BlurView intensity={60} tint="light" style={[styles.closeX, { backgroundColor: "#F2F2F2" }]}>
+          <SymbolView name="xmark" size={17} weight="semibold" tintColor="#1A1A1A" />
+        </BlurView>
       </TouchableOpacity>
 
       {/* ── Scan step ── */}
@@ -462,7 +466,7 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: "absolute",
-    top: 16,
+    top: 14,
     right: 16,
     zIndex: 10,
   },
@@ -470,25 +474,25 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#EBEBEB",
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-  },
-  closeXText: {
-    fontSize: 14,
-    color: "#333",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 40,
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 24,
-    paddingBottom: 16,
+    paddingTop: 12,
+    paddingBottom: 20,
   },
   headerText: {
     gap: 4,
   },
   headerTitle: {
-    fontFamily: SFPro.bold,
-    fontSize: 26,
+    fontFamily: SFPro.semiBold,
+    fontSize: 28,
     lineHeight: 31,
     color: "#000",
     letterSpacing: -0.5,
@@ -497,7 +501,7 @@ const styles = StyleSheet.create({
     fontFamily: SFPro.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: "#888",
+    color: "#808080",
     letterSpacing: -0.2,
   },
   scrollContent: {
@@ -523,17 +527,13 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     backgroundColor: "#3D841E",
-    borderColor: "rgba(255, 255, 255, 0.50)",
-    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   stepBadgeText: {
     fontFamily: SFPro.bold,
-    fontSize: 12,
+    fontSize: 17,
     color: "#FFF",
-    lineHeight: 14,
-    letterSpacing: -0.3,
   },
   stepDivider: {
     height: 1,
@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
   },
   stepTitle: {
     fontFamily: SFPro.semiBold,
-    fontSize: 16,
+    fontSize: 17,
     color: "#000",
     letterSpacing: -0.3,
   },
@@ -611,7 +611,7 @@ const styles = StyleSheet.create({
   },
   footerSection: {
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
   footerRow: {
     flexDirection: "row",
@@ -620,7 +620,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   footerNote: {
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.semiBold,
     fontSize: 13,
     color: "#888",
     letterSpacing: -0.2,
