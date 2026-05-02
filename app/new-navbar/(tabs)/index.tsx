@@ -33,9 +33,9 @@ import {
 import { formatRelativeTime } from "@/store/thread-store";
 import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
 
-import ClaudeIcon from "@/assets/images/new-design/navbar/claude.svg";
+import ClaudeIcon from "@/assets/images/new-design/chat/claude-home.svg";
 import FolderIcon from "@/assets/images/new-design/navbar/folder-icon.svg";
-import OpenCodeIcon from "@/assets/images/new-design/navbar/opencode.svg";
+import OpenCodeIcon from "@/assets/images/new-design/chat/opencode-home.svg";
 
 import { SFPro } from "@/constants/theme";
 
@@ -304,7 +304,7 @@ export default function HomeScreen() {
               </View>
               <View style={styles.threadStatusCell}>
                 {status === 'running' && (
-                  <ActivityIndicator size="small" color="#4CAF50" />
+                  <ActivityIndicator size="small" color="#3D841E" />
                 )}
                 {status === 'done' && shouldShowDoneIndicator(indicatorKey) && (
                   <View style={styles.threadStatusDotGreen} />
@@ -394,9 +394,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   sectionHeader: {
-    fontFamily: SFPro.semiBold,
+    fontFamily: SFPro.medium,
     fontSize: 17,
     color: "#000",
+    letterSpacing: -0.5,
   },
   refreshingContainer: {
     flexDirection: "row",
@@ -434,6 +435,9 @@ const styles = StyleSheet.create({
   agentIconBox: {
     overflow: "hidden",
     marginRight: 10,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.5)",
   },
   threadContent: {
     flex: 1,
@@ -442,19 +446,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 0,
+    marginBottom: 2,
   },
   threadMessage: {
     flex: 1,
     fontFamily: SFPro.medium,
-    fontSize: 15,
+    fontSize: 17,
+    lineHeight: 22,
     color: "#000",
     marginRight: 8,
+    letterSpacing: -0.5,
   },
   threadTime: {
     fontFamily: SFPro.regular,
-    fontSize: 13,
-    color: "#808080",
+    fontSize: 15,
+    lineHeight: 20,
+    color: "#9F9F9F",
   },
   threadMeta: {
     alignItems: "flex-end",
@@ -472,7 +479,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#3D841E",
     marginTop: 4,
     alignSelf: "flex-end",
   },
@@ -480,7 +487,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#F5A623",
+    backgroundColor: "#FFBF00",
     marginTop: 4,
     alignSelf: "flex-end",
   },
@@ -495,7 +502,7 @@ const styles = StyleSheet.create({
   },
   commandText: {
     fontFamily: SFPro.medium,
-    fontSize: 13,
+    fontSize: 15,
     color: "#9F9F9F",
     marginLeft: 5,
     lineHeight: 20,
