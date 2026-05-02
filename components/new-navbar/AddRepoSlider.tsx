@@ -1,4 +1,6 @@
 import SuccessMark from "@/assets/images/new-design/connect-more/success-mark.svg";
+import { BlurView } from "expo-blur";
+import { SymbolView } from "expo-symbols";
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -117,6 +119,7 @@ export function AddRepoSlider({ visible, onClose, serverUrl, onRepoAdded }: Prop
       ref={bottomSheetRef}
       snapPoints={snapPoints}
       enablePanDownToClose
+      enableOverDrag={false}
       animationConfigs={animationConfigs}
       backdropComponent={renderBackdrop}
       onDismiss={onClose}
@@ -131,9 +134,9 @@ export function AddRepoSlider({ visible, onClose, serverUrl, onRepoAdded }: Prop
         style={styles.closeButton}
         hitSlop={8}
       >
-        <View style={styles.closeX}>
-          <Text style={styles.closeXText}>✕</Text>
-        </View>
+        <BlurView intensity={60} tint="light" style={[styles.closeX, { backgroundColor: "#F2F2F2" }]}>
+          <SymbolView name="xmark" size={17} weight="semibold" tintColor="#1A1A1A" />
+        </BlurView>
       </TouchableOpacity>
 
       <BottomSheetScrollView
@@ -255,7 +258,7 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: "absolute",
-    top: 16,
+    top: 14,
     right: 16,
     zIndex: 10,
   },
@@ -263,21 +266,21 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#EBEBEB",
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-  },
-  closeXText: {
-    fontSize: 14,
-    color: "#333",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 40,
   },
   scrollContent: {
     flexGrow: 1,
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
+    paddingTop: 12,
+    paddingBottom: 20,
   },
   headerText: {
     flex: 1,
@@ -285,7 +288,7 @@ const styles = StyleSheet.create({
     paddingRight: 52,
   },
   headerTitle: {
-    fontFamily: SFPro.bold,
+    fontFamily: SFPro.semiBold,
     fontSize: 28,
     lineHeight: 31,
     color: "#000",
@@ -293,10 +296,10 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontFamily: SFPro.regular,
-    fontSize: 15,
+    fontSize: 14,
     lineHeight: 20,
     color: "#808080",
-    letterSpacing: -0.5,
+    letterSpacing: -0.2,
   },
   content: {
     paddingHorizontal: 16,
