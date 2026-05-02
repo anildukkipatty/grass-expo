@@ -254,7 +254,7 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
 
               <Text style={styles.connectTitle}>Connect GitHub</Text>
               <Text style={styles.connectDesc}>
-                Authorize Grass via GitHub OAuth (HTTPS). Your credentials are stored securely on your VM.
+                Authorize Grass via GitHub OAuth (HTTPS). Your credentials are stored securely on your virtual machine.
               </Text>
 
               <TouchableOpacity
