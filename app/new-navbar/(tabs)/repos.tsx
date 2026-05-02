@@ -357,10 +357,10 @@ const styles = StyleSheet.create({
   repoBranchIconSvg: {},
   repoBranchText: {
     fontFamily: SFPro.medium,
-    fontSize: 14,
+    fontSize: 15,
     color: "#9F9F9F",
     lineHeight: 22,
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   repoLanguageBadge: {
     borderRadius: 50,
