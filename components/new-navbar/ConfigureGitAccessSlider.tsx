@@ -21,7 +21,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import { Easing } from "react-native-reanimated";
 
-import GithubIcon from "@/assets/images/new-design/connect-more/github.svg";
+import GithubIcon from "@/assets/images/new-design/connect-more/github-rounded.svg";
 import LogoIcon from "@/assets/images/new-design/connect-more/logo.svg";
 
 import { githubOauthDisconnect, githubOauthStart, githubOauthStatus } from "@/api/github";
@@ -254,7 +254,7 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
 
               <Text style={styles.connectTitle}>Connect GitHub</Text>
               <Text style={styles.connectDesc}>
-                Authorize Grass via GitHub OAuth (HTTPS). Your credentials are stored securely on your VM.
+                Authorize Grass via GitHub OAuth (HTTPS). Your credentials are stored securely on your virtual machine.
               </Text>
 
               <TouchableOpacity
@@ -266,10 +266,7 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
                 {isConnecting ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
-                  <>
-                    <GithubIcon width={20} height={20} />
-                    <Text style={styles.connectBtnText}>Connect with GitHub</Text>
-                  </>
+                  <Text style={styles.connectBtnText}>Connect with GitHub</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -424,7 +421,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   connectDesc: {
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.medium,
     fontSize: 15,
     color: "#808080",
     textAlign: "center",
@@ -456,7 +453,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
   footerNote: {
-    fontFamily: SFPro.semiBold,
+    fontFamily: SFPro.medium,
     fontSize: 13,
     color: "#888",
     lineHeight: 18,
