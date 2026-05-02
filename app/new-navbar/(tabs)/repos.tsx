@@ -148,6 +148,7 @@ export default function ReposScreen() {
       <MachineCarousel
         machines={machines}
         selectedId={selectedMachineId}
+        paddingHorizontal={0}
         onSelect={(id) => {
           const idx = vmUrls.indexOf(id);
           if (idx >= 0) setActiveVmTab(idx);
@@ -165,7 +166,7 @@ export default function ReposScreen() {
       {/* Sticky action buttons */}
       <View style={styles.repoActionRow}>
         <TouchableOpacity
-          style={styles.repoActionBtn}
+          style={[styles.repoActionBtn, styles.repoActionBtnFit]}
           activeOpacity={0.75}
           onPress={() => setAddRepoVisible(true)}
         >
@@ -173,7 +174,7 @@ export default function ReposScreen() {
           <Text style={styles.repoActionText}>Add new repo</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.repoActionBtn}
+          style={[styles.repoActionBtn, styles.repoActionBtnFill]}
           activeOpacity={0.75}
           onPress={() => setCloneGithubVisible(true)}
         >
@@ -302,7 +303,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   repoActionBtn: {
-    flex: 1,
+    height: 40,
     flexDirection: "row",
     borderRadius: 24,
     borderWidth: 1,
@@ -311,6 +312,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 10,
     paddingVertical: 0,
+  },
+  repoActionBtnFit: {
+    alignSelf: "flex-start",
+    paddingRight: 20,
+  },
+  repoActionBtnFill: {
+    flex: 1,
   },
   repoActionText: {
     fontFamily: SFPro.medium,
