@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Clipboard,
-  Image,
   Keyboard,
   Linking,
   StyleSheet,
@@ -18,20 +17,28 @@ import {
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
+  withSequence,
   withSpring,
+  withTiming,
 } from "react-native-reanimated";
 
 import ClaudeTransparentIcon from "@/assets/images/new-design/connect-more/claude-transparent.svg";
 import ClaudeIcon from "@/assets/images/new-design/connect-more/claude.svg";
 import CopyIcon from "@/assets/images/new-design/connect-more/copy-icon.svg";
+import LockArrowIcon from "@/assets/images/new-design/connect-more/lock-arrow.svg";
 import LogoIcon from "@/assets/images/new-design/connect-more/logo.svg";
 import OpenCodeIcon from "@/assets/images/new-design/connect-more/opencode-transparent.svg";
 import SecureIcon from "@/assets/images/new-design/connect-more/secure.svg";
 import SuccessMark from "@/assets/images/new-design/connect-more/success-mark.svg";
 
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import { SymbolView } from "expo-symbols";
 import { SFPro } from "@/constants/theme";
 import { claudeComplete, claudeDisconnect, claudeStart, claudeStatus } from "@/api/claude";
 import { opencodeConnect, opencodeDisconnect, opencodeStatus } from "@/api/opencode";
@@ -58,10 +65,37 @@ function SkeletonBox({
   borderRadius?: number;
   style?: object;
 }) {
+  const shimmer = useSharedValue(0);
+
+  useEffect(() => {
+    shimmer.value = withRepeat(
+      withTiming(1, { duration: 1400, easing: Easing.linear }),
+      -1,
+      false,
+    );
+    return () => cancelAnimation(shimmer);
+  }, [shimmer]);
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shimmer.value * 900 - 300 }],
+  }));
+
   return (
     <View
-      style={[{ width: width ?? "100%", height, borderRadius, backgroundColor: "#E8E8E8" }, style]}
-    />
+      style={[
+        { width: width ?? "100%", height, borderRadius, backgroundColor: "#E8E8E8", overflow: "hidden" },
+        style,
+      ]}
+    >
+      <Animated.View style={[StyleSheet.absoluteFill, shimmerStyle]}>
+        <LinearGradient
+          colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.55)", "rgba(255,255,255,0)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{ width: 180, height: "100%" }}
+        />
+      </Animated.View>
+    </View>
   );
 }
 
@@ -88,6 +122,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
   } | null>(null);
 
   const authInputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<any>(null);
 
   const snapPoints = ["90%"];
   const animationConfigs = useBottomSheetTimingConfigs({
@@ -199,8 +234,9 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
     Linking.openURL(url);
   }, [authUrl]);
 
-  const handleConnect = useCallback(async () => {
-    if (authCode.trim().length < 1) { setAuthError(true); return; }
+  const handleConnect = useCallback(async (codeOverride?: string) => {
+    const code = (codeOverride ?? authCode).trim();
+    if (code.length < 1) { setAuthError(true); return; }
     setAuthError(false);
     setConnectError(null);
     setIsConnecting(true);
@@ -211,7 +247,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       if (activeTab === "Claude Code") {
         if (!claudeSession) return;
         const res = await claudeComplete(token, {
-          authCode: authCode.trim(),
+          authCode: code,
           sessionId: claudeSession.sessionId,
           cmdId: claudeSession.cmdId,
         });
@@ -226,7 +262,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
           );
         }
       } else {
-        const res = await opencodeConnect(token, { apiKey: authCode.trim() });
+        const res = await opencodeConnect(token, { apiKey: code });
         if (res.ok && res.data.success) {
           setOpencodeConnected(true);
           slideSuccessIn();
@@ -244,6 +280,18 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       setIsConnecting(false);
     }
   }, [activeTab, authCode, claudeSession, slideSuccessIn]);
+
+  const handlePasteAndConnect = useCallback(async () => {
+    const text = await Clipboard.getString();
+    const code = text?.trim() ?? "";
+    if (!code) {
+      setAuthError(true);
+      setConnectError("Nothing found on clipboard. Copy your code first.");
+      return;
+    }
+    setAuthCode(code);
+    handleConnect(code);
+  }, [handleConnect]);
 
   const handleDisconnect = useCallback(async () => {
     const token = await getToken();
@@ -297,6 +345,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       ref={bottomSheetRef}
       snapPoints={snapPoints}
       enablePanDownToClose
+      enableOverDrag={false}
       animationConfigs={animationConfigs}
       backdropComponent={renderBackdrop}
       onDismiss={onClose}
@@ -311,14 +360,14 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
         style={styles.closeButton}
         hitSlop={8}
       >
-        <View style={styles.closeX}>
-          <Text style={styles.closeXText}>✕</Text>
-        </View>
+        <BlurView intensity={60} tint="light" style={[styles.closeX, { backgroundColor: "#F2F2F2" }]}>
+          <SymbolView name="xmark" size={17} weight="semibold" tintColor="#1A1A1A" />
+        </BlurView>
       </TouchableOpacity>
 
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <Text style={styles.headerTitle}>Connect your own agent</Text>
+          <Text style={styles.headerTitle}>Connect your{"\n"}own agent</Text>
           <Text style={styles.headerSubtitle}>
             All optional. Set up whenever you&#39;re ready.
           </Text>
@@ -326,6 +375,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       </View>
 
       <BottomSheetScrollView
+        ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -382,11 +432,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 ) : (
                   <OpenCodeIcon width={44} height={44} />
                 )}
-                <Image
-                  source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
-                  style={styles.arrowImage}
-                  resizeMode="contain"
-                />
+                <LockArrowIcon width={60} height={28} />
                 <LogoIcon width={44} height={44} />
               </View>
 
@@ -425,11 +471,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                   ) : (
                     <OpenCodeIcon width={44} height={44} />
                   )}
-                  <Image
-                    source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
-                    style={styles.arrowImage}
-                    resizeMode="contain"
-                  />
+                  <LockArrowIcon width={60} height={28} />
                   {isLoading ? (
                     <SkeletonBox width={44} height={44} borderRadius={10} />
                   ) : (
@@ -439,7 +481,10 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
 
                 <View style={styles.stepHeader}>
                   {isLoading ? (
-                    <SkeletonBox width={160} height={18} borderRadius={6} />
+                    <>
+                      <SkeletonBox width={22} height={22} borderRadius={11} />
+                      <SkeletonBox width={130} height={16} borderRadius={6} />
+                    </>
                   ) : (
                     <>
                       <View style={styles.stepBadge}>
@@ -454,7 +499,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                   <View style={styles.skeletonDescGroup}>
                     <SkeletonBox width="90%" height={13} borderRadius={6} />
                     <SkeletonBox width="100%" height={13} borderRadius={6} />
-                    <SkeletonBox width="70%" height={13} borderRadius={6} />
+                    <SkeletonBox width="65%" height={13} borderRadius={6} />
                   </View>
                 ) : (
                   <Text style={styles.stepDesc}>
@@ -476,8 +521,8 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
 
                 {isLoading ? (
                   <View style={styles.buttonRow}>
-                    <SkeletonBox width="42%" height={38} borderRadius={40} />
-                    <SkeletonBox width="55%" height={38} borderRadius={40} />
+                    <SkeletonBox width={130} height={52} borderRadius={40} />
+                    <SkeletonBox style={{ flex: 1 }} height={52} borderRadius={40} />
                   </View>
                 ) : (
                   <View style={styles.buttonRow}>
@@ -510,7 +555,10 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
               <View style={styles.stepBlock}>
                 <View style={styles.stepHeader}>
                   {isLoading ? (
-                    <SkeletonBox width={200} height={18} borderRadius={6} />
+                    <>
+                      <SkeletonBox width={22} height={22} borderRadius={11} />
+                      <SkeletonBox width={170} height={16} borderRadius={6} />
+                    </>
                   ) : (
                     <>
                       <View style={styles.stepBadge}>
@@ -535,6 +583,9 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                       setAuthError(false);
                       setConnectError(null);
                     }}
+                    onFocus={() => {
+                      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 150);
+                    }}
                     autoCapitalize="none"
                     autoCorrect={false}
                     secureTextEntry={activeTab === "Opencode"}
@@ -553,18 +604,17 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                   <View
                     style={[
                       styles.connectButtonWrap,
-                      (authCode.trim().length === 0 || isConnecting) &&
-                        styles.connectButtonWrapNoShadow,
+                      isConnecting && styles.connectButtonWrapNoShadow,
                     ]}
                   >
                     <TouchableOpacity
                       style={[
                         styles.connectButton,
-                        authCode.trim().length > 0 && !isConnecting
+                        !isConnecting
                           ? styles.connectButtonActive
                           : styles.connectButtonDisabled,
                       ]}
-                      onPress={handleConnect}
+                      onPress={authCode.trim().length > 0 ? () => handleConnect() : handlePasteAndConnect}
                       activeOpacity={0.88}
                       disabled={isConnecting}
                     >
@@ -572,7 +622,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                         <ActivityIndicator color="#FFF" size="small" />
                       ) : (
                         <Text style={styles.connectButtonText}>
-                          Connect {agentLabel}
+                          {authCode.trim().length > 0 ? `Connect ${agentLabel}` : `Paste & Connect ${agentLabel}`}
                         </Text>
                       )}
                     </TouchableOpacity>
@@ -584,13 +634,15 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
         </View>
 
         {/* Footer */}
-        <View style={styles.footerRow}>
-          <SecureIcon width={14} height={14} />
-          <Text style={styles.footerNote}>{footerNote}</Text>
+        <View style={styles.footerGroup}>
+          <View style={styles.footerRow}>
+            <SecureIcon width={14} height={14} />
+            <Text style={styles.footerNote}>{footerNote}</Text>
+          </View>
+          <TouchableOpacity activeOpacity={0.7} style={styles.learnMoreWrap}>
+            <Text style={styles.learnMoreText}>Learn more →</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity activeOpacity={0.7} style={styles.learnMoreWrap}>
-          <Text style={styles.learnMoreText}>Learn more →</Text>
-        </TouchableOpacity>
       </BottomSheetScrollView>
 
       {/* ── Green success overlay (slides up from bottom within the sheet) ── */}
@@ -660,13 +712,20 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#EBEBEB",
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 40,
   },
   closeXText: {
-    fontSize: 14,
-    color: "#333",
+    fontFamily: undefined,
+    fontWeight: "700",
+    fontSize: 17,
+    color: "#1A1A1A",
+    letterSpacing: -0.5,
   },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 },
   headerText: { gap: 4 },
@@ -707,7 +766,7 @@ const styles = StyleSheet.create({
   },
   tabActive: { borderColor: "#3D841E", backgroundColor: "#E3FDD7" },
   tabText: { fontFamily: SFPro.semiBold, fontSize: 17, color: "#000", letterSpacing: -0.2 },
-  tabTextActive: { color: "#000", fontFamily: SFPro.semiBold },
+  tabTextActive: { color: "#000", fontFamily: SFPro.medium },
   tabConnectedDot: {
     width: 7,
     height: 7,
@@ -788,15 +847,15 @@ const styles = StyleSheet.create({
   arrowImage: { width: 60, height: 28 },
   stepHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
   stepBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: "#3D841E",
     alignItems: "center",
     justifyContent: "center",
   },
-  stepBadgeText: { fontFamily: SFPro.bold, fontSize: 13, color: "#FFF", lineHeight: 16 },
-  stepTitle: { fontFamily: SFPro.bold, fontSize: 17, color: "#000", letterSpacing: -0.3 },
+  stepBadgeText: { fontFamily: SFPro.bold, fontSize: 17, color: "#FFF" },
+  stepTitle: { fontFamily: SFPro.semiBold, fontSize: 17, color: "#000", letterSpacing: -0.3 },
   stepDesc: {
     fontFamily: SFPro.regular,
     fontSize: 15,
@@ -804,34 +863,34 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     letterSpacing: -0.2,
   },
-  skeletonDescGroup: { gap: 6, paddingLeft: 34 },
+  skeletonDescGroup: { gap: 6 },
   urlInputBox: {
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#DFDFDF",
     backgroundColor: "#F2F2F2",
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    height: 48,
+    justifyContent: "center",
   },
   urlInputText: {
     fontFamily: "DM Mono",
-    fontSize: 16,
-    color: "#000",
+    fontSize: 14,
+    color: "#202020",
     fontWeight: "400",
     letterSpacing: -0.2,
   },
   buttonRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   copyButton: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 6,
     borderRadius: 40,
     borderWidth: 1,
     borderColor: "#808080",
-    paddingHorizontal: 16,
-    paddingVertical: 9,
+    paddingLeft: 16,
+    paddingRight: 37,
+    height: 52,
   },
   copyButtonText: {
     fontFamily: SFPro.semiBold,
@@ -843,17 +902,15 @@ const styles = StyleSheet.create({
   openBrowserButton: {
     flex: 1,
     borderRadius: 40,
-    borderWidth: 1,
-    borderColor: "#72C44E",
     backgroundColor: "#3D841E",
     paddingHorizontal: 16,
-    paddingVertical: 9,
+    height: 52,
     alignItems: "center",
     justifyContent: "center",
   },
   openBrowserText: {
     fontFamily: SFPro.semiBold,
-    fontSize: 14,
+    fontSize: 17,
     color: "#FFF",
     letterSpacing: -0.2,
     textAlign: "center",
@@ -861,7 +918,7 @@ const styles = StyleSheet.create({
   authInput: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#9F9F9F",
+    borderColor: "#DFDFDF",
     backgroundColor: "#F2F2F2",
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -907,8 +964,9 @@ const styles = StyleSheet.create({
   },
 
   // Footer
+  footerGroup: { gap: 8, alignItems: "center" },
   footerRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  footerNote: { fontFamily: SFPro.regular, fontSize: 13, color: "#888", lineHeight: 18, letterSpacing: -0.2 },
+  footerNote: { fontFamily: SFPro.semiBold, fontSize: 13, color: "#888", lineHeight: 18, letterSpacing: -0.2 },
   learnMoreWrap: { alignItems: "center" },
   learnMoreText: { fontFamily: SFPro.semiBold, fontSize: 13, color: "#3D841E", letterSpacing: -0.2 },
 

@@ -359,7 +359,7 @@ const s = StyleSheet.create({
     fontSize: 28,
     color: "#000000",
     textAlign: "center",
-    letterSpacing: -0.5,
+    letterSpacing: -1,
     marginBottom: 10,
   },
   subtitle: {
@@ -368,6 +368,7 @@ const s = StyleSheet.create({
     color: "#000",
     textAlign: "center",
     lineHeight: 24,
+    letterSpacing: -0.5,
   },
   subtitleEmail: {
     fontFamily: SFPro.bold,
@@ -471,13 +472,13 @@ const s = StyleSheet.create({
   button: {
     borderRadius: 50,
     borderWidth: 2,
-    height: 52,
+    height: 57,
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
   buttonActive: {
-    borderColor: "#72C44E",
+    borderColor: "rgba(114, 196, 78, 0.4)",
     backgroundColor: "#3D841E",
     // shadowColor: "rgba(50, 147, 81, 0.70)",
     // shadowOffset: { width: 0, height: 0 },

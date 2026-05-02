@@ -16,11 +16,13 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function VmNameScreen() {
   const router = useRouter();
+  const { top } = useSafeAreaInsets();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const isRename = mode === "rename";
   const [vmName, setVmName] = useState("");
@@ -53,16 +55,11 @@ export default function VmNameScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.container}>
-          {/* ── Hint at the very top ── */}
-          <SafeAreaView style={styles.hintArea}>
-            <Text style={styles.hint}>You can always rename them later.</Text>
-          </SafeAreaView>
-
           {/* ── Illustration – image is the direct parent of the input overlay ── */}
           <TouchableOpacity
             activeOpacity={1}
             onPress={Keyboard.dismiss}
-            style={styles.imageContainer}
+            style={[styles.imageContainer, { marginTop: top }]}
           >
             <Image
               source={require("@/assets/images/new-design/onboarding/vm-name.png")}
@@ -77,8 +74,8 @@ export default function VmNameScreen() {
                 style={styles.overlayInput}
                 value={vmName}
                 onChangeText={setVmName}
-                placeholder=""
-                placeholderTextColor="transparent"
+                placeholder="e.g. Jarvis"
+                placeholderTextColor="rgba(0,0,0,0.25)"
                 autoCorrect={false}
                 autoCapitalize="none"
                 returnKeyType="done"
@@ -102,6 +99,8 @@ export default function VmNameScreen() {
                     This is who you&#39;ll be messaging{"\n"}when you need
                     something done.
                   </Text>
+
+                  <Text style={styles.hint}>You can always rename them later.</Text>
 
                   <View style={styles.buttonShadowWrap}>
                     <TouchableOpacity
@@ -175,16 +174,13 @@ const styles = StyleSheet.create({
   },
 
   // ── Hint ──────────────────────────────────────────
-  hintArea: {
-    alignItems: "center",
-    marginTop: 150,
-  },
   hint: {
     fontFamily: SFPro.medium,
     fontSize: 13,
     color: "#9F9F9F",
     lineHeight: 18,
     letterSpacing: -0.3,
+    marginBottom: 24,
   },
 
   // ── Illustration ──────────────────────────────────
@@ -194,8 +190,8 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: "100%",
     height: "100%",
-
     top: "-35%",
+    zIndex: 10,
   },
 
   overlayInputWrapper: {
@@ -246,10 +242,11 @@ const styles = StyleSheet.create({
   // ── Text ──────────────────────────────────────────
   title: {
     fontFamily: SFPro.bold,
-    fontSize: 28,
+    fontSize: 34,
     color: "#000000",
     textAlign: "center",
-    lineHeight: 32,
+    lineHeight: 40,
+    letterSpacing: -1,
     marginBottom: 12,
   },
   subtitle: {
@@ -258,6 +255,7 @@ const styles = StyleSheet.create({
     color: "#404040",
     textAlign: "center",
     lineHeight: 22,
+    letterSpacing: -0.3,
     marginBottom: 36,
   },
 
@@ -270,9 +268,9 @@ const styles = StyleSheet.create({
   button: {
     borderRadius: 50,
     borderWidth: 2,
-    borderColor: "#72C44E",
+    borderColor: "rgba(114, 196, 78, 0.4)",
     backgroundColor: "#3D841E",
-    height: 52,
+    height: 57,
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
