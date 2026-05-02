@@ -5,16 +5,19 @@ import {
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
+import { SymbolView } from "expo-symbols";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Easing } from "react-native-reanimated";
 
 import ClaudeIcon from "@/assets/images/new-design/chat/claude.svg";
+import ClaudeWhiteIcon from "@/assets/images/new-design/chat/claude-white.svg";
 import OpenCodeIcon from "@/assets/images/new-design/chat/opencode.svg";
+import OpenCodeWhiteIcon from "@/assets/images/new-design/chat/opencode-white.svg";
 import MachinesIcon from "@/assets/images/new-design/new-chat/machines.svg";
 import RepositoryIcon from "@/assets/images/new-design/new-chat/repository.svg";
-import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 import { SFPro } from "@/constants/theme";
 import { extractHost, RepoItem, useNavbar } from "@/contexts/navbar-context";
 import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
@@ -207,6 +210,7 @@ const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
       ref={bottomSheetRef}
       snapPoints={snapPoints}
       enablePanDownToClose
+      enableOverDrag={false}
       animationConfigs={animationConfigs}
       backdropComponent={renderBackdrop}
       onDismiss={handleDismiss}
@@ -215,6 +219,15 @@ const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
     >
       {showRepoPicker ? (
         <>
+          <TouchableOpacity
+            onPress={() => setShowRepoPicker(false)}
+            style={styles.closeButton}
+            hitSlop={8}
+          >
+            <BlurView intensity={60} tint="light" style={[styles.closeX, { backgroundColor: "#F2F2F2" }]}>
+              <SymbolView name="xmark" size={17} weight="semibold" tintColor="#1A1A1A" />
+            </BlurView>
+          </TouchableOpacity>
           <View style={styles.header}>
             <View style={styles.headerText}>
               <Text style={styles.headerTitle}>Select repository</Text>
@@ -222,13 +235,6 @@ const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
                 Choose a repo to start in.
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={() => setShowRepoPicker(false)}
-              style={styles.closeButton}
-              hitSlop={8}
-            >
-              <CloseIcon />
-            </TouchableOpacity>
           </View>
 
           <BottomSheetScrollView
@@ -264,6 +270,15 @@ const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
         </>
       ) : (
         <>
+          <TouchableOpacity
+            onPress={() => bottomSheetRef.current?.dismiss()}
+            style={styles.closeButton}
+            hitSlop={8}
+          >
+            <BlurView intensity={60} tint="light" style={[styles.closeX, { backgroundColor: "#F2F2F2" }]}>
+              <SymbolView name="xmark" size={17} weight="semibold" tintColor="#1A1A1A" />
+            </BlurView>
+          </TouchableOpacity>
           <View style={styles.header}>
             <View style={styles.headerText}>
               <Text style={styles.headerTitle}>Start new chat</Text>
@@ -271,13 +286,6 @@ const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
                 Pick a repo and branch to get going.
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={() => bottomSheetRef.current?.dismiss()}
-              style={styles.closeButton}
-              hitSlop={8}
-            >
-              <CloseIcon />
-            </TouchableOpacity>
           </View>
 
           <View style={styles.card}>
@@ -305,7 +313,7 @@ const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
               activeOpacity={0.8}
               onPress={() => setSelectedAgent("claude-code")}
             >
-              <ClaudeIcon width={20} height={20} />
+              {selectedAgent === "claude-code" ? <ClaudeWhiteIcon width={20} height={20} /> : <ClaudeIcon width={20} height={20} />}
               <Text
                 style={[
                   styles.agentBtnText,
@@ -324,7 +332,7 @@ const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
               activeOpacity={0.8}
               onPress={() => setSelectedAgent("opencode")}
             >
-              <OpenCodeIcon width={20} height={20} />
+              {selectedAgent === "opencode" ? <OpenCodeWhiteIcon width={20} height={20} /> : <OpenCodeIcon width={20} height={20} />}
               <Text
                 style={[
                   styles.agentBtnText,
@@ -367,39 +375,46 @@ const styles = StyleSheet.create({
     backgroundColor: "#CCC",
   },
   header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 12,
     paddingBottom: 20,
+    gap: 4,
   },
   headerText: {
     flex: 1,
-    gap: 4,
+    paddingRight: 52,
   },
   headerTitle: {
-    fontFamily: SFPro.bold,
+    fontFamily: SFPro.semiBold,
     fontSize: 28,
-    lineHeight: 31,
+    lineHeight: 29,
     color: "#000",
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontFamily: SFPro.regular,
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 16,
     color: "#808080",
     letterSpacing: -0.2,
   },
   closeButton: {
+    position: "absolute",
+    top: 14,
+    right: 16,
+    zIndex: 10,
+  },
+  closeX: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#F2F2F2",
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 40,
   },
   card: {
     marginHorizontal: 16,

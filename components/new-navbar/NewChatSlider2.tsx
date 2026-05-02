@@ -12,6 +12,8 @@ import {
   BottomSheetView,
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
+import { BlurView } from "expo-blur";
+import { SymbolView } from "expo-symbols";
 import { Easing } from "react-native-reanimated";
 
 import { AddRepoSlider } from "./AddRepoSlider";
@@ -24,10 +26,11 @@ import { SFPro } from "@/constants/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import ClaudeIconChat from "@/assets/images/new-design/chat/claude.svg";
+import ClaudeWhiteIconChat from "@/assets/images/new-design/chat/claude-white.svg";
 import OpenCodeIconChat from "@/assets/images/new-design/chat/opencode.svg";
+import OpenCodeWhiteIconChat from "@/assets/images/new-design/chat/opencode-white.svg";
 import MachinesIcon from "@/assets/images/new-design/new-chat/machines.svg";
 import RepositoryIcon from "@/assets/images/new-design/new-chat/repository.svg";
-import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
 import { RepoItem, useNavbar } from "@/contexts/navbar-context";
 import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
 
@@ -51,7 +54,7 @@ export function NewChatSlider2({ visible, onClose }: Props) {
   const [gitAccessVisible, setGitAccessVisible] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<"claude-code" | "opencode">("claude-code");
-  const [showRepoPicker, setShowRepoPicker] = useState(false);
+  const repoPickerRef = useRef<BottomSheetModal>(null);
   const [vmMetadataMap, setVmMetadataMap] = useState<Record<string, { name: string; iconIndex: number }>>({});
   const [grassVmName, setGrassVmName] = useState<string | null>(null);
 
@@ -76,7 +79,7 @@ export function NewChatSlider2({ visible, onClose }: Props) {
 
   useEffect(() => {
     if (!visible) return;
-    setShowRepoPicker(false);
+    repoPickerRef.current?.dismiss();
 
     let cancelled = false;
 
@@ -161,8 +164,9 @@ export function NewChatSlider2({ visible, onClose }: Props) {
     <>
       <BottomSheetModal
         ref={bottomSheetRef}
-        enableDynamicSizing
+        snapPoints={["52%"]}
         enablePanDownToClose
+        enableOverDrag={false}
         animationConfigs={animationConfigs}
         backdropComponent={renderBackdrop}
         onDismiss={() => {
@@ -176,6 +180,15 @@ export function NewChatSlider2({ visible, onClose }: Props) {
       >
         <BottomSheetView style={[styles.scrollContent, { paddingBottom: bottom + 16 }]}>
           {/* Header */}
+          <TouchableOpacity
+            onPress={() => bottomSheetRef.current?.dismiss()}
+            style={styles.closeButton}
+            hitSlop={8}
+          >
+            <BlurView intensity={60} tint="light" style={[styles.closeX, { backgroundColor: "#F2F2F2" }]}>
+              <SymbolView name="xmark" size={17} weight="semibold" tintColor="#1A1A1A" />
+            </BlurView>
+          </TouchableOpacity>
           <View style={styles.header}>
             <View style={styles.headerText}>
               <Text style={styles.headerTitle}>Start new chat</Text>
@@ -206,97 +219,114 @@ export function NewChatSlider2({ visible, onClose }: Props) {
             />
           </TouchableOpacity> */}
 
-          {/* ── New chat UI ── */}
-          {showRepoPicker ? (
-            <>
-              <View style={styles.newChatHeader}>
-                <View style={styles.newChatHeaderText}>
-                  <Text style={styles.newChatTitle}>Select repository</Text>
-                  <Text style={styles.newChatSubtitle}>Choose a repo to start in.</Text>
-                </View>
-                <TouchableOpacity onPress={() => setShowRepoPicker(false)} style={styles.closeButton} hitSlop={8}>
-                  <CloseIcon />
-                </TouchableOpacity>
+          {/* ── Main chat UI ── */}
+          <View style={styles.selCard}>
+            <TouchableOpacity style={[styles.selRow, styles.selRowBorder]} disabled>
+              <View style={styles.selRowLeft}>
+                <MachinesIcon width={22} height={22} />
+                <Text style={styles.selLabel}>Machine</Text>
               </View>
-              {repos.length === 0 ? (
-                <View style={styles.emptyRepos}>
-                  <Text style={styles.emptyReposText}>No repositories found</Text>
-                </View>
-              ) : (
-                repos.map((repo) => (
-                  <TouchableOpacity
-                    key={repo.id}
-                    style={styles.repoRow}
-                    activeOpacity={0.7}
-                    onPress={() => { setSelectedRepo(repo); setShowRepoPicker(false); }}
-                  >
-                    <RepositoryIcon width={20} height={20} />
-                    <View style={styles.repoRowText}>
-                      <Text style={styles.repoRowName}>{repo.name}</Text>
-                      {repo.branch ? <Text style={styles.repoRowBranch}>{repo.branch}</Text> : null}
-                    </View>
-                  </TouchableOpacity>
-                ))
-              )}
-            </>
+              <Text style={styles.selValue}>{vmLabel}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.selRow} onPress={() => repoPickerRef.current?.present()}>
+              <View style={styles.selRowLeft}>
+                <RepositoryIcon width={22} height={22} />
+                <Text style={styles.selLabel}>Repository</Text>
+              </View>
+              <View style={styles.selRowRight}>
+                <Text style={[styles.selValue, !selectedRepo && styles.selValuePlaceholder]}>
+                  {selectedRepo?.name ?? "Select a repo"}
+                </Text>
+                <Text style={styles.selChevron}>›</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.agentRow}>
+            <TouchableOpacity
+              style={[styles.agentBtn, selectedAgent === "claude-code" && styles.agentBtnActive]}
+              activeOpacity={0.8}
+              onPress={() => setSelectedAgent("claude-code")}
+            >
+              {selectedAgent === "claude-code" ? <ClaudeWhiteIconChat width={20} height={20} /> : <ClaudeIconChat width={20} height={20} />}
+              <Text style={[styles.agentBtnText, selectedAgent === "claude-code" && styles.agentBtnTextActive]}>
+                Claude Code
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.agentBtn, selectedAgent === "opencode" && styles.agentBtnActiveBlack]}
+              activeOpacity={0.8}
+              onPress={() => setSelectedAgent("opencode")}
+            >
+              {selectedAgent === "opencode" ? <OpenCodeWhiteIconChat width={20} height={20} /> : <OpenCodeIconChat width={20} height={20} />}
+              <Text style={[styles.agentBtnText, selectedAgent === "opencode" && styles.agentBtnTextWhite]}>
+                OpenCode
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.ctaButton, !selectedRepo && styles.ctaButtonDisabled]}
+            activeOpacity={0.85}
+            onPress={handleStart}
+            disabled={!selectedRepo}
+          >
+            <Text style={styles.ctaText}>Start new chat</Text>
+          </TouchableOpacity>
+
+        </BottomSheetView>
+      </BottomSheetModal>
+
+      {/* ── Repo picker sheet (stacked on top) ── */}
+      <BottomSheetModal
+        ref={repoPickerRef}
+        snapPoints={["52%"]}
+        enablePanDownToClose
+        enableOverDrag={false}
+        animationConfigs={animationConfigs}
+        backdropComponent={renderBackdrop}
+        backgroundStyle={styles.sheetBackground}
+        handleIndicatorStyle={styles.dragHandle}
+      >
+        <BottomSheetView style={[styles.scrollContent, { paddingBottom: bottom + 16 }]}>
+          <TouchableOpacity
+            onPress={() => repoPickerRef.current?.dismiss()}
+            style={styles.closeButton}
+            hitSlop={8}
+          >
+            <BlurView intensity={60} tint="light" style={[styles.closeX, { backgroundColor: "#F2F2F2" }]}>
+              <SymbolView name="chevron.backward" size={17} weight="semibold" tintColor="#1A1A1A" />
+            </BlurView>
+          </TouchableOpacity>
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <Text style={styles.headerTitle}>Select repository</Text>
+              <Text style={styles.headerSubtitle}>Choose a repo to start in.</Text>
+            </View>
+          </View>
+          {repos.length === 0 ? (
+            <View style={styles.emptyRepos}>
+              <Text style={styles.emptyReposText}>No repositories found</Text>
+            </View>
           ) : (
-            <>
-              <View style={styles.selCard}>
-                <TouchableOpacity style={[styles.selRow, styles.selRowBorder]} disabled>
-                  <View style={styles.selRowLeft}>
-                    <MachinesIcon width={22} height={22} />
-                    <Text style={styles.selLabel}>Machine</Text>
-                  </View>
-                  <Text style={styles.selValue}>{vmLabel}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.selRow} onPress={() => setShowRepoPicker(true)}>
-                  <View style={styles.selRowLeft}>
-                    <RepositoryIcon width={22} height={22} />
-                    <Text style={styles.selLabel}>Repository</Text>
-                  </View>
-                  <View style={styles.selRowRight}>
-                    <Text style={[styles.selValue, !selectedRepo && styles.selValuePlaceholder]}>
-                      {selectedRepo?.name ?? "Select a repo"}
-                    </Text>
-                    <Text style={styles.selChevron}>›</Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.agentRow}>
-                <TouchableOpacity
-                  style={[styles.agentBtn, selectedAgent === "claude-code" && styles.agentBtnActive]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedAgent("claude-code")}
-                >
-                  <ClaudeIconChat width={20} height={20} />
-                  <Text style={[styles.agentBtnText, selectedAgent === "claude-code" && styles.agentBtnTextActive]}>
-                    Claude Code
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.agentBtn, selectedAgent === "opencode" && styles.agentBtnActiveBlack]}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedAgent("opencode")}
-                >
-                  <OpenCodeIconChat width={20} height={20} />
-                  <Text style={[styles.agentBtnText, selectedAgent === "opencode" && styles.agentBtnTextWhite]}>
-                    OpenCode
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
+            repos.map((repo) => (
               <TouchableOpacity
-                style={[styles.ctaButton, !selectedRepo && styles.ctaButtonDisabled]}
-                activeOpacity={0.85}
-                onPress={handleStart}
-                disabled={!selectedRepo}
+                key={repo.id}
+                style={styles.repoRow}
+                activeOpacity={0.7}
+                onPress={() => {
+                  setSelectedRepo(repo);
+                  repoPickerRef.current?.dismiss();
+                }}
               >
-                <Text style={styles.ctaText}>Start new chat</Text>
+                <RepositoryIcon width={20} height={20} />
+                <View style={styles.repoRowText}>
+                  <Text style={styles.repoRowName}>{repo.name}</Text>
+                  {repo.branch ? <Text style={styles.repoRowBranch}>{repo.branch}</Text> : null}
+                </View>
               </TouchableOpacity>
-            </>
+            ))
           )}
-
         </BottomSheetView>
       </BottomSheetModal>
 
@@ -334,23 +364,25 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 10,
+    paddingTop: 12,
+    paddingBottom: 20,
+    gap: 4,
   },
   headerText: {
-    gap: 8,
+    paddingRight: 52,
+    gap: 4,
   },
   headerTitle: {
-    fontFamily: SFPro.bold,
+    fontFamily: SFPro.semiBold,
     fontSize: 28,
-    lineHeight: 32,
+    lineHeight: 28,
     color: "#000",
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontFamily: SFPro.regular,
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 14,
     color: "#808080",
     letterSpacing: -0.2,
   },
@@ -441,34 +473,23 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     letterSpacing: -0.2,
   },
-  newChatHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  newChatHeaderText: { flex: 1, gap: 4 },
-  newChatTitle: {
-    fontFamily: SFPro.bold,
-    fontSize: 24,
-    lineHeight: 28,
-    color: "#000",
-    letterSpacing: -0.5,
-  },
-  newChatSubtitle: {
-    fontFamily: SFPro.regular,
-    fontSize: 15,
-    color: "#808080",
-    letterSpacing: -0.2,
-  },
   closeButton: {
+    position: "absolute",
+    top: 14,
+    right: 16,
+    zIndex: 10,
+  },
+  closeX: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#F2F2F2",
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 40,
   },
   selCard: {
     borderRadius: 16,
@@ -525,7 +546,7 @@ const styles = StyleSheet.create({
     borderColor: "#DFDFDF",
     backgroundColor: "#FFF",
   },
-  agentBtnActive: { backgroundColor: "#3D841E", borderColor: "#3D841E" },
+  agentBtnActive: { backgroundColor: "#E47152", borderColor: "#E47152" },
   agentBtnActiveBlack: { backgroundColor: "#000", borderColor: "#000" },
   agentBtnText: {
     fontFamily: SFPro.semiBold,
@@ -559,15 +580,15 @@ const styles = StyleSheet.create({
   },
   repoRowText: { flex: 1, gap: 2 },
   repoRowName: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 16,
+    fontFamily: SFPro.medium,
+    fontSize: 17,
     color: "#000",
     letterSpacing: -0.3,
   },
   repoRowBranch: {
     fontFamily: SFPro.regular,
-    fontSize: 13,
-    color: "#808080",
+    fontSize: 15,
+    color: "#9F9F9F",
   },
   emptyRepos: { paddingVertical: 40, alignItems: "center" },
   emptyReposText: {
