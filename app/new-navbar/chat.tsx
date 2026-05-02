@@ -478,6 +478,8 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState("");
   const inputTextRef = useRef("");
   const [agentMode, setAgentMode] = useState<"build" | "plan">("build");
+  const [tempAgentMode, setTempAgentMode] = useState<"build" | "plan">("build");
+  const [tempPermissionMode, setTempPermissionMode] = useState<PermissionMode>("ask-permissions");
   const modelList = getModelsForAgent(agentStr);
   const [selectedModelKey, setSelectedModelKey] = useState(() => getDefaultModel(agentStr));
   const [tempModelKey, setTempModelKey] = useState(() => getDefaultModel(agentStr));
@@ -829,6 +831,22 @@ export default function ChatScreen() {
     }, 1800);
   };
 
+  // ── Mode sheet ──
+  const openModeSheet = () => {
+    setTempAgentMode(agentMode);
+    setTempPermissionMode(ws.permissionMode ?? "ask-permissions");
+    Keyboard.dismiss();
+    modeSheetRef.current?.present();
+  };
+
+  const confirmMode = () => {
+    setAgentMode(tempAgentMode);
+    if (serverUrl) {
+      ws.patchPermissionMode(ws.grassId ?? ws.sessionId, tempPermissionMode);
+    }
+    modeSheetRef.current?.dismiss();
+  };
+
   // ── Model sheet ──
   const openModelSheet = () => {
     setTempModelKey(selectedModelKey);
@@ -1112,10 +1130,7 @@ export default function ChatScreen() {
               <TouchableOpacity
                 style={styles.buildBtn}
                 activeOpacity={0.7}
-                onPress={() => {
-                  Keyboard.dismiss();
-                  modeSheetRef.current?.present();
-                }}
+                onPress={openModeSheet}
               >
                 <Text style={styles.buildText} numberOfLines={1}>
                   {agentMode === "build" ? "Build" : "Plan"}
@@ -1329,26 +1344,27 @@ export default function ChatScreen() {
       {/* ── Mode / Permission bottom sheet ── */}
       <BottomSheetModal
         ref={modeSheetRef}
-        snapPoints={["50%"]}
+        snapPoints={["85%"]}
         enableDynamicSizing={false}
         enablePanDownToClose
         backdropComponent={renderModeBackdrop}
-        backgroundStyle={styles.sheetBackground}
+        backgroundStyle={styles.modelSheetBackground}
         handleComponent={() => (
           <View style={styles.sheetHandleContainer}>
-            <View style={styles.sheetDragger} />
+            <View style={styles.modelSheetDragger} />
           </View>
         )}
       >
         <View style={styles.sheetContainer}>
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Mode & Permissions</Text>
+          <View style={styles.modelSheetHeader}>
+            <Text style={styles.modelSheetTitle}>Mode & Permissions</Text>
             <TouchableOpacity
-              style={styles.sheetCloseBtn}
-              activeOpacity={0.7}
               onPress={() => modeSheetRef.current?.dismiss()}
+              hitSlop={8}
             >
-              <CloseIcon width={36} height={36} />
+              <BlurView intensity={60} tint="light" style={[styles.modelSheetCloseX, { backgroundColor: "#F2F2F2" }]}>
+                <SymbolView name="xmark" size={17} weight="semibold" tintColor="#1A1A1A" />
+              </BlurView>
             </TouchableOpacity>
           </View>
 
@@ -1365,11 +1381,11 @@ export default function ChatScreen() {
                   key={mode}
                   style={[
                     styles.modelRow,
-                    agentMode === mode && styles.modelRowSelected,
+                    tempAgentMode === mode && styles.modelRowSelected,
                     index === 0 && styles.modelRowSeparator,
                   ]}
                   activeOpacity={0.7}
-                  onPress={() => setAgentMode(mode)}
+                  onPress={() => setTempAgentMode(mode)}
                 >
                   <View style={styles.modelInfo}>
                     <Text style={styles.modelLabel}>
@@ -1381,7 +1397,7 @@ export default function ChatScreen() {
                         : "Agent plans before acting"}
                     </Text>
                   </View>
-                  {agentMode === mode && <SelectedIcon width={16} height={16} />}
+                  {tempAgentMode === mode && <SelectedIcon width={16} height={16} />}
                 </TouchableOpacity>
               ))}
             </View>
@@ -1398,54 +1414,59 @@ export default function ChatScreen() {
                   key={item.key}
                   style={[
                     styles.modelRow,
-                    ws.permissionMode === item.key && styles.modelRowSelected,
+                    tempPermissionMode === item.key && styles.modelRowSelected,
                     index < 2 && styles.modelRowSeparator,
                   ]}
                   activeOpacity={0.7}
-                  onPress={() => {
-                    if (serverUrl) {
-                      ws.patchPermissionMode(
-                        ws.grassId ?? ws.sessionId,
-                        item.key as PermissionMode,
-                      );
-                    }
-                  }}
+                  onPress={() => setTempPermissionMode(item.key)}
                 >
                   <View style={styles.modelInfo}>
                     <Text style={styles.modelLabel}>{item.label}</Text>
                     <Text style={styles.modeSheetSubLabel}>{item.sub}</Text>
                   </View>
-                  {ws.permissionMode === item.key && <SelectedIcon width={16} height={16} />}
+                  {tempPermissionMode === item.key && <SelectedIcon width={16} height={16} />}
                 </TouchableOpacity>
               ))}
             </View>
           </BottomSheetScrollView>
+
+          {/* Sticky confirm button */}
+          <View style={styles.sheetFooter}>
+            <TouchableOpacity
+              style={styles.confirmBtn}
+              activeOpacity={0.85}
+              onPress={confirmMode}
+            >
+              <Text style={styles.confirmText}>Confirm</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </BottomSheetModal>
 
       {/* ── Model picker bottom sheet ── */}
       <BottomSheetModal
         ref={modelSheetRef}
-        snapPoints={[agentStr === "claude-code" ? "55%" : "75%"]}
+        snapPoints={[agentStr === "claude-code" ? "70%" : "85%"]}
         enableDynamicSizing={false}
         enablePanDownToClose
         backdropComponent={renderModelBackdrop}
-        backgroundStyle={styles.sheetBackground}
+        backgroundStyle={styles.modelSheetBackground}
         handleComponent={() => (
           <View style={styles.sheetHandleContainer}>
-            <View style={styles.sheetDragger} />
+            <View style={styles.modelSheetDragger} />
           </View>
         )}
       >
         <View style={styles.sheetContainer}>
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Select model</Text>
+          <View style={styles.modelSheetHeader}>
+            <Text style={styles.modelSheetTitle}>Select model</Text>
             <TouchableOpacity
-              style={styles.sheetCloseBtn}
-              activeOpacity={0.7}
               onPress={() => modelSheetRef.current?.dismiss()}
+              hitSlop={8}
             >
-              <CloseIcon width={36} height={36} />
+              <BlurView intensity={60} tint="light" style={[styles.modelSheetCloseX, { backgroundColor: "#F2F2F2" }]}>
+                <SymbolView name="xmark" size={17} weight="semibold" tintColor="#1A1A1A" />
+              </BlurView>
             </TouchableOpacity>
           </View>
 
@@ -1609,7 +1630,7 @@ const styles = StyleSheet.create({
   actionPillText: {
     fontFamily: SFMono.medium,
     fontSize: 13,
-    color: "#929292",
+    color: "#1A1A1A",
     flexShrink: 1,
   },
   toolCallEmoji: {
@@ -1868,9 +1889,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 30,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
-    borderWidth: 1.5,
-    borderBottomWidth: 0,
-    borderColor: "rgba(0,0,0,1)",
     overflow: "hidden",
     paddingHorizontal: 16,
     paddingTop: 20,
@@ -1939,7 +1957,7 @@ const styles = StyleSheet.create({
   dropdownText: {
     fontFamily: SFPro.medium,
     fontSize: 14,
-    color: "#808080",
+    color: "#1A1A1A",
     letterSpacing: -0.1,
   },
   buildBtn: {
@@ -1956,7 +1974,7 @@ const styles = StyleSheet.create({
   buildText: {
     fontFamily: SFPro.medium,
     fontSize: 14,
-    color: "#808080",
+    color: "#1A1A1A",
     letterSpacing: -0.1,
   },
   submitBtn: {
@@ -1982,6 +2000,11 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
+  modelSheetBackground: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+  },
   sheetHandleContainer: {
     alignItems: "center",
     paddingTop: 16,
@@ -1992,6 +2015,39 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 70,
     backgroundColor: "#E0E0E0",
+  },
+  modelSheetDragger: {
+    width: 36,
+    height: 5,
+    borderRadius: 100,
+    backgroundColor: "#CCC",
+  },
+  modelSheetCloseX: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 40,
+  },
+  modelSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  modelSheetTitle: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 28,
+    lineHeight: 31,
+    color: "#000",
+    letterSpacing: -0.5,
   },
   sheetHeader: {
     flexDirection: "row",
@@ -2082,7 +2138,7 @@ const styles = StyleSheet.create({
   },
   sheetFooter: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 16,
     paddingBottom: 24,
   },
   confirmBtn: {
