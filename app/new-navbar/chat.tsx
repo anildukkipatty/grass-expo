@@ -47,13 +47,18 @@ import {
   BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
 import { BlurView } from "expo-blur";
+import { GlassContainer, GlassView } from "expo-glass-effect";
+import { LinearGradient } from "expo-linear-gradient";
+import { SymbolView } from "expo-symbols";
 import { useCameraPermissions } from "expo-camera";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
   ActivityIndicator,
   Alert,
   Clipboard,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
@@ -486,7 +491,14 @@ export default function ChatScreen() {
     h: number;
   } | null>(null);
   const [inputContainerHeight, setInputContainerHeight] = useState(0);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const inputScale = useRef(new Animated.Value(1)).current;
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [showPillsFadeLeft, setShowPillsFadeLeft] = useState(false);
+  const [showPillsFadeRight, setShowPillsFadeRight] = useState(false);
+  const pillsContainerWidth = useRef(0);
+  const pillsContentWidth = useRef(0);
+  const pillsScrollX = useRef(0);
   const [pendingPermission, setPendingPermission] =
     useState<GlobalPermissionItem | null>(null);
   const [sessionLabel, setSessionLabelState] = useState<string | null>(
@@ -647,6 +659,16 @@ export default function ChatScreen() {
     });
   }, [ws.grassId, ws.sdkSessionId, serverUrl, sessionLabel]);
 
+  // ── Input focus spring animation ──
+  useEffect(() => {
+    Animated.spring(inputScale, {
+      toValue: isInputFocused ? 1.02 : 1.0,
+      useNativeDriver: true,
+      tension: 120,
+      friction: 8,
+    }).start();
+  }, [isInputFocused]);
+
   // ── Auto-scroll to bottom on new messages ──
   useEffect(() => {
     if (ws.messages.length > 0) {
@@ -688,6 +710,12 @@ export default function ChatScreen() {
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
     const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
     setShowScrollToBottom(distanceFromBottom > 80);
+  };
+
+  const updatePillsFade = () => {
+    const maxScroll = pillsContentWidth.current - pillsContainerWidth.current;
+    setShowPillsFadeLeft(pillsScrollX.current > 2);
+    setShowPillsFadeRight(maxScroll > 2 && pillsScrollX.current < maxScroll - 2);
   };
 
   const scrollToBottom = () => {
@@ -921,50 +949,6 @@ export default function ChatScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: top }]}>
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerBtn}
-          activeOpacity={0.7}
-          disabled={isFirstSendOverlayVisible}
-          onPress={() => {
-            if (isFirstSendOverlayVisible) return;
-            router.back();
-          }}
-        >
-          <BackButtonIcon width={40} height={40} />
-        </TouchableOpacity>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.repoName} numberOfLines={1}>
-            {headerTitle}
-          </Text>
-          <View style={styles.branchRow}>
-            {branch ? (
-              <Text style={styles.branchName}>
-                {repoNameStr} · <GitBranchIcon width={13} height={13} />{" "}
-                {branch}
-              </Text>
-            ) : (
-              <Text style={styles.branchName}>{repoNameStr}</Text>
-            )}
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.headerBtn}
-          activeOpacity={0.7}
-          onPress={() =>
-            router.push({
-              pathname: "/new-navbar/diffs" as any,
-              params: { serverUrl: serverUrl ?? "", repoPath: repoPathStr },
-            })
-          }
-        >
-          <DiffButtonIcon width={20} height={20} />
-        </TouchableOpacity>
-      </View>
-
       {/* ── Messages + Input ── */}
       <KeyboardAvoidingView
         style={styles.flex}
@@ -975,7 +959,7 @@ export default function ChatScreen() {
           <ScrollView
             ref={scrollViewRef}
             style={styles.flex}
-            contentContainerStyle={styles.messagesContent}
+            contentContainerStyle={[styles.messagesContent, { paddingTop: top + 90, paddingBottom: inputContainerHeight + 24 }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             onScroll={handleScroll}
@@ -995,8 +979,13 @@ export default function ChatScreen() {
             {/* Empty state */}
             {ws.messages.length === 0 && !ws.sessionLoading && (
               <View style={styles.centeredRow}>
-                <Text style={[styles.agentText, { color: "#808080" }]}>
-                  Send a message to get started.
+                <Image
+                  source={require("@/assets/images/new-design/chat/empty-state.png")}
+                  style={styles.emptyStateImage}
+                  resizeMode="contain"
+                />
+                <Text style={[styles.agentText, { color: "#B9B9B9", fontFamily: SFPro.medium }]}>
+                  Plant the first thought.
                 </Text>
               </View>
             )}
@@ -1049,31 +1038,20 @@ export default function ChatScreen() {
             activeOpacity={0.8}
             onPress={scrollToBottom}
           >
-            <View style={styles.scrollToBottomGlyph}>
-              <View style={styles.scrollToBottomStem} />
-              <View style={styles.scrollToBottomChevronRow}>
-                <View
-                  style={[
-                    styles.scrollToBottomChevronArm,
-                    styles.scrollToBottomChevronArmLeft,
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.scrollToBottomChevronArm,
-                    styles.scrollToBottomChevronArmRight,
-                  ]}
-                />
-              </View>
-            </View>
+            <GlassView style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} glassEffectStyle="clear" />
+            <SymbolView name="arrow.down" size={16} weight="semibold" tintColor="#1A1A1A" />
           </TouchableOpacity>
         )}
 
         {/* ── Bottom input area ── */}
-        <View
-          style={[styles.inputContainer, { paddingBottom: bottom + 8 }]}
-          onLayout={(e) => setInputContainerHeight(e.nativeEvent.layout.height)}
-        >
+        <GlassContainer style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
+          <Animated.View style={{ transform: [{ scale: inputScale }] }}>
+          <GlassView
+            glassEffectStyle="regular"
+            isInteractive
+            style={[styles.inputContainer, { paddingBottom: bottom + 8 }]}
+            onLayout={(e) => setInputContainerHeight(e.nativeEvent.layout.height)}
+          >
           <TextInput
             style={styles.textInput}
             value={inputText}
@@ -1082,47 +1060,81 @@ export default function ChatScreen() {
               setInputText(t);
             }}
             placeholder="Type here"
-            placeholderTextColor="#000"
+            placeholderTextColor="#9F9F9F"
             multiline
             editable={!ws.streaming}
             onSubmitEditing={handleSubmit}
             blurOnSubmit={false}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
           />
           <View style={styles.toolbarRow}>
-            {/* <TouchableOpacity
-              ref={addBtnRef}
-              style={styles.addBtn}
-              activeOpacity={0.7}
-              onPress={openOptions}
-            >
-              <AddIcon width={18} height={18} />
-            </TouchableOpacity> */}
-
-            <View style={styles.toolbarSpacer} />
-
-            <TouchableOpacity
-              style={styles.modelDropdown}
-              activeOpacity={0.7}
-              onPress={openModelSheet}
-            >
-              <Text style={styles.dropdownText} numberOfLines={1}>{selectedModel.label}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.buildBtn}
-              activeOpacity={0.7}
-              onPress={() => {
-                Keyboard.dismiss();
-                modeSheetRef.current?.present();
+            <View
+              style={styles.toolbarScroll}
+              onLayout={(e) => {
+                pillsContainerWidth.current = e.nativeEvent.layout.width;
+                updatePillsFade();
               }}
             >
-              <Text style={styles.buildText} numberOfLines={1}>
-                {agentMode === "build" ? "Build" : "Plan"}
-                {ws.permissionMode !== "ask-permissions"
-                  ? ` · ${ws.permissionMode === "allow-all-edits" ? "Allow all edits" : "YOLO"}`
-                  : ""}
-              </Text>
-            </TouchableOpacity>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={StyleSheet.absoluteFill}
+              contentContainerStyle={styles.toolbarScrollContent}
+              keyboardShouldPersistTaps="handled"
+              onContentSizeChange={(w) => {
+                pillsContentWidth.current = w;
+                updatePillsFade();
+              }}
+              onScroll={(e) => {
+                pillsScrollX.current = e.nativeEvent.contentOffset.x;
+                updatePillsFade();
+              }}
+              scrollEventThrottle={16}
+            >
+              <TouchableOpacity
+                style={styles.modelDropdown}
+                activeOpacity={0.7}
+                onPress={openModelSheet}
+              >
+                <Text style={styles.dropdownText} numberOfLines={1}>{selectedModel.label}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.buildBtn}
+                activeOpacity={0.7}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  modeSheetRef.current?.present();
+                }}
+              >
+                <Text style={styles.buildText} numberOfLines={1}>
+                  {agentMode === "build" ? "Build" : "Plan"}
+                  {ws.permissionMode !== "ask-permissions"
+                    ? ` · ${ws.permissionMode === "allow-all-edits" ? "Allow all edits" : "YOLO"}`
+                    : ""}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+              {showPillsFadeLeft && (
+                <LinearGradient
+                  colors={["rgba(255,255,255,0.85)", "rgba(255,255,255,0)"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.toolbarFadeLeft}
+                  pointerEvents="none"
+                />
+              )}
+              {showPillsFadeRight && (
+                <LinearGradient
+                  colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.85)"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.toolbarFadeRight}
+                  pointerEvents="none"
+                />
+              )}
+            </View>
 
             {ws.streaming ? (
               <TouchableOpacity
@@ -1139,11 +1151,13 @@ export default function ChatScreen() {
                 onPress={handleSubmit}
                 disabled={!canSend}
               >
-                <UpArrowIcon width={20} height={20} />
+                <UpArrowIcon width={18} height={18} />
               </TouchableOpacity>
             )}
           </View>
-        </View>
+          </GlassView>
+          </Animated.View>
+        </GlassContainer>
       </KeyboardAvoidingView>
 
       {/* ── Options overlay ── */}
@@ -1250,6 +1264,57 @@ export default function ChatScreen() {
           </View>
         </View>
       )}
+
+      {/* ── Header (absolute, floats over content) ── */}
+      <LinearGradient
+        colors={["rgba(255,255,255,1)", "rgba(255,255,255,1)", "rgba(255,255,255,0)"]}
+        locations={[0, 0.7, 1]}
+        style={[styles.headerBlur, { top: top }]}
+        pointerEvents="box-none"
+      >
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            activeOpacity={0.7}
+            disabled={isFirstSendOverlayVisible}
+            onPress={() => {
+              if (isFirstSendOverlayVisible) return;
+              router.back();
+            }}
+          >
+            <SymbolView name="chevron.backward" size={17} weight="semibold" tintColor="#1A1A1A" />
+          </TouchableOpacity>
+
+          <View style={styles.headerCenter}>
+            <Text style={styles.repoName} numberOfLines={1}>
+              {headerTitle}
+            </Text>
+            <View style={styles.branchRow}>
+              {branch ? (
+                <Text style={styles.branchName}>
+                  {repoNameStr} · <GitBranchIcon width={13} height={13} />{" "}
+                  {branch}
+                </Text>
+              ) : (
+                <Text style={styles.branchName}>{repoNameStr}</Text>
+              )}
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.headerBtn}
+            activeOpacity={0.7}
+            onPress={() =>
+              router.push({
+                pathname: "/new-navbar/diffs" as any,
+                params: { serverUrl: serverUrl ?? "", repoPath: repoPathStr },
+              })
+            }
+          >
+            <SymbolView name="plusminus" size={17} weight="semibold" tintColor="#1A1A1A" />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
 
       {/* ── Mode / Permission bottom sheet ── */}
       <BottomSheetModal
@@ -1423,23 +1488,39 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
 
   centeredRow: {
+    flex: 1,
     alignItems: "center",
-    paddingVertical: 32,
+    justifyContent: "center",
+    gap: 16,
+  },
+  emptyStateImage: {
+    width: 200,
+    height: 200,
+    opacity: 0.4,
   },
 
   // Header
+  headerBlur: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    overflow: "hidden",
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 10,
+    paddingTop: 12,
+    paddingBottom: 32,
   },
   headerBtn: {
     width: 40,
     height: 40,
     borderRadius: 100,
+    overflow: "hidden",
     backgroundColor: "#F2F2F2",
     alignItems: "center",
     justifyContent: "center",
@@ -1449,7 +1530,7 @@ const styles = StyleSheet.create({
     marginLeft: 25,
     flex: 1,
     alignItems: "center",
-    gap: 5,
+    gap: 4,
   },
   repoName: {
     fontFamily: SFPro.bold,
@@ -1478,9 +1559,8 @@ const styles = StyleSheet.create({
   },
 
   messagesContent: {
+    flexGrow: 1,
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 24,
     gap: 12,
   },
 
@@ -1764,52 +1844,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
+    overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#D8D8D8",
-    backgroundColor: "#F6F6F6",
+    borderColor: "rgba(0,0,0,0.1)",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
     zIndex: 15,
-  },
-  scrollToBottomGlyph: {
-    width: 16,
-    height: 16,
-    alignItems: "center",
-    justifyContent: "flex-start",
-    marginTop: 1,
-    overflow: "visible",
-  },
-  scrollToBottomStem: {
-    width: 3,
-    height: 8,
-    borderRadius: 2,
-    backgroundColor: "#000",
-  },
-  scrollToBottomChevronRow: {
-    marginTop: -1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "visible",
-  },
-  scrollToBottomChevronArm: {
-    width: 8,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: "#000",
-  },
-  scrollToBottomChevronArmLeft: {
-    marginRight: -2,
-    transform: [{ rotate: "45deg" }],
-  },
-  scrollToBottomChevronArmRight: {
-    marginLeft: -2,
-    transform: [{ rotate: "-45deg" }],
   },
 
   // Bottom input container
@@ -1818,13 +1858,13 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 30,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderBottomWidth: 0,
-    borderColor: "#DFDFDF",
-    backgroundColor: "rgba(249, 249, 249, 0.20)",
+    borderColor: "rgba(0,0,0,1)",
+    overflow: "hidden",
     paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 8,
+    paddingTop: 20,
+    gap: 16,
   },
   textInput: {
     fontFamily: SFPro.regular,
@@ -1840,7 +1880,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-  toolbarSpacer: { flex: 1 },
+  toolbarScroll: {
+    flex: 1,
+    height: 38,
+  },
+  toolbarFadeLeft: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 32,
+  },
+  toolbarFadeRight: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 32,
+  },
+  toolbarScrollContent: {
+    flexGrow: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
   addBtn: {
     width: 36,
     height: 36,
@@ -1856,43 +1920,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    height: 38,
     borderRadius: 50,
     borderWidth: 1,
     borderColor: "#DFDFDF",
-    backgroundColor: "rgba(255, 255, 255, 0.50)",
+    backgroundColor: "rgba(255,255,255,0.50)",
   },
   dropdownText: {
     fontFamily: SFPro.medium,
     fontSize: 14,
-    color: "#1A1A1A",
+    color: "#808080",
     letterSpacing: -0.1,
-    maxWidth: 140,
   },
   buildBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    height: 38,
     borderRadius: 50,
     borderWidth: 1,
     borderColor: "#DFDFDF",
-    backgroundColor: "rgba(255, 255, 255, 0.50)",
+    backgroundColor: "rgba(255,255,255,0.50)",
   },
   buildText: {
     fontFamily: SFPro.medium,
     fontSize: 14,
-    color: "#1A1A1A",
+    color: "#808080",
     letterSpacing: -0.1,
-    maxWidth: 150,
   },
   submitBtn: {
-    width: 40,
-    height: 40,
+    width: 37,
+    height: 37,
     borderRadius: 50,
-    borderWidth: 2,
-    borderColor: "#72C44E",
     backgroundColor: "#3D841E",
     alignItems: "center",
     justifyContent: "center",
