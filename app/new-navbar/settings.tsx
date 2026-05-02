@@ -400,8 +400,9 @@ export default function SettingsScreen() {
             />
           </View>
 
-          {/* ── Rate & Follow ── */}
-          <View style={[styles.card, { marginTop: 16 }]}>
+          {/* ── Social ── */}
+          <Text style={styles.sectionHeader}>Community</Text>
+          <View style={styles.card}>
             <MachineRow
               icon={
                 <View style={styles.iconBgRateAndFollow}>
@@ -594,7 +595,7 @@ const styles = StyleSheet.create({
 
   // Section header
   sectionHeader: {
-    fontFamily: SFPro.semiBold,
+    fontFamily: SFPro.medium,
     fontSize: 17,
     color: "#000",
     // textTransform: "uppercase",
@@ -670,13 +671,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowLabel: {
-    fontFamily: SFPro.semiBold,
+    fontFamily: SFPro.medium,
     fontSize: 17,
     color: "#9F9F9F",
     letterSpacing: -0.5,
   },
   rowSublabel: {
-    fontFamily: SFPro.semiBold,
+    fontFamily: SFPro.medium,
     fontSize: 17,
     color: "#000",
     marginTop: 2,
