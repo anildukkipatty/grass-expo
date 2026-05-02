@@ -12,12 +12,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BackButtonIcon from "@/assets/images/new-design/chat/back-button.svg";
-import ClaudeLightModeIcon from "@/assets/images/new-design/chat/claude-light-mode.svg";
 import ClaudeIcon from "@/assets/images/new-design/chat/claude.svg";
-import OpenCodeLightNodeIcon from "@/assets/images/new-design/chat/opencode-light-node.svg";
+import ClaudeWhiteIcon from "@/assets/images/new-design/chat/claude-white.svg";
 import OpenCodeIcon from "@/assets/images/new-design/chat/opencode.svg";
+import OpenCodeWhiteIcon from "@/assets/images/new-design/chat/opencode-white.svg";
 import SearchIcon from "@/assets/images/new-design/chat/search-icon.svg";
-import FloatIcon from "@/assets/images/new-design/navbar/float-icon.svg";
+import { SymbolView } from "expo-symbols";
 import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
 
 import { posthog } from "@/constants/posthog";
@@ -199,39 +199,43 @@ export default function ChatListScreen() {
       </View>
 
       {/* ── Agent tab toggle ── */}
-      <View style={styles.agentTabRow}>
+      <View style={styles.agentRow}>
         <TouchableOpacity
           style={[
-            styles.agentTab,
-            selectedAgent === "claude"
-              ? styles.claudeActiveTab
-              : styles.inactiveTab,
+            styles.agentBtn,
+            selectedAgent === "claude" && styles.agentBtnActive,
           ]}
-          activeOpacity={0.85}
+          activeOpacity={0.8}
           onPress={() => setSelectedAgent("claude")}
         >
-          {selectedAgent === "claude" ? (
-            <ClaudeLightModeIcon width={24} height={24} />
-          ) : (
-            <ClaudeIcon width={24} height={24} />
-          )}
+          {selectedAgent === "claude" ? <ClaudeWhiteIcon width={20} height={20} /> : <ClaudeIcon width={20} height={20} />}
+          <Text
+            style={[
+              styles.agentBtnText,
+              selectedAgent === "claude" && styles.agentBtnTextActive,
+            ]}
+          >
+            Claude Code
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[
-            styles.agentTab,
-            selectedAgent === "opencode"
-              ? styles.openCodeActiveTab
-              : styles.inactiveTab,
+            styles.agentBtn,
+            selectedAgent === "opencode" && styles.agentBtnActiveBlack,
           ]}
-          activeOpacity={0.85}
+          activeOpacity={0.8}
           onPress={() => setSelectedAgent("opencode")}
         >
-          {selectedAgent === "opencode" ? (
-            <OpenCodeLightNodeIcon width={24} height={24} />
-          ) : (
-            <OpenCodeIcon width={24} height={24} />
-          )}
+          {selectedAgent === "opencode" ? <OpenCodeWhiteIcon width={20} height={20} /> : <OpenCodeIcon width={20} height={20} />}
+          <Text
+            style={[
+              styles.agentBtnText,
+              selectedAgent === "opencode" && styles.agentBtnTextWhite,
+            ]}
+          >
+            OpenCode
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -293,9 +297,8 @@ export default function ChatListScreen() {
         onPress={handleNewChatTap}
       >
         <View style={styles.floatButton}>
-          <FloatIcon width={24} height={24} />
+          <SymbolView name="plus" size={22} weight="semibold" tintColor="#1A1A1A" />
         </View>
-        <Text style={styles.floatButtonLabel}>New chat</Text>
       </TouchableOpacity>
 
       {errorToast && (
@@ -354,35 +357,43 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
 
-  agentTabRow: {
+  agentRow: {
     flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    gap: 10,
   },
-  agentTab: {
+  agentBtn: {
     flex: 1,
-    height: 44,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-  },
-  claudeActiveTab: {
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.50)",
-    backgroundColor: "#E47152",
-  },
-  openCodeActiveTab: {
-    borderRadius: 32,
-    borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.50)",
-    backgroundColor: "#000000",
-  },
-  inactiveTab: {
-    borderRadius: 50,
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#DFDFDF",
-    backgroundColor: "rgba(255, 255, 255, 0.40)",
+    backgroundColor: "#FFF",
+  },
+  agentBtnActive: {
+    backgroundColor: "#3D841E",
+    borderColor: "#3D841E",
+  },
+  agentBtnActiveBlack: {
+    backgroundColor: "#000",
+    borderColor: "#000",
+  },
+  agentBtnText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 15,
+    color: "#333",
+    letterSpacing: -0.2,
+  },
+  agentBtnTextActive: {
+    color: "#FFF",
+  },
+  agentBtnTextWhite: {
+    color: "#FFF",
   },
 
   searchContainer: {
@@ -424,18 +435,17 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   chatTitle: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 15,
+    fontFamily: SFPro.medium,
+    fontSize: 17,
     color: "#000",
-    letterSpacing: -0.3,
-    lineHeight: 20,
+    letterSpacing: -0.5,
+    lineHeight: 22,
   },
   chatTime: {
-    fontFamily: SFPro.medium,
-    fontSize: 13,
-    color: "#808080",
-    letterSpacing: -0.3,
-    lineHeight: 18,
+    fontFamily: SFPro.regular,
+    fontSize: 15,
+    color: "#9F9F9F",
+    lineHeight: 20,
   },
 
   emptyState: {
