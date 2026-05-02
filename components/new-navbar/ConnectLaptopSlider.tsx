@@ -217,14 +217,17 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
 
               <View style={styles.commandBox}>
                 <Text style={styles.commandText}>{COMMAND}</Text>
+              </View>
+
+              <View style={styles.copyButtonWrap}>
                 <TouchableOpacity
                   style={styles.copyButton}
                   onPress={handleCopy}
-                  activeOpacity={0.8}
+                  activeOpacity={0.85}
                 >
-                  <CopyIcon width={14} height={14} color="#FFF" />
+                  <CopyIcon width={15} height={15} />
                   <Text style={styles.copyButtonText}>
-                    {copied ? "Copied!" : "Copy"}
+                    {copied ? "Copied!" : "Copy command"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -553,34 +556,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#DFDFDF",
     backgroundColor: "#F2F2F2",
-    paddingLeft: 14,
-    paddingRight: 4,
-    paddingVertical: 4,
+    paddingHorizontal: 14,
+    height: 48,
+    justifyContent: "center",
   },
   commandText: {
-    flex: 1,
     fontFamily: SFMono.medium,
-    fontSize: 16,
+    fontSize: 15,
     color: "#000",
     letterSpacing: -0.2,
-    paddingVertical: 6,
   },
+  copyButtonWrap: {},
   copyButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    borderRadius: 6,
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 40,
     borderWidth: 1,
-    borderColor: "#72C44E",
-    backgroundColor: "#3D841E",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderColor: "#808080",
+    height: 52,
   },
   copyButtonText: {
     fontFamily: SFPro.semiBold,
-    fontSize: 13,
-    color: "#FFF",
-    letterSpacing: -0.2,
+    fontSize: 17,
+    color: "#000",
+    letterSpacing: -0.5,
   },
   qrArea: {
     borderRadius: 12,
