@@ -21,7 +21,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import { Easing } from "react-native-reanimated";
 
-import GithubIcon from "@/assets/images/new-design/connect-more/github.svg";
+import GithubIcon from "@/assets/images/new-design/connect-more/github-rounded.svg";
 import LogoIcon from "@/assets/images/new-design/connect-more/logo.svg";
 
 import { githubOauthDisconnect, githubOauthStart, githubOauthStatus } from "@/api/github";
@@ -208,7 +208,7 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
           ) : githubConnected ? (
             <View style={styles.connectedBlock}>
               <View style={styles.illustrationRow}>
-                <GithubIcon width={44} height={44} style={{ width: 44, height: 44 }} />
+                <GithubIcon width={44} height={44} />
                 <Image
                   source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
                   style={styles.arrowImage}
@@ -243,7 +243,7 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
           ) : (
             <View style={styles.connectBlock}>
               <View style={styles.illustrationRow}>
-                <GithubIcon width={44} height={44} style={{ width: 44, height: 44 }} />
+                <GithubIcon width={44} height={44} />
                 <Image
                   source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
                   style={styles.arrowImage}
