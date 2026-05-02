@@ -59,19 +59,43 @@ function SkeletonBox({
   height,
   borderRadius = 8,
   style,
-  opacity,
 }: {
   width?: number | string;
   height: number;
   borderRadius?: number;
   style?: object;
-  opacity: { value: number };
 }) {
-  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  const shimmer = useSharedValue(0);
+
+  useEffect(() => {
+    shimmer.value = withRepeat(
+      withTiming(1, { duration: 1400, easing: Easing.linear }),
+      -1,
+      false,
+    );
+    return () => cancelAnimation(shimmer);
+  }, [shimmer]);
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shimmer.value * 900 - 300 }],
+  }));
+
   return (
-    <Animated.View
-      style={[{ width: width ?? "100%", height, borderRadius, backgroundColor: "#E8E8E8" }, style, animStyle]}
-    />
+    <View
+      style={[
+        { width: width ?? "100%", height, borderRadius, backgroundColor: "#E8E8E8", overflow: "hidden" },
+        style,
+      ]}
+    >
+      <Animated.View style={[StyleSheet.absoluteFill, shimmerStyle]}>
+        <LinearGradient
+          colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.55)", "rgba(255,255,255,0)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{ width: 180, height: "100%" }}
+        />
+      </Animated.View>
+    </View>
   );
 }
 
@@ -99,23 +123,6 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
 
   const authInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<any>(null);
-  const skeletonOpacity = useSharedValue(0.45);
-
-  useEffect(() => {
-    if (isLoading) {
-      skeletonOpacity.value = withRepeat(
-        withSequence(
-          withTiming(1, { duration: 950, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.45, { duration: 950, easing: Easing.inOut(Easing.ease) }),
-        ),
-        -1,
-        false,
-      );
-    } else {
-      cancelAnimation(skeletonOpacity);
-      skeletonOpacity.value = 1;
-    }
-  }, [isLoading, skeletonOpacity]);
 
   const snapPoints = ["90%"];
   const animationConfigs = useBottomSheetTimingConfigs({
@@ -458,7 +465,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
               <View style={styles.stepBlock}>
                 <View style={styles.illustrationRow}>
                   {isLoading ? (
-                    <SkeletonBox width={44} height={44} borderRadius={10} opacity={skeletonOpacity} />
+                    <SkeletonBox width={44} height={44} borderRadius={10} />
                   ) : activeTab === "Claude Code" ? (
                     <ClaudeIcon width={44} height={44} />
                   ) : (
@@ -466,7 +473,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                   )}
                   <LockArrowIcon width={60} height={28} />
                   {isLoading ? (
-                    <SkeletonBox width={44} height={44} borderRadius={10} opacity={skeletonOpacity} />
+                    <SkeletonBox width={44} height={44} borderRadius={10} />
                   ) : (
                     <LogoIcon width={44} height={44} />
                   )}
@@ -475,8 +482,8 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 <View style={styles.stepHeader}>
                   {isLoading ? (
                     <>
-                      <SkeletonBox width={22} height={22} borderRadius={11} opacity={skeletonOpacity} />
-                      <SkeletonBox width={130} height={16} borderRadius={6} opacity={skeletonOpacity} />
+                      <SkeletonBox width={22} height={22} borderRadius={11} />
+                      <SkeletonBox width={130} height={16} borderRadius={6} />
                     </>
                   ) : (
                     <>
@@ -490,9 +497,9 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
 
                 {isLoading ? (
                   <View style={styles.skeletonDescGroup}>
-                    <SkeletonBox width="90%" height={13} borderRadius={6} opacity={skeletonOpacity} />
-                    <SkeletonBox width="100%" height={13} borderRadius={6} opacity={skeletonOpacity} />
-                    <SkeletonBox width="65%" height={13} borderRadius={6} opacity={skeletonOpacity} />
+                    <SkeletonBox width="90%" height={13} borderRadius={6} />
+                    <SkeletonBox width="100%" height={13} borderRadius={6} />
+                    <SkeletonBox width="65%" height={13} borderRadius={6} />
                   </View>
                 ) : (
                   <Text style={styles.stepDesc}>
@@ -503,7 +510,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 )}
 
                 {isLoading ? (
-                  <SkeletonBox height={40} borderRadius={10} opacity={skeletonOpacity} />
+                  <SkeletonBox height={40} borderRadius={10} />
                 ) : (
                   <View style={styles.urlInputBox}>
                     <Text style={styles.urlInputText} numberOfLines={1}>
@@ -514,8 +521,8 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
 
                 {isLoading ? (
                   <View style={styles.buttonRow}>
-                    <SkeletonBox width={130} height={52} borderRadius={40} opacity={skeletonOpacity} />
-                    <SkeletonBox style={{ flex: 1 }} height={52} borderRadius={40} opacity={skeletonOpacity} />
+                    <SkeletonBox width={130} height={52} borderRadius={40} />
+                    <SkeletonBox style={{ flex: 1 }} height={52} borderRadius={40} />
                   </View>
                 ) : (
                   <View style={styles.buttonRow}>
@@ -549,8 +556,8 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 <View style={styles.stepHeader}>
                   {isLoading ? (
                     <>
-                      <SkeletonBox width={22} height={22} borderRadius={11} opacity={skeletonOpacity} />
-                      <SkeletonBox width={170} height={16} borderRadius={6} opacity={skeletonOpacity} />
+                      <SkeletonBox width={22} height={22} borderRadius={11} />
+                      <SkeletonBox width={170} height={16} borderRadius={6} />
                     </>
                   ) : (
                     <>
@@ -563,7 +570,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 </View>
 
                 {isLoading ? (
-                  <SkeletonBox height={48} borderRadius={10} opacity={skeletonOpacity} />
+                  <SkeletonBox height={48} borderRadius={10} />
                 ) : (
                   <TextInput
                     ref={authInputRef}
@@ -592,7 +599,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 )}
 
                 {isLoading ? (
-                  <SkeletonBox height={52} borderRadius={50} opacity={skeletonOpacity} />
+                  <SkeletonBox height={52} borderRadius={50} />
                 ) : (
                   <View
                     style={[
@@ -863,7 +870,8 @@ const styles = StyleSheet.create({
     borderColor: "#DFDFDF",
     backgroundColor: "#F2F2F2",
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    height: 48,
+    justifyContent: "center",
   },
   urlInputText: {
     fontFamily: "DM Mono",
@@ -910,7 +918,7 @@ const styles = StyleSheet.create({
   authInput: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#9F9F9F",
+    borderColor: "#DFDFDF",
     backgroundColor: "#F2F2F2",
     paddingHorizontal: 14,
     paddingVertical: 12,
