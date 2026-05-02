@@ -1,4 +1,6 @@
+import { BlurView } from "expo-blur";
 import * as Linking from "expo-linking";
+import { SymbolView } from "expo-symbols";
 import * as WebBrowser from "expo-web-browser";
 import React, { useCallback, useRef, useState } from "react";
 import {
@@ -167,6 +169,7 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
       ref={bottomSheetRef}
       snapPoints={snapPoints}
       enablePanDownToClose
+      enableOverDrag={false}
       animationConfigs={animationConfigs}
       backdropComponent={renderBackdrop}
       onDismiss={onClose}
@@ -179,9 +182,9 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
         style={styles.closeButton}
         hitSlop={8}
       >
-        <View style={styles.closeX}>
-          <Text style={styles.closeXText}>✕</Text>
-        </View>
+        <BlurView intensity={60} tint="light" style={[styles.closeX, { backgroundColor: "#F2F2F2" }]}>
+          <SymbolView name="xmark" size={17} weight="semibold" tintColor="#1A1A1A" />
+        </BlurView>
       </TouchableOpacity>
 
       <BottomSheetScrollView
@@ -304,25 +307,25 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#EBEBEB",
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-  },
-  closeXText: {
-    fontSize: 14,
-    color: "#333",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 40,
   },
   scrollContent: {
     paddingBottom: 36,
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 12,
     paddingBottom: 20,
     gap: 4,
   },
   headerTitle: {
-    fontFamily: SFPro.bold,
+    fontFamily: SFPro.semiBold,
     fontSize: 28,
     lineHeight: 31,
     color: "#000",
@@ -330,7 +333,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontFamily: SFPro.regular,
-    fontSize: 15,
+    fontSize: 14,
     lineHeight: 20,
     color: "#808080",
     letterSpacing: -0.2,
@@ -453,7 +456,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
   footerNote: {
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.semiBold,
     fontSize: 13,
     color: "#888",
     lineHeight: 18,
