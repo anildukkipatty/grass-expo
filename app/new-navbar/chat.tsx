@@ -60,11 +60,9 @@ import {
   Clipboard,
   Image,
   Keyboard,
-  KeyboardAvoidingView,
   Linking,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Platform,
   ScrollView,
   Share,
   StyleSheet,
@@ -493,6 +491,7 @@ export default function ChatScreen() {
   const [inputContainerHeight, setInputContainerHeight] = useState(0);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const inputScale = useRef(new Animated.Value(1)).current;
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [showPillsFadeLeft, setShowPillsFadeLeft] = useState(false);
   const [showPillsFadeRight, setShowPillsFadeRight] = useState(false);
@@ -658,6 +657,17 @@ export default function ChatScreen() {
       time: new Date().toISOString(),
     });
   }, [ws.grassId, ws.sdkSessionId, serverUrl, sessionLabel]);
+
+  // ── Keyboard offset ──
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardWillShow", (e) => {
+      setKeyboardOffset(e.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener("keyboardWillHide", () => {
+      setKeyboardOffset(0);
+    });
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   // ── Input focus spring animation ──
   useEffect(() => {
@@ -950,10 +960,7 @@ export default function ChatScreen() {
   return (
     <View style={[styles.container, { paddingTop: top }]}>
       {/* ── Messages + Input ── */}
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
+      <View style={styles.flex}>
         {/* Chat area */}
         <View style={styles.chatArea}>
           <ScrollView
@@ -1044,11 +1051,13 @@ export default function ChatScreen() {
         )}
 
         {/* ── Bottom input area ── */}
-        <GlassContainer style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
+        <GlassContainer style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}>
+          <View style={{ bottom: keyboardOffset }}>
           <Animated.View style={{ transform: [{ scale: inputScale }] }}>
           <GlassView
             glassEffectStyle="regular"
             isInteractive
+            colorScheme="light"
             style={[styles.inputContainer, { paddingBottom: bottom + 8 }]}
             onLayout={(e) => setInputContainerHeight(e.nativeEvent.layout.height)}
           >
@@ -1157,8 +1166,9 @@ export default function ChatScreen() {
           </View>
           </GlassView>
           </Animated.View>
+          </View>
         </GlassContainer>
-      </KeyboardAvoidingView>
+      </View>
 
       {/* ── Options overlay ── */}
       {showOptions && addBtnMeasure && (
