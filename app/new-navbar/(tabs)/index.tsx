@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import FloatIcon from "@/assets/images/new-design/navbar/float-icon.svg";
+import { SymbolView } from "expo-symbols";
 import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
 import {
   Machine,
@@ -372,7 +372,7 @@ export default function HomeScreen() {
         activeOpacity={0.85}
         onPress={() => setNewChatVisible(true)}
       >
-        <FloatIcon width={24} height={24} />
+        <SymbolView name="plus" size={22} weight="semibold" tintColor="#1A1A1A" />
       </TouchableOpacity>
     </View>
   );
