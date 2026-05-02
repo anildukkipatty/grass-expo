@@ -208,7 +208,7 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
           ) : githubConnected ? (
             <View style={styles.connectedBlock}>
               <View style={styles.illustrationRow}>
-                <GithubIcon width={44} height={44} />
+                <GithubIcon width={44} height={44} style={{ width: 44, height: 44 }} />
                 <Image
                   source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
                   style={styles.arrowImage}
@@ -243,7 +243,7 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
           ) : (
             <View style={styles.connectBlock}>
               <View style={styles.illustrationRow}>
-                <GithubIcon width={44} height={44} />
+                <GithubIcon width={44} height={44} style={{ width: 44, height: 44 }} />
                 <Image
                   source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
                   style={styles.arrowImage}
@@ -266,10 +266,7 @@ export function ConfigureGitAccessSlider({ visible, onClose }: Props) {
                 {isConnecting ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
-                  <>
-                    <GithubIcon width={20} height={20} />
-                    <Text style={styles.connectBtnText}>Connect with GitHub</Text>
-                  </>
+                  <Text style={styles.connectBtnText}>Connect with GitHub</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -424,7 +421,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   connectDesc: {
-    fontFamily: SFPro.regular,
+    fontFamily: SFPro.medium,
     fontSize: 15,
     color: "#808080",
     textAlign: "center",
@@ -456,7 +453,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
   footerNote: {
-    fontFamily: SFPro.semiBold,
+    fontFamily: SFPro.medium,
     fontSize: 13,
     color: "#888",
     lineHeight: 18,
