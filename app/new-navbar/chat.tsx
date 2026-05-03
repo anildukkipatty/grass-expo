@@ -102,6 +102,16 @@ function UserBubble({ text }: { text: string }) {
   );
 }
 
+function getWriteSymbol(name: string): string | null {
+  if (/write/i.test(name))  return "pencil.line";
+  if (/edit/i.test(name))   return "square.and.pencil";
+  if (/create/i.test(name)) return "doc.badge.plus";
+  if (/patch/i.test(name))  return "wrench.and.screwdriver";
+  if (/insert/i.test(name)) return "arrow.down.to.line";
+  if (/update/i.test(name)) return "arrow.triangle.2.circlepath";
+  return null;
+}
+
 function ToolCallPill({
   label,
   icon,
@@ -928,12 +938,14 @@ export default function ChatScreen() {
         const label = msg.badge ?? msg.content.substring(0, 60);
         const toolName = parseToolNameFromToolMessage(msg.content);
         const isRead = /read|search|view|cat|ls|get/i.test(toolName);
-        const isWrite = /write|edit|create|patch|insert|update/i.test(toolName);
+        const writeSymbol = getWriteSymbol(toolName);
 
         const icon = isRead ? (
           <SearchIcon width={14} height={14} />
-        ) : isWrite ? (
-          <WriteIcon width={14} height={14} />
+        ) : writeSymbol ? (
+          <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
+            <SymbolView name={writeSymbol as any} size={14} weight="medium" tintColor="#808080" resizeMode="scaleAspectFit" style={{ width: 14, height: 14 }} />
+          </View>
         ) : (
           <Text style={styles.toolCallEmoji}>{getToolCallIcon(toolName)}</Text>
         );
@@ -1624,13 +1636,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     borderRadius: 17,
-    paddingHorizontal: 12,
+    paddingLeft: 8,
+    paddingRight: 12,
     paddingVertical: 6,
   },
   actionPillText: {
     fontFamily: SFMono.medium,
     fontSize: 13,
-    color: "#1A1A1A",
+    color: "#808080",
     flexShrink: 1,
   },
   toolCallEmoji: {
