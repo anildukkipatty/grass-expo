@@ -1,10 +1,12 @@
 import { router } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { GlassView } from "expo-glass-effect";
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import UserIcon from "@/assets/images/new-design/navbar/user-icon.svg";
-import LogoIcon from "@/assets/images/new-design/onboarding/logo.svg";
-import { SFPro } from "@/constants/theme";
+import GrassLogo from "@/assets/images/new-design/navbar/grass-logo.svg";
 import { NotificationSlider } from "./NotificationSlider";
 import {
   NotificationPermissionSlider,
@@ -17,6 +19,7 @@ type Props = {
 };
 
 export function NavbarHeader({ alignItems = "center" }: Props) {
+  const { top } = useSafeAreaInsets();
   const [notifVisible, setNotifVisible] = useState(false);
   const [permSliderVisible, setPermSliderVisible] = useState(false);
 
@@ -31,16 +34,20 @@ export function NavbarHeader({ alignItems = "center" }: Props) {
 
   return (
     <>
-      <View style={[styles.header, { alignItems }]}>
+      <LinearGradient
+        colors={["#C5C5C5", "#FFFFFF"]}
+        locations={[0, 0.2]}
+        style={[styles.header, { alignItems, paddingTop: top + 12 }]}
+      >
         <TouchableOpacity
-          style={styles.iconWrap}
           onPress={() => router.push("/new-navbar/settings" as any)}
         >
-          <UserIcon width={28} height={28} />
+          <GlassView style={styles.glassButton} tintColor="rgba(93,93,93,0.1)">
+            <UserIcon width={22} height={22} />
+          </GlassView>
         </TouchableOpacity>
         <View style={styles.center}>
-          <LogoIcon width={35} height={20} />
-          <Text style={styles.title}>Grass</Text>
+          <GrassLogo width={116} height={22} />
         </View>
         <View style={styles.rightActions}>
           {/* <TouchableOpacity
@@ -51,7 +58,7 @@ export function NavbarHeader({ alignItems = "center" }: Props) {
             <View style={styles.notifBadge} />
           </TouchableOpacity> */}
         </View>
-      </View>
+      </LinearGradient>
       <NotificationSlider
         visible={notifVisible}
         onClose={() => setNotifVisible(false)}
@@ -68,13 +75,13 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 12,
+    paddingBottom: 12,
     paddingHorizontal: 16,
-    backgroundColor: "#FFFFFF",
   },
-  iconWrap: {
-    width: 40,
-    height: 40,
+  glassButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -82,13 +89,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-  },
-  title: {
-    fontFamily: SFPro.bold,
-    fontSize: 28,
-    lineHeight: 28,
-    color: "#000",
-    letterSpacing: -0.415,
   },
   notifBadge: {
     position: "absolute",
@@ -107,5 +107,4 @@ const styles = StyleSheet.create({
     gap: 4,
     width: 40,
   },
-
 });
