@@ -1,3 +1,4 @@
+import * as Haptics from "expo-haptics";
 import BackButtonIcon from "@/assets/images/new-design/chat/back-button.svg";
 import ExpandIcon from "@/assets/images/new-design/chat/expland.svg";
 import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg";
@@ -276,7 +277,7 @@ export default function DiffsScreen() {
         <TouchableOpacity
           style={styles.headerBtn}
           activeOpacity={0.7}
-          onPress={() => router.back()}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
         >
           <BackButtonIcon width={24} height={24} />
         </TouchableOpacity>

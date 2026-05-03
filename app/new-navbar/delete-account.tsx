@@ -1,4 +1,5 @@
 import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -67,7 +68,7 @@ export default function DeleteAccountScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backBtn}
-            onPress={step === 2 ? () => setStep(1) : () => router.back()}
+            onPress={step === 2 ? () => setStep(1) : () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
             hitSlop={8}
           >
             <BackButton />
@@ -138,7 +139,7 @@ export default function DeleteAccountScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.outlineBtn}
-            onPress={() => router.back()}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
             activeOpacity={0.7}
           >
             <Text style={styles.outlineBtnText}>Cancel</Text>

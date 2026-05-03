@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import * as Haptics from "expo-haptics";
 import {
   ScrollView,
   StyleSheet,
@@ -259,6 +260,7 @@ export default function PermissionsScreen() {
   const { selectedVmUrl } = useNavbar();
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const rawMap = useRef<Map<string, GlobalPermissionItem & { serverUrl: string }>>(new Map());
+  const prevPermCount = useRef(0);
 
   useEffect(() => {
     if (!selectedVmUrl) {
@@ -281,14 +283,27 @@ export default function PermissionsScreen() {
     return unsub;
   }, [selectedVmUrl]);
 
+  useEffect(() => {
+    if (permissions.length > prevPermCount.current) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid);
+    }
+    prevPermCount.current = permissions.length;
+  }, [permissions.length]);
+
   function handleApprove(id: string) {
     const raw = rawMap.current.get(id);
-    if (raw) respondGlobalPermission(raw.serverUrl, raw.sessionId, raw.toolUseID, true);
+    if (raw) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      respondGlobalPermission(raw.serverUrl, raw.sessionId, raw.toolUseID, true);
+    }
   }
 
   function handleDeny(id: string) {
     const raw = rawMap.current.get(id);
-    if (raw) respondGlobalPermission(raw.serverUrl, raw.sessionId, raw.toolUseID, false);
+    if (raw) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      respondGlobalPermission(raw.serverUrl, raw.sessionId, raw.toolUseID, false);
+    }
   }
 
   return (

@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { GlassView } from "expo-glass-effect";
+import * as Haptics from "expo-haptics";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -40,7 +41,10 @@ export function NavbarHeader({ alignItems = "center" }: Props) {
         style={[styles.header, { alignItems, paddingTop: top + 12 }]}
       >
         <TouchableOpacity
-          onPress={() => router.push("/new-navbar/settings" as any)}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/new-navbar/settings" as any);
+          }}
         >
           <GlassView style={styles.glassButton} tintColor="rgba(93,93,93,0.1)">
             <UserIcon width={22} height={22} />

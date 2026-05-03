@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import * as Haptics from "expo-haptics";
 import {
   Animated,
   Image,
@@ -98,7 +99,7 @@ export function MachineCarousel({
       style={[styles.wrapper, { paddingHorizontal }]}
     >
       <View style={styles.item}>
-        <TouchableOpacity style={styles.addNewCircle} activeOpacity={0.75} onPress={onAddNew}>
+        <TouchableOpacity style={styles.addNewCircle} activeOpacity={0.75} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onAddNew?.(); }}>
           <AddNewIcon width={28} height={28} />
         </TouchableOpacity>
         <Text style={styles.addNewLabel}>Add new</Text>
@@ -112,7 +113,7 @@ export function MachineCarousel({
             key={machine.id}
             style={styles.item}
             activeOpacity={0.75}
-            onPress={() => onSelect?.(machine.id)}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); onSelect?.(machine.id); }}
           >
             <View
               style={[

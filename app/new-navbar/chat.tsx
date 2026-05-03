@@ -52,6 +52,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { SymbolView } from "expo-symbols";
 import { useCameraPermissions } from "expo-camera";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -704,6 +705,15 @@ export default function ChatScreen() {
     }
   }, [ws.messages.length, ws.streaming]);
 
+  // ── Haptic when agent finishes sending a message ──
+  const prevStreaming = useRef(false);
+  useEffect(() => {
+    if (prevStreaming.current && !ws.streaming) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    prevStreaming.current = ws.streaming;
+  }, [ws.streaming]);
+
   // ── Auto-send initialMessage once session grassId is ready ──
   useEffect(() => {
     if (
@@ -772,6 +782,7 @@ export default function ChatScreen() {
   const handleSubmit = () => {
     const text = inputTextRef.current.trim();
     if (!text || ws.streaming) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Keyboard.dismiss();
     if (!hasSent.current) {
       firstUserMessage.current = text;
@@ -1042,22 +1053,14 @@ export default function ChatScreen() {
               <PermCard
                 permType={pendingPermission.toolName.toUpperCase()}
                 command={getPermissionCommand(pendingPermission)}
-                onApprove={() =>
-                  respondGlobalPermission(
-                    serverUrl,
-                    pendingPermission.sessionId,
-                    pendingPermission.toolUseID,
-                    true,
-                  )
-                }
-                onDeny={() =>
-                  respondGlobalPermission(
-                    serverUrl,
-                    pendingPermission.sessionId,
-                    pendingPermission.toolUseID,
-                    false,
-                  )
-                }
+                onApprove={() => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  respondGlobalPermission(serverUrl, pendingPermission.sessionId, pendingPermission.toolUseID, true);
+                }}
+                onDeny={() => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                  respondGlobalPermission(serverUrl, pendingPermission.sessionId, pendingPermission.toolUseID, false);
+                }}
               />
             )}
 
@@ -1324,6 +1327,7 @@ export default function ChatScreen() {
             disabled={isFirstSendOverlayVisible}
             onPress={() => {
               if (isFirstSendOverlayVisible) return;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.back();
             }}
           >

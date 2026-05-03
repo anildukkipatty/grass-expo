@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import * as Haptics from "expo-haptics";
 import React, { useEffect, useState } from "react";
 import {
   Dimensions,
@@ -183,7 +184,7 @@ export default function SettingsScreen() {
     <View style={[styles.screen, { paddingTop: top }]}>
       {/* ── Header ── */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }} hitSlop={8}>
           <BackButton />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap} pointerEvents="none">

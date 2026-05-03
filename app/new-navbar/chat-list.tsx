@@ -1,4 +1,5 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   RefreshControl,
@@ -164,6 +165,7 @@ export default function ChatListScreen() {
 
   function handleNewChatTap() {
     if (!selectedVmUrl) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push({
       pathname: "/new-navbar/chat",
       params: {
@@ -182,7 +184,7 @@ export default function ChatListScreen() {
         <TouchableOpacity
           style={styles.headerBtn}
           activeOpacity={0.7}
-          onPress={() => router.back()}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
         >
           <BackButtonIcon width={40} height={40} />
         </TouchableOpacity>

@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -370,7 +371,7 @@ export default function HomeScreen() {
       <TouchableOpacity
         style={styles.floatButton}
         activeOpacity={0.85}
-        onPress={() => setNewChatVisible(true)}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setNewChatVisible(true); }}
       >
         <SymbolView name="plus" size={22} weight="semibold" tintColor="#1A1A1A" />
       </TouchableOpacity>
