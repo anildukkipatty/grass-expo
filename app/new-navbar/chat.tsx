@@ -112,6 +112,12 @@ function getWriteSymbol(name: string): string | null {
   return null;
 }
 
+function getToolSymbol(name: string): string | null {
+  if (/bash|shell|terminal|execute/i.test(name)) return "terminal";
+  if (/glob|ls|listdir|listfiles/i.test(name))   return "folder.badge.gearshape";
+  return null;
+}
+
 function ToolCallPill({
   label,
   icon,
@@ -939,12 +945,14 @@ export default function ChatScreen() {
         const toolName = parseToolNameFromToolMessage(msg.content);
         const isRead = /read|search|view|cat|ls|get/i.test(toolName);
         const writeSymbol = getWriteSymbol(toolName);
+        const toolSymbol = getToolSymbol(toolName);
+        const sfSymbol = writeSymbol ?? toolSymbol;
 
         const icon = isRead ? (
           <SearchIcon width={14} height={14} />
-        ) : writeSymbol ? (
+        ) : sfSymbol ? (
           <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
-            <SymbolView name={writeSymbol as any} size={14} weight="medium" tintColor="#808080" resizeMode="scaleAspectFit" style={{ width: 14, height: 14 }} />
+            <SymbolView name={sfSymbol as any} size={14} weight="medium" tintColor="#808080" resizeMode="scaleAspectFit" style={{ width: 14, height: 14 }} />
           </View>
         ) : (
           <Text style={styles.toolCallEmoji}>{getToolCallIcon(toolName)}</Text>
