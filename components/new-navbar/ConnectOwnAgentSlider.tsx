@@ -456,6 +456,11 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                     <SkeletonBox width="90%" height={13} borderRadius={6} />
                     <SkeletonBox width="100%" height={13} borderRadius={6} />
                     <SkeletonBox width="70%" height={13} borderRadius={6} />
+                    <Text style={styles.loadingHintText}>
+                      {activeTab === "Claude Code"
+                        ? "Fetching the Claude login link…"
+                        : "Fetching your Opencode auth link…"}
+                    </Text>
                   </View>
                 ) : (
                   <Text style={styles.stepDesc}>
@@ -806,6 +811,13 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   skeletonDescGroup: { gap: 6, paddingLeft: 34 },
+  loadingHintText: {
+    fontFamily: SFPro.medium,
+    fontSize: 13,
+    color: "#808080",
+    letterSpacing: -0.2,
+    marginTop: 2,
+  },
   urlInputBox: {
     borderRadius: 10,
     borderWidth: 1,
