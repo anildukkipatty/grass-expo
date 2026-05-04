@@ -15,6 +15,7 @@ import {
   BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
+  BottomSheetTextInput,
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
 import Animated, {
@@ -524,7 +525,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 {isLoading ? (
                   <SkeletonBox height={48} borderRadius={10} />
                 ) : (
-                  <TextInput
+                  <BottomSheetTextInput
                     ref={authInputRef}
                     style={[styles.authInput, authError && styles.authInputError]}
                     placeholder={step2Placeholder}
