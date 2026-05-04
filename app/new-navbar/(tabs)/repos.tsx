@@ -374,42 +374,54 @@ export default function ReposScreen() {
           <RefreshControl refreshing={reposLoading} onRefresh={refreshRepos} />
         }
       >
-        {selectedVmOffline ? (
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyText}>
-              This machine looks offline. Start Grass server on it, then refresh.
-            </Text>
-          </View>
-        ) : (reposLoading && repos.length === 0) || (onPrimaryVm && !vmRunning) ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <View key={i} style={styles.repoItem}>
-              <View style={styles.repoInfo}>
+        {(() => {
+          if (selectedVmOffline && !onPrimaryVm) {
+            return (
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyText}>
+                  This machine looks offline. Start Grass server on it, then refresh.
+                </Text>
+              </View>
+            );
+          }
+
+          const showSkeleton =
+            (reposLoading && repos.length === 0) || (onPrimaryVm && !vmRunning);
+          if (showSkeleton) {
+            return Array.from({ length: 5 }).map((_, i) => (
+              <View key={i} style={styles.repoItem}>
+                <View style={styles.repoInfo}>
+                  <Animated.View
+                    style={[
+                      styles.skeletonBar,
+                      styles.skeletonBarLong,
+                      { opacity: shimmerAnim },
+                    ]}
+                  />
+                  <Animated.View
+                    style={[
+                      styles.skeletonBar,
+                      styles.skeletonBarShort,
+                      { opacity: shimmerAnim },
+                    ]}
+                  />
+                </View>
                 <Animated.View
-                  style={[
-                    styles.skeletonBar,
-                    styles.skeletonBarLong,
-                    { opacity: shimmerAnim },
-                  ]}
-                />
-                <Animated.View
-                  style={[
-                    styles.skeletonBar,
-                    styles.skeletonBarShort,
-                    { opacity: shimmerAnim },
-                  ]}
+                  style={[styles.skeletonBadge, { opacity: shimmerAnim }]}
                 />
               </View>
-              <Animated.View
-                style={[styles.skeletonBadge, { opacity: shimmerAnim }]}
-              />
-            </View>
-          ))
-        ) : repos.length === 0 ? (
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyText}>No repos found</Text>
-          </View>
-        ) : (
-          repos.map((repo) => (
+            ));
+          }
+
+          if (repos.length === 0) {
+            return (
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyText}>No repos found</Text>
+              </View>
+            );
+          }
+
+          return repos.map((repo) => (
             <TouchableOpacity
               key={repo.id}
               style={styles.repoItem}
@@ -451,8 +463,8 @@ export default function ReposScreen() {
                 </View>
               ) : null}
             </TouchableOpacity>
-          ))
-        )}
+          ));
+        })()}
       </ScrollView>
     </View>
   );
