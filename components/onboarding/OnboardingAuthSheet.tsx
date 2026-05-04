@@ -4,6 +4,7 @@ import EmailIcon from "@/assets/images/new-design/onboarding/email-icon.svg";
 import { posthog } from "@/constants/posthog";
 import { SFPro } from "@/constants/theme";
 import { saveAuth } from "@/store/auth-store";
+import { registerPushTokenAfterLogin } from "@/hooks/use-push-notifications";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -139,6 +140,7 @@ export function OnboardingAuthSheet({
     setLoading(false);
     if (result.ok) {
       await saveAuth(result.data.token, result.data.user);
+      void registerPushTokenAfterLogin();
       const isNewUser = result.data.user.userType === "new";
       posthog.identify(result.data.user.id, {
         $set: { email: email.trim() },

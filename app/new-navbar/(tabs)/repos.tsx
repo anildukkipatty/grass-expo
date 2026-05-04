@@ -10,8 +10,14 @@ import { VM_ICONS } from "@/constants/vm-icons";
 import { extractHost, useNavbar } from "@/contexts/navbar-context";
 import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
+import { heartbeat, requestContainer, signedPreviewUrl } from "@/api/containers";
+import { notifyGrassVmReady } from "@/store/grass-vm-events";
+import { getToken } from "@/store/auth-store";
+import { saveVmUrl } from "@/store/url-store";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   RefreshControl,
   ScrollView,
@@ -82,10 +88,96 @@ export default function ReposScreen() {
     primaryVmUrl,
     vmRunning,
     vmUrlStatuses,
+    selectedVmUrl,
     repos,
     reposLoading,
     refreshRepos,
   } = useNavbar();
+
+  const [startupOverlayVisible, setStartupOverlayVisible] = useState(false);
+  const [wakeFailed, setWakeFailed] = useState(false);
+  const [wakeRetryNonce, setWakeRetryNonce] = useState(0);
+  const startupTriggeredRef = useRef(false);
+  const wakeRunIdRef = useRef(0);
+  const isFocused = useIsFocused();
+
+  const onPrimaryVm = !!primaryVmUrl && selectedVmUrl === primaryVmUrl;
+
+  useEffect(() => {
+    if (!isFocused) {
+      wakeRunIdRef.current += 1;
+      startupTriggeredRef.current = false;
+      setStartupOverlayVisible(false);
+      return;
+    }
+
+    if (vmRunning) {
+      startupTriggeredRef.current = false;
+      setStartupOverlayVisible(false);
+      return;
+    }
+    if (!onPrimaryVm) return;
+    if (startupTriggeredRef.current) return;
+
+    startupTriggeredRef.current = true;
+    setWakeFailed(false);
+    setStartupOverlayVisible(true);
+
+    const runId = ++wakeRunIdRef.current;
+    const overlayTimer = setTimeout(() => setStartupOverlayVisible(false), 2000);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token || cancelled || wakeRunIdRef.current !== runId) return;
+
+        const req = await requestContainer(token);
+        if (cancelled || wakeRunIdRef.current !== runId) return;
+        if (!req.ok) {
+          startupTriggeredRef.current = false;
+          setWakeFailed(true);
+          return;
+        }
+
+        const pollStart = Date.now();
+        while (!cancelled && wakeRunIdRef.current === runId && Date.now() - pollStart < 120000) {
+          const hb = await heartbeat(token);
+          if (cancelled || wakeRunIdRef.current !== runId) return;
+          if (hb.ok && hb.data.container === "running" && hb.data.grass) {
+            let previewUrl = hb.data.url;
+            if (!previewUrl) {
+              const preview = await signedPreviewUrl(token);
+              if (preview.ok) previewUrl = preview.data.url;
+            }
+            if (cancelled || wakeRunIdRef.current !== runId) return;
+            if (previewUrl) await saveVmUrl(previewUrl);
+            if (cancelled || wakeRunIdRef.current !== runId) return;
+            notifyGrassVmReady();
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+
+        if (!cancelled && wakeRunIdRef.current === runId) {
+          startupTriggeredRef.current = false;
+          setWakeFailed(true);
+        }
+      } catch {
+        if (!cancelled && wakeRunIdRef.current === runId) {
+          startupTriggeredRef.current = false;
+          setWakeFailed(true);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      wakeRunIdRef.current += 1;
+      startupTriggeredRef.current = false;
+      clearTimeout(overlayTimer);
+    };
+  }, [isFocused, onPrimaryVm, vmRunning, wakeRetryNonce]);
 
   // Reload stored names + icons whenever the VM list changes or tab is focused
   useEffect(() => {
@@ -100,6 +192,29 @@ export default function ReposScreen() {
       getVmName().then(setGrassVmName);
     }, [refreshRepos]),
   );
+
+  // Progress bar animation shown while VM is not running
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  React.useEffect(() => {
+    if (!vmRunning) {
+      const loop = Animated.loop(
+        Animated.timing(progressAnim, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: false,
+        }),
+      );
+      loop.start();
+      return () => loop.stop();
+    } else {
+      progressAnim.setValue(0);
+    }
+  }, [vmRunning]);
+
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "100%"],
+  });
 
   // Shimmer animation for skeleton
   const shimmerAnim = useRef(new Animated.Value(0.5)).current;
@@ -160,6 +275,12 @@ export default function ReposScreen() {
 
   return (
     <View style={styles.reposContainer}>
+      {startupOverlayVisible && (
+        <View style={styles.startupOverlay}>
+          <ActivityIndicator size="small" color="#3D841E" />
+          <Text style={styles.startupOverlayText}>Starting container...</Text>
+        </View>
+      )}
       <MachineCarousel
         machines={machines}
         selectedId={selectedMachineId}
@@ -176,6 +297,35 @@ export default function ReposScreen() {
         visible={connectMoreVisible}
         onClose={() => setConnectMoreVisible(false)}
       />
+
+      {/* VM status row */}
+      {!vmRunning && onPrimaryVm && (
+        wakeFailed ? (
+          <View style={styles.vmStatusRow}>
+            <Text style={styles.wakeFailedText}>Couldn't start VM</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              activeOpacity={0.8}
+              onPress={() => {
+                startupTriggeredRef.current = false;
+                setWakeFailed(false);
+                setWakeRetryNonce((n) => n + 1);
+              }}
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.vmStatusRow}>
+            <Text style={styles.refreshingText}>Refreshing VM</Text>
+            <View style={styles.progressTrack}>
+              <Animated.View
+                style={[styles.progressBar, { width: progressWidth }]}
+              />
+            </View>
+          </View>
+        )
+      )}
 
       {/* Sticky action buttons */}
       <View style={styles.repoActionRow}>
@@ -230,7 +380,7 @@ export default function ReposScreen() {
               This machine looks offline. Start Grass server on it, then refresh.
             </Text>
           </View>
-        ) : reposLoading && repos.length === 0 ? (
+        ) : (reposLoading && repos.length === 0) || (onPrimaryVm && !vmRunning) ? (
           Array.from({ length: 5 }).map((_, i) => (
             <View key={i} style={styles.repoItem}>
               <View style={styles.repoInfo}>
@@ -427,5 +577,59 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     backgroundColor: "#E8E8E8",
     marginLeft: 8,
+  },
+  startupOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10000,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  startupOverlayText: {
+    fontFamily: SFPro.medium,
+    fontSize: 14,
+    color: "#3D841E",
+  },
+  vmStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    paddingHorizontal: 0,
+    marginTop: 8,
+  },
+  refreshingText: {
+    fontFamily: SFPro.medium,
+    fontSize: 13,
+    color: "#72C44E",
+  },
+  wakeFailedText: {
+    fontFamily: SFPro.medium,
+    fontSize: 13,
+    color: "#C62828",
+  },
+  retryButton: {
+    backgroundColor: "#3D841E",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  retryButtonText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 12,
+    color: "#FFFFFF",
+  },
+  progressTrack: {
+    width: 60,
+    height: 4,
+    backgroundColor: "#E3FDD7",
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: "#72C44E",
+    borderRadius: 2,
   },
 });
