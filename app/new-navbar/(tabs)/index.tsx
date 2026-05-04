@@ -223,6 +223,8 @@ export default function HomeScreen() {
   });
 
   const selectedMachineId = vmUrls[activeVmTab] ?? undefined;
+  const selectedVmOffline =
+    !!selectedVmUrl && vmUrlStatuses.get(selectedVmUrl) === false;
 
   const isLoading = vmUrls.length === 0;
 
@@ -364,7 +366,15 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: bottom }}
         showsVerticalScrollIndicator={false}
       >
-        {renderThreadList()}
+        {selectedVmOffline ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>
+              This machine looks offline. Start Grass server on it, then refresh.
+            </Text>
+          </View>
+        ) : (
+          renderThreadList()
+        )}
       </ScrollView>
 
       <TouchableOpacity

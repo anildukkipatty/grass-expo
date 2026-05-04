@@ -54,7 +54,7 @@ export default function ChatListScreen() {
   const repoName = normalizeParam(params.repoName);
   const repoPath = normalizeParam(params.repoPath);
 
-  const { repos, selectedVmUrl } = useNavbar();
+  const { repos, selectedVmUrl, vmUrlStatuses } = useNavbar();
   const [selectedAgent, setSelectedAgent] = useState<AgentKey>("claude");
   const [searchQuery, setSearchQuery] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -65,6 +65,8 @@ export default function ChatListScreen() {
 
   const selectedAgentId =
     selectedAgent === "claude" ? "claude-code" : "opencode";
+  const selectedVmOffline =
+    !!selectedVmUrl && vmUrlStatuses.get(selectedVmUrl) === false;
 
   // Find branch from repos list
   const matchedRepo = repos?.find(
@@ -132,6 +134,19 @@ export default function ChatListScreen() {
       fetchSessions();
     }, [fetchSessions]),
   );
+
+  const wasOfflineRef = useRef(false);
+  useEffect(() => {
+    const wasOffline = wasOfflineRef.current;
+    if (selectedVmOffline) {
+      wasOfflineRef.current = true;
+      return;
+    }
+    if (wasOffline && selectedVmUrl) {
+      void fetchSessions();
+    }
+    wasOfflineRef.current = false;
+  }, [selectedVmOffline, selectedVmUrl, fetchSessions]);
 
   const filteredSessions = useMemo(() => {
     if (!searchQuery) return sessions;

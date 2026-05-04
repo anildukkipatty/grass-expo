@@ -142,6 +142,21 @@ export default function ReposScreen() {
   });
 
   const selectedMachineId = vmUrls[activeVmTab] ?? undefined;
+  const selectedVmOffline =
+    !!selectedMachineId && vmUrlStatuses.get(selectedMachineId) === false;
+  const wasOfflineRef = useRef(false);
+
+  useEffect(() => {
+    const wasOffline = wasOfflineRef.current;
+    if (selectedVmOffline) {
+      wasOfflineRef.current = true;
+      return;
+    }
+    if (wasOffline && selectedMachineId) {
+      void refreshRepos();
+    }
+    wasOfflineRef.current = false;
+  }, [selectedVmOffline, selectedMachineId, refreshRepos]);
 
   return (
     <View style={styles.reposContainer}>
@@ -209,7 +224,13 @@ export default function ReposScreen() {
           <RefreshControl refreshing={reposLoading} onRefresh={refreshRepos} />
         }
       >
-        {reposLoading && repos.length === 0 ? (
+        {selectedVmOffline ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>
+              This machine looks offline. Start Grass server on it, then refresh.
+            </Text>
+          </View>
+        ) : reposLoading && repos.length === 0 ? (
           Array.from({ length: 5 }).map((_, i) => (
             <View key={i} style={styles.repoItem}>
               <View style={styles.repoInfo}>
