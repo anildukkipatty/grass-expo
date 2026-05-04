@@ -1,6 +1,5 @@
 import { useRouter } from "expo-router";
-import { useFocusEffect, useIsFocused } from "@react-navigation/native";
-import { heartbeat, requestContainer, signedPreviewUrl } from "@/api/containers";
+import { useFocusEffect } from "@react-navigation/native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -39,9 +38,6 @@ import FolderIcon from "@/assets/images/new-design/navbar/folder-icon.svg";
 import OpenCodeIcon from "@/assets/images/new-design/navbar/opencode.svg";
 
 import { SFPro } from "@/constants/theme";
-import { notifyGrassVmReady } from "@/store/grass-vm-events";
-import { getToken } from "@/store/auth-store";
-import { saveVmUrl } from "@/store/url-store";
 
 const FORCE_SKELETON_PREVIEW = false;
 
@@ -143,15 +139,14 @@ export default function HomeScreen() {
     vmUrlStatuses,
     threads,
     selectedVmUrl,
+    startupOverlayVisible,
+    wakeFailed,
+    retryWake,
+    notifyWakeTabFocus,
+    notifyWakeTabBlur,
   } = useNavbar();
 
   const [sessionStatuses, setSessionStatuses] = useState<SessionStatusItem[]>([]);
-  const [startupOverlayVisible, setStartupOverlayVisible] = useState(false);
-  const [wakeFailed, setWakeFailed] = useState(false);
-  const [wakeRetryNonce, setWakeRetryNonce] = useState(0);
-  const startupTriggeredRef = useRef(false);
-  const wakeRunIdRef = useRef(0);
-  const isFocused = useIsFocused();
 
   useEffect(() => {
     if (!selectedVmUrl) { setSessionStatuses([]); return; }
@@ -166,7 +161,9 @@ export default function HomeScreen() {
     React.useCallback(() => {
       if (selectedVmUrl) setSessionStatuses(getSessionStatuses(selectedVmUrl));
       getAllVmMetadata().then(setVmMetadataMap);
-    }, [selectedVmUrl])
+      notifyWakeTabFocus();
+      return () => notifyWakeTabBlur();
+    }, [selectedVmUrl, notifyWakeTabFocus, notifyWakeTabBlur])
   );
 
   // Load stored names + icons whenever the VM list changes
@@ -252,82 +249,6 @@ export default function HomeScreen() {
 
   const isLoading = vmUrls.length === 0;
   const onPrimaryVm = !!primaryVmUrl && selectedVmUrl === primaryVmUrl;
-
-  useEffect(() => {
-    if (!isFocused) {
-      wakeRunIdRef.current += 1;
-      startupTriggeredRef.current = false;
-      setStartupOverlayVisible(false);
-      return;
-    }
-
-    if (vmRunning) {
-      startupTriggeredRef.current = false;
-      setStartupOverlayVisible(false);
-      return;
-    }
-    if (!onPrimaryVm) return;
-    if (startupTriggeredRef.current) return;
-
-    startupTriggeredRef.current = true;
-    setWakeFailed(false);
-    setStartupOverlayVisible(true);
-
-    const runId = ++wakeRunIdRef.current;
-    const overlayTimer = setTimeout(() => setStartupOverlayVisible(false), 2000);
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const token = await getToken();
-        if (!token || cancelled || wakeRunIdRef.current !== runId) return;
-
-        const req = await requestContainer(token);
-        if (cancelled || wakeRunIdRef.current !== runId) return;
-        if (!req.ok) {
-          startupTriggeredRef.current = false;
-          setWakeFailed(true);
-          return;
-        }
-
-        const pollStart = Date.now();
-        while (!cancelled && wakeRunIdRef.current === runId && Date.now() - pollStart < 120000) {
-          const hb = await heartbeat(token);
-          if (cancelled || wakeRunIdRef.current !== runId) return;
-          if (hb.ok && hb.data.container === "running" && hb.data.grass) {
-            let previewUrl = hb.data.url;
-            if (!previewUrl) {
-              const preview = await signedPreviewUrl(token);
-              if (preview.ok) previewUrl = preview.data.url;
-            }
-            if (cancelled || wakeRunIdRef.current !== runId) return;
-            if (previewUrl) await saveVmUrl(previewUrl);
-            if (cancelled || wakeRunIdRef.current !== runId) return;
-            notifyGrassVmReady();
-            return;
-          }
-          await new Promise((r) => setTimeout(r, 2000));
-        }
-
-        if (!cancelled && wakeRunIdRef.current === runId) {
-          startupTriggeredRef.current = false;
-          setWakeFailed(true);
-        }
-      } catch {
-        if (!cancelled && wakeRunIdRef.current === runId) {
-          startupTriggeredRef.current = false;
-          setWakeFailed(true);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      wakeRunIdRef.current += 1;
-      startupTriggeredRef.current = false;
-      clearTimeout(overlayTimer);
-    };
-  }, [isFocused, onPrimaryVm, vmRunning, wakeRetryNonce]);
 
   function renderThreadList() {
     if (FORCE_SKELETON_PREVIEW || isLoading || (onPrimaryVm && !vmRunning)) {
@@ -462,11 +383,7 @@ export default function HomeScreen() {
               <TouchableOpacity
                 style={styles.retryButton}
                 activeOpacity={0.8}
-                onPress={() => {
-                  startupTriggeredRef.current = false;
-                  setWakeFailed(false);
-                  setWakeRetryNonce((n) => n + 1);
-                }}
+                onPress={retryWake}
               >
                 <Text style={styles.retryButtonText}>Retry</Text>
               </TouchableOpacity>

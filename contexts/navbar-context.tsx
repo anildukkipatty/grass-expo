@@ -1,5 +1,5 @@
 import { isSandboxUsageLimitError } from "@/api/client";
-import { heartbeat, signedPreviewUrl } from "@/api/containers";
+import { heartbeat, requestContainer, signedPreviewUrl } from "@/api/containers";
 import { clearAuth, getToken } from "@/store/auth-store";
 import { clearAllVmMetadata } from "@/store/vm-metadata-store";
 import {
@@ -31,6 +31,7 @@ import {
   clearPendingGrassUsageLimitHit,
   consumePendingGrassUsageLimitHit,
   isGrassSetupNavigationSuppressed,
+  notifyGrassVmReady,
   setGrassUsageLimitListener,
   setGrassVmReadyListener,
 } from "@/store/grass-vm-events";
@@ -152,6 +153,13 @@ interface NavbarContextValue {
   /** Set of server URLs whose version is incompatible with this app. */
   incompatUrls: Set<string>;
 
+  // VM wake state (shared between Home and Repos tabs)
+  startupOverlayVisible: boolean;
+  wakeFailed: boolean;
+  retryWake: () => void;
+  notifyWakeTabFocus: () => void;
+  notifyWakeTabBlur: () => void;
+
   // Actions
   refreshRepos: () => Promise<void>;
   handleRemoveUserVm: (idx: number) => Promise<void>;
@@ -209,6 +217,16 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
   vmUrlsRef.current = vmUrls;
   const primaryVmUrlRef = useRef(primaryVmUrl);
   primaryVmUrlRef.current = primaryVmUrl;
+  const vmRunningRef = useRef(vmRunning);
+  vmRunningRef.current = vmRunning;
+
+  // ─── VM wake state (shared across Home + Repos tabs) ──────────────────────
+  const [startupOverlayVisible, setStartupOverlayVisible] = useState(false);
+  const [wakeFailed, setWakeFailed] = useState(false);
+  const wakeRunIdRef = useRef(0);
+  const wakeTriggeredRef = useRef(false);
+  const wakeFocusCountRef = useRef(0);
+  const wakeCancelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedVmUrl = vmUrls[activeVmTab] ?? undefined;
   const selectedVmUrlRef = useRef(selectedVmUrl);
@@ -397,6 +415,115 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
       setVmRunning(false);
     }
   }, []);
+
+  // ─── Wake callbacks ────────────────────────────────────────────────────────
+
+  const cancelWake = useCallback(() => {
+    wakeRunIdRef.current += 1;
+    wakeTriggeredRef.current = false;
+    setStartupOverlayVisible(false);
+  }, []);
+
+  const startWakeInternal = useCallback(() => {
+    if (vmRunningRef.current) return;
+    if (wakeTriggeredRef.current) return;
+    const primary = primaryVmUrlRef.current;
+    const selected = selectedVmUrlRef.current;
+    if (!primary || selected !== primary) return;
+
+    wakeTriggeredRef.current = true;
+    setWakeFailed(false);
+    setStartupOverlayVisible(true);
+
+    const runId = ++wakeRunIdRef.current;
+    setTimeout(() => {
+      if (wakeRunIdRef.current === runId) setStartupOverlayVisible(false);
+    }, 2000);
+
+    (async () => {
+      try {
+        const token = await getToken();
+        if (wakeRunIdRef.current !== runId) return;
+        if (!token) { wakeTriggeredRef.current = false; setWakeFailed(true); return; }
+
+        const req = await requestContainer(token);
+        if (wakeRunIdRef.current !== runId) return;
+        if (!req.ok) { wakeTriggeredRef.current = false; setWakeFailed(true); return; }
+
+        const pollStart = Date.now();
+        while (wakeRunIdRef.current === runId && Date.now() - pollStart < 120000) {
+          const hb = await heartbeat(token);
+          if (wakeRunIdRef.current !== runId) return;
+          if (hb.ok && hb.data.container === "running" && hb.data.grass) {
+            let previewUrl = hb.data.url;
+            if (!previewUrl) {
+              const preview = await signedPreviewUrl(token);
+              if (preview.ok) previewUrl = preview.data.url;
+            }
+            if (wakeRunIdRef.current !== runId) return;
+            if (previewUrl) await saveVmUrl(previewUrl);
+            if (wakeRunIdRef.current !== runId) return;
+            notifyGrassVmReady();
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+
+        if (wakeRunIdRef.current === runId) {
+          wakeTriggeredRef.current = false;
+          setWakeFailed(true);
+        }
+      } catch {
+        if (wakeRunIdRef.current === runId) {
+          wakeTriggeredRef.current = false;
+          setWakeFailed(true);
+        }
+      }
+    })();
+  }, []);
+
+  const retryWake = useCallback(() => {
+    wakeTriggeredRef.current = false;
+    setWakeFailed(false);
+    startWakeInternal();
+  }, [startWakeInternal]);
+
+  const notifyWakeTabFocus = useCallback(() => {
+    if (wakeCancelTimerRef.current) {
+      clearTimeout(wakeCancelTimerRef.current);
+      wakeCancelTimerRef.current = null;
+    }
+    wakeFocusCountRef.current += 1;
+    startWakeInternal();
+  }, [startWakeInternal]);
+
+  const notifyWakeTabBlur = useCallback(() => {
+    wakeFocusCountRef.current -= 1;
+    wakeCancelTimerRef.current = setTimeout(() => {
+      wakeCancelTimerRef.current = null;
+      if (wakeFocusCountRef.current <= 0) {
+        cancelWake();
+        setWakeFailed(false);
+      }
+    }, 50);
+  }, [cancelWake]);
+
+  // Reset wake state when VM comes back up
+  useEffect(() => {
+    if (vmRunning) {
+      wakeRunIdRef.current += 1;
+      wakeTriggeredRef.current = false;
+      setStartupOverlayVisible(false);
+      setWakeFailed(false);
+    }
+  }, [vmRunning]);
+
+  // Auto-start wake when VM goes down while a tab is focused
+  useEffect(() => {
+    if (!vmRunning && wakeFocusCountRef.current > 0) {
+      startWakeInternal();
+    }
+  }, [vmRunning, startWakeInternal]);
 
   /** User tapped GrassVM while usage-limited — re-verify; restore normal flow if credits OK. */
   const requestGrassVmUsageRecheck = useCallback(() => {
@@ -861,6 +988,11 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     handleRemoveUserVm,
     handleSelectAgent,
     handleLogout,
+    startupOverlayVisible,
+    wakeFailed,
+    retryWake,
+    notifyWakeTabFocus,
+    notifyWakeTabBlur,
   }), [
     vmUrls, primaryVmUrl, activeVmTab, selectedVmUrl, selectedServerKey,
     permsCount, repos, reposLoading, threads, pendingRepo,
@@ -871,6 +1003,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     grassVmChecking,
     incompatUrls,
     refreshRepos, handleRemoveUserVm, handleSelectAgent, handleLogout,
+    startupOverlayVisible, wakeFailed, retryWake, notifyWakeTabFocus, notifyWakeTabBlur,
   ]);
 
   return (
