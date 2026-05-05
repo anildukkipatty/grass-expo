@@ -5,6 +5,7 @@ import BackIcon from "@/assets/images/settings/back-arrow.svg";
 import ProfileIconSvg from "@/assets/images/settings/profile-icon.svg";
 import { posthog } from "@/constants/posthog";
 import { clearAuth, getUser } from "@/store/auth-store";
+import { unregisterPushTokenOnLogout } from "@/hooks/use-push-notifications";
 import { closeConnection, getConnectedUrls } from "@/store/connection-store";
 import { clearAllThreads } from "@/store/thread-store";
 import { clearUrls } from "@/store/url-store";
@@ -71,6 +72,7 @@ export default function SettingsScreen() {
           const connectedUrls = getConnectedUrls();
           connectedUrls.forEach((url) => closeConnection(url));
           await clearUrls();
+          await unregisterPushTokenOnLogout();
           await clearAuth();
           router.dismissAll();
           router.replace("/welcome");

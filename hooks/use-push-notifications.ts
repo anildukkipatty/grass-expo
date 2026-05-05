@@ -5,7 +5,7 @@ import * as Device from "expo-device";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { getToken } from "@/store/auth-store";
-import { registerPushToken } from "@/api/notifications";
+import { registerPushToken, removePushToken } from "@/api/notifications";
 import { findThreadById } from "@/store/thread-store";
 
 type NotificationData = {
@@ -72,6 +72,20 @@ export async function registerPushTokenAfterLogin(): Promise<void> {
     if (result.ok) {
       await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
     }
+  } catch (_err) {}
+}
+
+// Exported so logout flows can deregister the device token before clearing auth
+export async function unregisterPushTokenOnLogout(): Promise<void> {
+  try {
+    const token = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+    if (!token) return;
+
+    const authToken = await getToken();
+    if (!authToken) return;
+
+    await removePushToken(token, authToken);
+    await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
   } catch (_err) {}
 }
 

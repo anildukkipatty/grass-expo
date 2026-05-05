@@ -1,6 +1,7 @@
 import { isSandboxUsageLimitError } from "@/api/client";
 import { heartbeat, requestContainer, signedPreviewUrl } from "@/api/containers";
 import { clearAuth, getToken } from "@/store/auth-store";
+import { unregisterPushTokenOnLogout } from "@/hooks/use-push-notifications";
 import { clearAllVmMetadata } from "@/store/vm-metadata-store";
 import {
   closeConnection,
@@ -949,6 +950,7 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
           clearPendingGrassUsageLimitHit();
           resetSandboxUsageLimitAlertDebounce();
           setIncompatUrls(new Set());
+          await unregisterPushTokenOnLogout();
           await clearAuth();
           router.replace("/welcome");
         },

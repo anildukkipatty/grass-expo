@@ -15,6 +15,7 @@ import {
 import { posthog } from "@/constants/posthog";
 import { SFPro } from "@/constants/theme";
 import { clearAuth } from "@/store/auth-store";
+import { unregisterPushTokenOnLogout } from "@/hooks/use-push-notifications";
 import { closeConnection, getConnectedUrls } from "@/store/connection-store";
 import { clearUrls } from "@/store/url-store";
 import { clearAllVmMetadata } from "@/store/vm-metadata-store";
@@ -101,6 +102,7 @@ export function LogoutSlider({ visible, onClose }: Props) {
     connectedUrls.forEach((url) => closeConnection(url));
     await clearUrls();
     await clearAllVmMetadata();
+    await unregisterPushTokenOnLogout();
     await clearAuth();
     Animated.parallel([
       Animated.timing(translateY, {
