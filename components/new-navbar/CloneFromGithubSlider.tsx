@@ -58,6 +58,8 @@ export function CloneFromGithubSlider({
   const [repos, setRepos] = useState<GithubRepo[]>([]);
   const [reposLoading, setReposLoading] = useState(false);
   const [cloningRepoId, setCloningRepoId] = useState<string | number | null>(null);
+  const [vmRepoNames, setVmRepoNames] = useState<Set<string>>(new Set());
+  const [vmReposReady, setVmReposReady] = useState(false);
   const [clonedRepoName, setClonedRepoName] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
 
@@ -103,6 +105,24 @@ export function CloneFromGithubSlider({
     }),
   ).current;
 
+  // ─── Fetch repo names from the selected VM's grass-ide server ───────────
+
+  const loadVmRepos = useCallback(async () => {
+    if (!serverUrl) return;
+    try {
+      const entry = getEntry(serverUrl);
+      const baseUrl = entry?.baseUrl ?? serverUrl;
+      const res = await fetch(`${baseUrl}/repos`);
+      if (res.ok) {
+        const data = await res.json() as { repos?: Array<{ name: string }> };
+        setVmRepoNames(new Set((data.repos ?? []).map((r) => r.name.trim().toLowerCase())));
+        setVmReposReady(true);
+      }
+    } catch {
+      // VM unreachable — fall back to existingRepos
+    }
+  }, [serverUrl]);
+
   // ─── Load repos from GitHub API ──────────────────────────────────────────
 
   const loadRepos = useCallback(async () => {
@@ -129,7 +149,11 @@ export function CloneFromGithubSlider({
     setClonedRepoName("");
     setShowSuccess(false);
     setIsCheckingStatus(true);
+    setVmRepoNames(new Set());
+    setVmReposReady(false);
     open();
+
+    void loadVmRepos();
 
     void (async () => {
       const token = await getToken();
@@ -145,7 +169,7 @@ export function CloneFromGithubSlider({
         setIsCheckingStatus(false);
       }
     })();
-  }, [visible, open, translateY, successTranslateY, loadRepos]);
+  }, [visible, open, translateY, successTranslateY, loadRepos, loadVmRepos]);
 
   // ─── Clone handler ────────────────────────────────────────────────────────
 
@@ -164,13 +188,14 @@ export function CloneFromGithubSlider({
       Alert.alert("Clone failed", entry.cloneStatus.error);
     } else {
       posthog.capture("repo_cloned", { repo_name: repo.fullName, source: "github" });
+      setVmRepoNames((prev) => new Set([...prev, repo.name.trim().toLowerCase()]));
       onRepoAdded?.();
       setClonedRepoName(repo.name);
       slideSuccessIn();
     }
   }, [cloningRepoId, serverUrl, onRepoAdded, slideSuccessIn]);
 
-  // Build a set of existing repo names for "already added" detection
+  // Build fallback set from existingRepos (used only when VM fetch failed/unreachable)
   const existingNamesSet = new Set(existingRepos.map((r) => r.name.trim().toLowerCase()));
 
   if (!visible) return null;
@@ -258,8 +283,9 @@ export function CloneFromGithubSlider({
             /* ── Repo list ── */
             <View style={styles.repoList}>
               {repos.map((repo, idx) => {
-                const alreadyAdded = existingNamesSet.has(repo.name.trim().toLowerCase())
-                  || Boolean(repo.alreadyOnVm);
+                const alreadyAdded = vmReposReady
+                  ? vmRepoNames.has(repo.name.trim().toLowerCase())
+                  : existingNamesSet.has(repo.name.trim().toLowerCase()) || Boolean(repo.alreadyOnVm);
                 const isCloning = cloningRepoId === repo.id;
                 const isLast = idx === repos.length - 1;
                 return (
