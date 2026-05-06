@@ -12,6 +12,7 @@ export interface Message {
   msgId: string;
   seq?: string;
   badge?: string;
+  attachments?: string[];   // S3 URLs — only present on role:'user' messages
 }
 
 export interface PermissionItem {
@@ -330,13 +331,15 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
     // Server replays buffered events including user_prompt on reconnect.
     // Skip if the message is already in the list (we add it optimistically in sendMessageStore).
     const content = (parsed.content as string) ?? (parsed.prompt as string) ?? '';
+    const sseAttachments = (parsed.attachments as { url: string }[] | undefined)?.map(a => a.url);
     const alreadyPresent = entry.messages.some(m => m.role === 'user' && m.content === content);
-    if (!alreadyPresent && content) {
+    if (!alreadyPresent && (content || sseAttachments?.length)) {
       entry.messages = [...entry.messages, {
         role: 'user',
         content,
         complete: true,
         msgId: nextMsgId(entry),
+        ...(sseAttachments?.length ? { attachments: sseAttachments } : {}),
       }];
       notifyListeners(serverUrl);
     }
@@ -721,10 +724,10 @@ export function getConnectedUrls(): string[] {
 
 // --- Chat ---
 
-export async function sendMessageStore(serverUrl: string, text: string, model?: string, mode?: 'plan' | 'build', permissionMode?: PermissionMode) {
+export async function sendMessageStore(serverUrl: string, text: string, model?: string, mode?: 'plan' | 'build', permissionMode?: PermissionMode, attachments?: string[]) {
   const key = resolveServerKey(serverUrl);
   const entry = _connections.get(key);
-  if (!entry || !text.trim()) return;
+  if (!entry || (!text.trim() && !attachments?.length)) return;
 
   // Cancel any previous in-flight send before starting a new one.
   if (entry.sendAbortController) {
@@ -734,7 +737,7 @@ export async function sendMessageStore(serverUrl: string, text: string, model?: 
   const sendCtrl = new AbortController();
   entry.sendAbortController = sendCtrl;
 
-  entry.messages = [...entry.messages, { role: 'user', content: text, complete: true, msgId: nextMsgId(entry) }];
+  entry.messages = [...entry.messages, { role: 'user', content: text, complete: true, msgId: nextMsgId(entry), ...(attachments?.length ? { attachments } : {}) }];
   entry.streaming = true;
   entry.activity = { label: 'Thinking' };
   notifyListeners(key);
@@ -752,6 +755,7 @@ export async function sendMessageStore(serverUrl: string, text: string, model?: 
         ...(model ? { model } : {}),
         ...(mode ? { mode } : {}),
         ...(permissionMode ? { permissionMode } : {}),
+        ...(attachments?.length ? { attachments: attachments.map(url => ({ url })) } : {}),
       }),
     });
 
@@ -1075,7 +1079,7 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
       if (repoPath) params.set('repoPath', repoPath);
       const qs = params.toString();
       const res = await fetch(`${entry.baseUrl}/sessions/${id}/history${qs ? '?' + qs : ''}`);
-      type HistoryContentBlock = { type: 'text'; text: string } | { type: 'tool_use'; tool_name: string; tool_input: string };
+      type HistoryContentBlock = { type: 'text'; text: string } | { type: 'tool_use'; tool_name: string; tool_input: string } | { type: 'image_url'; url: string };
       type HistoryMessage = { role: string; content: string | HistoryContentBlock[] };
       const json = await res.json() as { messages?: HistoryMessage[] };
       if (_connections.has(key)) {
@@ -1083,20 +1087,38 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
         const expanded: Message[] = [];
         for (const m of msgs) {
           if (Array.isArray(m.content)) {
-            for (const block of m.content) {
-              if (block.type === 'text' && block.text.trim()) {
-                expanded.push({ role: m.role as Message['role'], content: block.text, complete: true, msgId: nextMsgId(entry) });
-              } else if (block.type === 'tool_use') {
-                let displayInput = block.tool_input;
-                // opencode sends raw JSON — try to extract a human-readable string
-                try {
-                  const parsed = JSON.parse(block.tool_input);
-                  if (parsed && typeof parsed === 'object') {
-                    const val = Object.values(parsed)[0];
-                    if (typeof val === 'string') displayInput = val;
-                  }
-                } catch { /* already a plain string */ }
-                expanded.push({ role: 'tool', content: `${block.tool_name}: ${displayInput}`, complete: true, msgId: nextMsgId(entry) });
+            if (m.role === 'user') {
+              // Group all blocks in a user message into one bubble (text + image attachments)
+              const textParts: string[] = [];
+              const attachments: string[] = [];
+              for (const block of m.content) {
+                if (block.type === 'text' && block.text.trim()) textParts.push(block.text);
+                else if (block.type === 'image_url') attachments.push(block.url);
+              }
+              if (textParts.length || attachments.length) {
+                expanded.push({
+                  role: 'user',
+                  content: textParts.join('\n'),
+                  complete: true,
+                  msgId: nextMsgId(entry),
+                  ...(attachments.length ? { attachments } : {}),
+                });
+              }
+            } else {
+              for (const block of m.content) {
+                if (block.type === 'text' && block.text.trim()) {
+                  expanded.push({ role: m.role as Message['role'], content: block.text, complete: true, msgId: nextMsgId(entry) });
+                } else if (block.type === 'tool_use') {
+                  let displayInput = block.tool_input;
+                  try {
+                    const parsed = JSON.parse(block.tool_input);
+                    if (parsed && typeof parsed === 'object') {
+                      const val = Object.values(parsed)[0];
+                      if (typeof val === 'string') displayInput = val;
+                    }
+                  } catch { /* already a plain string */ }
+                  expanded.push({ role: 'tool', content: `${block.tool_name}: ${displayInput}`, complete: true, msgId: nextMsgId(entry) });
+                }
               }
             }
           } else {

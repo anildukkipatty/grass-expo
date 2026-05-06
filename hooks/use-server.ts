@@ -33,7 +33,7 @@ export interface UseServerResult {
   repos: import('@/store/connection-store').Repo[];
   repoDetails: Map<string, import('@/store/connection-store').RepoDetails>;
   permissionMode: import('@/store/connection-store').PermissionMode;
-  send: (text: string, model?: string, mode?: 'plan' | 'build', permissionMode?: import('@/store/connection-store').PermissionMode) => void;
+  send: (text: string, model?: string, mode?: 'plan' | 'build', permissionMode?: import('@/store/connection-store').PermissionMode, attachments?: string[]) => void;
   abort: () => void;
   respondPermission: (approved: boolean) => void;
   listSessions: (repoPath?: string, agent?: string) => void;
@@ -58,7 +58,7 @@ export function useServer(serverUrl: string | null): UseServerResult {
 
   const entry = serverUrl ? getEntry(serverUrl) : null;
 
-  const send             = useCallback((text: string, model?: string, mode?: 'plan' | 'build', permissionMode?: import('@/store/connection-store').PermissionMode) => { if (serverUrl) sendMessageStore(serverUrl, text, model, mode, permissionMode); }, [serverUrl]);
+  const send             = useCallback((text: string, model?: string, mode?: 'plan' | 'build', permissionMode?: import('@/store/connection-store').PermissionMode, attachments?: string[]) => { if (serverUrl) sendMessageStore(serverUrl, text, model, mode, permissionMode, attachments); }, [serverUrl]);
   const abort            = useCallback(() => { if (serverUrl) abortStore(serverUrl); }, [serverUrl]);
   const respondPerm      = useCallback((ok: boolean) => { if (serverUrl) respondPermissionStore(serverUrl, ok); }, [serverUrl]);
   const listSess         = useCallback((repoPath?: string, agent?: string) => { if (serverUrl) listSessionsStore(serverUrl, repoPath, agent); }, [serverUrl]);

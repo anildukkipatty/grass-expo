@@ -23,7 +23,6 @@ import {
 import modelsJson from "@/models.json";
 import { AgentTypingskeleton } from "@/components/SkeletonLoader";
 import { SyntaxBlock } from "@/components/SyntaxBlock";
-import { posthog } from "@/constants/posthog";
 import { useServer } from "@/hooks/use-server";
 import type { PermissionMode } from "@/hooks/use-server";
 import {
@@ -48,12 +47,14 @@ import {
 } from "@gorhom/bottom-sheet";
 import { BlurView } from "expo-blur";
 import { useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Clipboard,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
@@ -68,6 +69,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { uploadImage } from "@/api/upload";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── Model helpers ────────────────────────────────────────────────────────────
@@ -91,10 +93,21 @@ function getDefaultModel(agent: string): string {
 
 // ─── Sub-components (V2 visual design — do not change styles) ─────────────────
 
-function UserBubble({ text }: { text: string }) {
+function UserBubble({ text, attachments }: { text: string; attachments?: string[] }) {
   return (
-    <View style={styles.userBubble}>
-      <Text style={styles.userText}>{text}</Text>
+    <View style={styles.userBubbleWrapper}>
+      {attachments && attachments.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bubbleThumbnailStrip}>
+          {attachments.map((url, i) => (
+            <Image key={url + i} source={{ uri: url }} style={styles.bubbleThumbnail} />
+          ))}
+        </ScrollView>
+      )}
+      {text.length > 0 && (
+        <View style={styles.userBubble}>
+          <Text style={styles.userText}>{text}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -479,6 +492,9 @@ export default function ChatScreen() {
   const [selectedModelKey, setSelectedModelKey] = useState(() => getDefaultModel(agentStr));
   const [tempModelKey, setTempModelKey] = useState(() => getDefaultModel(agentStr));
   const [showOptions, setShowOptions] = useState(false);
+  type PendingImage = { uri: string; uploadedUrl?: string; error?: boolean };
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [addBtnMeasure, setAddBtnMeasure] = useState<{
     x: number;
     y: number;
@@ -486,6 +502,7 @@ export default function ChatScreen() {
     h: number;
   } | null>(null);
   const [inputContainerHeight, setInputContainerHeight] = useState(0);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [pendingPermission, setPendingPermission] =
     useState<GlobalPermissionItem | null>(null);
@@ -507,6 +524,7 @@ export default function ChatScreen() {
   // ── Refs ──
   const hasSent              = useRef(false);
   const firstUserMessage     = useRef<string | null>(null);
+  const addBtnRef            = useRef<View>(null);
   const threadSaved          = useRef(false);
   const sessionInitialized   = useRef(false);
   const initialMessageSent   = useRef(false);
@@ -521,6 +539,12 @@ export default function ChatScreen() {
 
   // ── Session label subscription ──
   useEffect(() => subscribeSessionLabel(setSessionLabelState), []);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -566,11 +590,6 @@ export default function ChatScreen() {
     if (!sessionInitialized.current && serverUrl) {
       sessionInitialized.current = true;
       ws.initSession(initialSessionId ?? null, agentStr, repoPathStr || null);
-      posthog.capture("chat_session_started", {
-        agent: agentStr,
-        repo_name: repoNameStr,
-        is_new_session: !initialSessionId,
-      });
     }
     return () => {
       if (serverUrl) closeSSEStream(serverUrl);
@@ -680,7 +699,8 @@ export default function ChatScreen() {
   // ── Derived values ──
   const branch = repoPathStr ? ws.repoDetails.get(repoPathStr)?.branch : null;
   const headerTitle = sessionLabel ?? repoNameStr ?? "New Chat";
-  const canSend = !!inputText.trim() && !ws.streaming;
+  const readyUrls = pendingImages.filter(img => img.uploadedUrl).map(img => img.uploadedUrl!);
+  const canSend = !ws.streaming && !uploading && (inputText.trim().length > 0 || readyUrls.length > 0);
 
   const selectedModel = modelList.find((m) => m.key === selectedModelKey) ?? modelList[0];
 
@@ -715,20 +735,16 @@ export default function ChatScreen() {
   // ── Send ──
   const handleSubmit = () => {
     const text = inputTextRef.current.trim();
-    if (!text || ws.streaming) return;
+    const attachments = pendingImages.filter(img => img.uploadedUrl).map(img => img.uploadedUrl!);
+    if ((!text && attachments.length === 0) || ws.streaming || uploading) return;
     Keyboard.dismiss();
     if (!hasSent.current) {
       firstUserMessage.current = text;
       startFirstSendOverlayIfNeeded();
     }
     hasSent.current = true;
-    posthog.capture("chat_message_sent", {
-      agent: agentStr,
-      model: selectedModelKey,
-      mode: agentMode,
-      repo_name: repoNameStr,
-    });
-    ws.send(text, selectedModelKey, agentMode, ws.permissionMode);
+    ws.send(text, selectedModelKey, agentMode, ws.permissionMode, attachments.length > 0 ? attachments : undefined);
+    setPendingImages([]);
     // Keep thread timestamp fresh on each send
     const threadId = ws.sdkSessionId || ws.grassId;
     if (threadId && serverUrl) {
@@ -764,11 +780,6 @@ export default function ChatScreen() {
       await Share.share({
         title: headerTitle,
         message: lastAssistantMessage.content,
-      });
-      posthog.capture("chat_shared", {
-        agent: agentStr,
-        repo_name: repoNameStr,
-        message_count: ws.messages.length,
       });
     } catch (error) {
       console.error("Failed to share chat", error);
@@ -827,6 +838,13 @@ export default function ChatScreen() {
     setAddBtnMeasure(null);
   };
 
+  const openOptions = () => {
+    addBtnRef.current?.measure((_x, _y, w, h, px, py) => {
+      setAddBtnMeasure({ x: px, y: py, w, h });
+      setShowOptions(true);
+    });
+  };
+
   const handleCameraPress = async () => {
     closeOptions();
     if (cameraPermission?.granted) {
@@ -851,9 +869,48 @@ export default function ChatScreen() {
     }
   };
 
-  const handlePhotosPress = () => {
+  const MAX_IMAGES = 5;
+
+  const handlePhotosPress = async () => {
     closeOptions();
-    Alert.alert("Photos", "Photo library will open here.");
+
+    const remaining = MAX_IMAGES - pendingImages.length;
+    if (remaining <= 0) {
+      Alert.alert('Limit reached', `You can attach up to ${MAX_IMAGES} images per message.`);
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      quality: 0.85,
+    });
+    if (result.canceled) return;
+
+    const newItems: PendingImage[] = result.assets.slice(0, remaining).map(a => ({ uri: a.uri }));
+    setPendingImages(prev => [...prev, ...newItems]);
+    setUploading(true);
+
+    const urls = await Promise.all(
+      result.assets.map((asset) => uploadImage(asset.uri, asset.mimeType, asset.fileName).catch((err) => {
+        console.log('[upload] failed for', asset.uri.slice(-40), ':', err?.message);
+        return null;
+      }))
+    );
+    console.log('[upload] results:', urls);
+
+    setPendingImages(prev => {
+      const out = [...prev];
+      newItems.forEach((item, i) => {
+        const idx = out.findIndex(x => x.uri === item.uri && !x.uploadedUrl && !x.error);
+        if (idx !== -1) {
+          out[idx] = urls[i] ? { uri: item.uri, uploadedUrl: urls[i]! } : { uri: item.uri, error: true };
+        }
+      });
+      return out;
+    });
+    setUploading(false);
   };
 
   const handleFilesPress = () => {
@@ -865,7 +922,7 @@ export default function ChatScreen() {
   function renderMessages() {
     return ws.messages.map((msg) => {
       if (msg.role === "user") {
-        return <UserBubble key={msg.msgId} text={msg.content} />;
+        return <UserBubble key={msg.msgId} text={msg.content} attachments={msg.attachments} />;
       }
 
       if (msg.role === "tool") {
@@ -1074,6 +1131,25 @@ export default function ChatScreen() {
           style={[styles.inputContainer, { paddingBottom: bottom + 8 }]}
           onLayout={(e) => setInputContainerHeight(e.nativeEvent.layout.height)}
         >
+          {pendingImages.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailStrip}>
+              {pendingImages.map((img, idx) => (
+                <View key={img.uri + idx} style={styles.thumbnailWrapper}>
+                  <Image source={{ uri: img.uri }} style={styles.thumbnail} />
+                  {!img.uploadedUrl && !img.error && (
+                    <ActivityIndicator style={StyleSheet.absoluteFill} color="#fff" size="small" />
+                  )}
+                  {img.error && <Text style={styles.thumbnailError}>!</Text>}
+                  <TouchableOpacity
+                    style={styles.thumbnailRemove}
+                    onPress={() => setPendingImages(prev => prev.filter((_, i) => i !== idx))}
+                  >
+                    <CloseIcon width={10} height={10} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          )}
           <TextInput
             style={styles.textInput}
             value={inputText}
@@ -1089,14 +1165,14 @@ export default function ChatScreen() {
             blurOnSubmit={false}
           />
           <View style={styles.toolbarRow}>
-            {/* <TouchableOpacity
+            <TouchableOpacity
               ref={addBtnRef}
               style={styles.addBtn}
               activeOpacity={0.7}
               onPress={openOptions}
             >
-              <AddIcon width={18} height={18} />
-            </TouchableOpacity> */}
+              <PhotosIcon width={18} height={18} />
+            </TouchableOpacity>
 
             <View style={styles.toolbarSpacer} />
 
@@ -1166,7 +1242,7 @@ export default function ChatScreen() {
               {
                 position: "absolute",
                 left: 16,
-                bottom: inputContainerHeight + 12,
+                bottom: inputContainerHeight + keyboardHeight + 12,
               },
             ]}
           >
@@ -2138,5 +2214,58 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#DFDFDF",
     marginVertical: 8,
+  },
+  // ── Image attachment styles ──────────────────────────────────────────────────
+  userBubbleWrapper: {
+    alignItems: "flex-end",
+    marginHorizontal: 16,
+    marginBottom: 8,
+    gap: 6,
+  },
+  bubbleThumbnailStrip: {
+    flexDirection: "row",
+  },
+  bubbleThumbnail: {
+    width: 120,
+    height: 120,
+    borderRadius: 10,
+    marginRight: 6,
+    backgroundColor: "#e0e0e0",
+  },
+  thumbnailStrip: {
+    flexDirection: "row",
+    paddingHorizontal: 4,
+    paddingBottom: 6,
+  },
+  thumbnailWrapper: {
+    width: 68,
+    height: 68,
+    borderRadius: 8,
+    marginRight: 8,
+    overflow: "hidden",
+    backgroundColor: "#e0e0e0",
+  },
+  thumbnail: {
+    width: "100%",
+    height: "100%",
+  },
+  thumbnailRemove: {
+    position: "absolute",
+    top: 3,
+    right: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  thumbnailError: {
+    position: "absolute",
+    bottom: 3,
+    left: 4,
+    color: "#ff4444",
+    fontFamily: SFPro.bold,
+    fontSize: 13,
   },
 });

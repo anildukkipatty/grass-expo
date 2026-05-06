@@ -14,6 +14,4 @@ export const posthog = new PostHog(apiKey || 'placeholder_key', {
 
 // Attach platform to every event so mobile vs backend events are distinguishable.
 posthog.register({ platform: 'mobile' })
-
-// Suppress verbose SDK console logs in all environments.
 posthog.debug(false)
