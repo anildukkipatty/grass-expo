@@ -149,8 +149,8 @@ export default function ChatListScreen() {
   }, [selectedVmOffline, selectedVmUrl, fetchSessions]);
 
   const filteredSessions = useMemo(() => {
-    if (!searchQuery) return sessions;
-    const q = searchQuery.toLowerCase();
+    if (!searchQuery.trim()) return sessions;
+    const q = searchQuery.trim().toLowerCase();
     return sessions.filter((s) => {
       const title = (s.label || s.preview || s.id || "").toLowerCase();
       return title.includes(q);

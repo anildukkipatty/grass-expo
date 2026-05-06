@@ -381,7 +381,7 @@ export default function Sessions() {
       return tb - ta;
     });
     if (!query.trim()) return sorted;
-    const q = query.toLowerCase();
+    const q = query.trim().toLowerCase();
     return sorted.filter(
       (s) =>
         (s.label || s.preview || "").toLowerCase().includes(q) ||
