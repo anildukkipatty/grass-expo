@@ -55,6 +55,26 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
   return tokenData.data;
 }
 
+// Exported so login flow can call this right after saveAuth()
+// The hook alone can't handle the race where getToken() returns null on first mount
+export async function registerPushTokenAfterLogin(): Promise<void> {
+  try {
+    const token = await registerForPushNotificationsAsync();
+    if (!token) return;
+
+    await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+
+    const authToken = await getToken();
+    if (!authToken) return;
+
+    const platform = Platform.OS === "ios" ? "ios" : "android";
+    const result = await registerPushToken(token, platform, authToken);
+    if (result.ok) {
+      await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+    }
+  } catch (_err) {}
+}
+
 export function usePushNotifications() {
   const router = useRouter();
   const notificationListener = useRef<Notifications.EventSubscription | null>(null);
@@ -72,21 +92,22 @@ export function usePushNotifications() {
     let cancelled = false;
 
     (async () => {
-      const token = await registerForPushNotificationsAsync();
-      if (!token || cancelled) return;
+      try {
+        const token = await registerForPushNotificationsAsync();
+        if (!token || cancelled) return;
 
-      // Only register with the server if the token has changed
-      const cached = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
-      if (cached === token) return;
+        const cached = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+        if (cached === token) return;
 
-      const authToken = await getToken();
-      if (!authToken || cancelled) return;
+        const authToken = await getToken();
+        if (!authToken || cancelled) return;
 
-      const platform = Platform.OS === "ios" ? "ios" : "android";
-      const result = await registerPushToken(token, platform, authToken);
-      if (result.ok) {
-        await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
-      }
+        const platform = Platform.OS === "ios" ? "ios" : "android";
+        const result = await registerPushToken(token, platform, authToken);
+        if (result.ok) {
+          await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+        }
+      } catch (_err) {}
     })();
 
     // Fires when a notification is received while the app is in the foreground

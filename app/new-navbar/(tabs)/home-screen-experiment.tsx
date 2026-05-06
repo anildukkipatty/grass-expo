@@ -26,7 +26,6 @@ import { setSessionLabel } from "@/store/session-label-store";
 import {
   getSessionStatuses,
   markThreadSeen,
-  resolveGrassIdForSdk,
   SessionStatusItem,
   shouldShowDoneIndicator,
   subscribeToPermissions,
@@ -40,7 +39,7 @@ import OpenCodeIcon from "@/assets/images/new-design/navbar/opencode.svg";
 
 import { SFPro } from "@/constants/theme";
 
-const FORCE_SKELETON_PREVIEW = false;
+const FORCE_SKELETON_PREVIEW = true;
 
 // ─── Static pool of colors + images for VMs without saved metadata ────────────
 
@@ -140,11 +139,6 @@ export default function HomeScreen() {
     vmUrlStatuses,
     threads,
     selectedVmUrl,
-    startupOverlayVisible,
-    wakeFailed,
-    retryWake,
-    notifyWakeTabFocus,
-    notifyWakeTabBlur,
   } = useNavbar();
 
   const [sessionStatuses, setSessionStatuses] = useState<SessionStatusItem[]>([]);
@@ -162,9 +156,7 @@ export default function HomeScreen() {
     React.useCallback(() => {
       if (selectedVmUrl) setSessionStatuses(getSessionStatuses(selectedVmUrl));
       getAllVmMetadata().then(setVmMetadataMap);
-      notifyWakeTabFocus();
-      return () => notifyWakeTabBlur();
-    }, [selectedVmUrl, notifyWakeTabFocus, notifyWakeTabBlur])
+    }, [selectedVmUrl])
   );
 
   // Load stored names + icons whenever the VM list changes
@@ -247,14 +239,11 @@ export default function HomeScreen() {
   });
 
   const selectedMachineId = vmUrls[activeVmTab] ?? undefined;
-  const selectedVmOffline =
-    !!selectedVmUrl && vmUrlStatuses.get(selectedVmUrl) === false;
 
   const isLoading = vmUrls.length === 0;
-  const onPrimaryVm = !!primaryVmUrl && selectedVmUrl === primaryVmUrl;
 
   function renderThreadList() {
-    if (FORCE_SKELETON_PREVIEW || isLoading || (onPrimaryVm && !vmRunning)) {
+    if (FORCE_SKELETON_PREVIEW || isLoading) {
       return Array.from({ length: 20 }).map((_, i) => (
         <SkeletonItem key={i} opacity={shimmerAnim} />
       ));
@@ -277,14 +266,7 @@ export default function HomeScreen() {
 
     return threads.map((thread) => {
       const AgentIcon = AGENT_ICONS[thread.tool] ?? ClaudeIcon;
-      // thread.grassId holds the SDK session id (durable across server restarts).
-      // Bridge it to the live GRASS UUID so statusByGrassId hits even before the
-      // permissions stream has reported sessionId for this session.
-      const liveGrassId = selectedVmUrl
-        ? resolveGrassIdForSdk(selectedVmUrl, thread.grassId)
-        : null;
       const matchedStatus =
-        (liveGrassId ? statusByGrassId.get(liveGrassId) : undefined) ??
         statusByGrassId.get(thread.grassId) ??
         (thread.sdkSessionId
           ? statusBySessionId.get(thread.sdkSessionId)
@@ -356,12 +338,6 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {startupOverlayVisible && (
-        <View style={styles.startupOverlay}>
-          <ActivityIndicator size="small" color="#3D841E" />
-          <Text style={styles.startupOverlayText}>Starting container...</Text>
-        </View>
-      )}
       <MachineCarousel
         machines={machines}
         selectedId={selectedMachineId}
@@ -387,27 +363,14 @@ export default function HomeScreen() {
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionHeader}>Recent threads</Text>
         {!vmRunning && selectedVmUrl === primaryVmUrl && (
-          wakeFailed ? (
-            <View style={styles.retryContainer}>
-              <Text style={styles.wakeFailedText}>Couldn’t start VM</Text>
-              <TouchableOpacity
-                style={styles.retryButton}
-                activeOpacity={0.8}
-                onPress={retryWake}
-              >
-                <Text style={styles.retryButtonText}>Retry</Text>
-              </TouchableOpacity>
+          <View style={styles.refreshingContainer}>
+            <Text style={styles.refreshingText}>Refreshing VM</Text>
+            <View style={styles.progressTrack}>
+              <Animated.View
+                style={[styles.progressBar, { width: progressWidth }]}
+              />
             </View>
-          ) : (
-            <View style={styles.refreshingContainer}>
-              <Text style={styles.refreshingText}>Refreshing VM</Text>
-              <View style={styles.progressTrack}>
-                <Animated.View
-                  style={[styles.progressBar, { width: progressWidth }]}
-                />
-              </View>
-            </View>
-          )
+          </View>
         )}
       </View>
 
@@ -417,15 +380,7 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: bottom }}
         showsVerticalScrollIndicator={false}
       >
-        {selectedVmOffline ? (
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyText}>
-              This machine looks offline. Start Grass server on it, then refresh.
-            </Text>
-          </View>
-        ) : (
-          renderThreadList()
-        )}
+        {renderThreadList()}
       </ScrollView>
 
       <TouchableOpacity
@@ -445,19 +400,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-  },
-  startupOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 10000,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-  startupOverlayText: {
-    fontFamily: SFPro.medium,
-    fontSize: 14,
-    color: "#3D841E",
   },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -481,27 +423,6 @@ const styles = StyleSheet.create({
     fontFamily: SFPro.medium,
     fontSize: 13,
     color: "#72C44E",
-  },
-  retryContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  wakeFailedText: {
-    fontFamily: SFPro.medium,
-    fontSize: 13,
-    color: "#C62828",
-  },
-  retryButton: {
-    backgroundColor: "#3D841E",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  retryButtonText: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 12,
-    color: "#FFFFFF",
   },
   progressTrack: {
     width: 60,
