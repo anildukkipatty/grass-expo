@@ -36,10 +36,6 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Icon sf="tray.fill" md="inbox" />
           <NativeTabs.Trigger.Label>Repos</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
-        <NativeTabs.Slot name="chat-list" />
-        <NativeTabs.Slot name="index" />
-        <NativeTabs.Slot name="permissions" />
-        <NativeTabs.Slot name="repos" />
       </NativeTabs>
     </SafeAreaView>
   );

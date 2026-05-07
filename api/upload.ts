@@ -1,5 +1,5 @@
+import { Platform } from 'react-native';
 import { getToken } from '@/store/auth-store';
-
 import { BASE_URL } from './client';
 
 export async function uploadImage(
@@ -17,7 +17,17 @@ export async function uploadImage(
   console.log('[uploadImage] uri:', localUri.slice(-40), 'mime:', mime, 'name:', name);
 
   const form = new FormData();
-  form.append('file', { uri: localUri, type: mime, name } as any);
+
+  if (Platform.OS === 'web') {
+    // On web, { uri, type, name } is not understood by the browser's FormData.
+    // Fetch the blob URI directly and append a real Blob.
+    const blobRes = await fetch(localUri);
+    const blob = await blobRes.blob();
+    form.append('file', blob, name);
+  } else {
+    // On native iOS/Android, RN's networking layer reads the file from the URI.
+    form.append('file', { uri: localUri, type: mime, name } as any);
+  }
 
   const res = await fetch(`${BASE_URL}/upload/image`, {
     method: 'POST',
