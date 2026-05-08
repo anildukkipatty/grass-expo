@@ -1253,20 +1253,40 @@ export default function ChatScreen() {
               ))}
             </ScrollView>
           )}
-          <TextInput
-            style={styles.textInput}
-            value={inputText}
-            onChangeText={(t) => {
-              inputTextRef.current = t;
-              setInputText(t);
-            }}
-            placeholder="Type here"
-            placeholderTextColor="#000"
-            multiline
-            editable={!ws.streaming}
-            onSubmitEditing={handleSubmit}
-            blurOnSubmit={false}
-          />
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.textInput}
+              value={inputText}
+              onChangeText={(t) => {
+                inputTextRef.current = t;
+                setInputText(t);
+              }}
+              placeholder="Type here"
+              placeholderTextColor="#000"
+              multiline
+              editable={!ws.streaming}
+              onSubmitEditing={handleSubmit}
+              blurOnSubmit={false}
+            />
+            {ws.streaming ? (
+              <TouchableOpacity
+                style={styles.submitBtn}
+                activeOpacity={0.8}
+                onPress={() => ws.abort()}
+              >
+                <Text style={styles.stopBtnText}>■</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.submitBtn, !canSend && styles.submitBtnDisabled]}
+                activeOpacity={0.8}
+                onPress={handleSubmit}
+                disabled={!canSend}
+              >
+                <UpArrowIcon width={20} height={20} />
+              </TouchableOpacity>
+            )}
+          </View>
           <View style={styles.toolbarRow}>
             <TouchableOpacity
               ref={addBtnRef}
@@ -1302,25 +1322,6 @@ export default function ChatScreen() {
                   : ""}
               </Text>
             </TouchableOpacity>
-
-            {ws.streaming ? (
-              <TouchableOpacity
-                style={styles.submitBtn}
-                activeOpacity={0.8}
-                onPress={() => ws.abort()}
-              >
-                <Text style={styles.stopBtnText}>■</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.submitBtn, !canSend && styles.submitBtnDisabled]}
-                activeOpacity={0.8}
-                onPress={handleSubmit}
-                disabled={!canSend}
-              >
-                <UpArrowIcon width={20} height={20} />
-              </TouchableOpacity>
-            )}
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -2005,7 +2006,13 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 8,
   },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+  },
   textInput: {
+    flex: 1,
     fontFamily: SFPro.regular,
     fontSize: 16,
     lineHeight: 22,
