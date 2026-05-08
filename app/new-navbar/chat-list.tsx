@@ -31,7 +31,7 @@ import {
   subscribeToConnection,
 } from "@/store/connection-store";
 import { setSessionLabel } from "@/store/session-label-store";
-import { formatRelativeTime } from "@/store/thread-store";
+import { formatRelativeTime, pruneThreads } from "@/store/thread-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -123,6 +123,14 @@ export default function ChatListScreen() {
     if (!ok) {
       setSessions([]);
       showErrorToast("Couldn’t load threads. Please try again.");
+    } else {
+      const returned = getEntry(selectedVmUrl)?.sessionsList ?? [];
+      pruneThreads({
+        serverUrl: selectedVmUrl,
+        agent: selectedAgentId,
+        repoPath: resolvedRepoPath || undefined,
+        keepIds: new Set(returned.map((s) => s.id)),
+      }).catch(() => {});
     }
     setLoadingSessions(false);
   }, [selectedVmUrl, resolvedRepoPath, selectedAgentId, showErrorToast]);

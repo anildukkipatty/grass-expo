@@ -1022,48 +1022,75 @@ export default function ChatScreen() {
   };
 
   // ── Message rendering ──
+  function renderSingleMessage(msg: typeof ws.messages[number]) {
+    if (msg.role === "user") {
+      return <UserBubble key={msg.msgId} text={msg.content} attachments={msg.attachments} />;
+    }
+
+    if (msg.role === "tool") {
+      const label = msg.badge ?? msg.content.substring(0, 60);
+      const toolName = parseToolNameFromToolMessage(msg.content);
+      const isRead = /read|search|view|cat|ls|get/i.test(toolName);
+      const isWrite = /write|edit|create|patch|insert|update/i.test(toolName);
+
+      const icon = isRead ? (
+        <SearchIcon width={14} height={14} />
+      ) : isWrite ? (
+        <WriteIcon width={14} height={14} />
+      ) : (
+        <Text style={styles.toolCallEmoji}>{getToolCallIcon(toolName)}</Text>
+      );
+
+      return <ToolCallPill key={msg.msgId} label={label} icon={icon} />;
+    }
+
+    if (msg.role === "assistant") {
+      return (
+        <View key={msg.msgId} style={styles.agentBlock}>
+          <MarkdownText content={msg.content} />
+        </View>
+      );
+    }
+
+    if (msg.role === "error") {
+      return (
+        <View key={msg.msgId} style={styles.agentBlock}>
+          <Text style={[styles.agentText, { color: "#B20000" }]}>
+            {msg.content}
+          </Text>
+        </View>
+      );
+    }
+
+    return null;
+  }
+
   function renderMessages() {
+    // Group subagent messages by their parent tool_use ID so we can render them nested.
+    const childrenByParent = new Map<string, typeof ws.messages>();
+    for (const m of ws.messages) {
+      if (m.parentToolUseId) {
+        const arr = childrenByParent.get(m.parentToolUseId) ?? [];
+        arr.push(m);
+        childrenByParent.set(m.parentToolUseId, arr);
+      }
+    }
+
     return ws.messages.map((msg) => {
-      if (msg.role === "user") {
-        return <UserBubble key={msg.msgId} text={msg.content} attachments={msg.attachments} />;
-      }
+      if (msg.parentToolUseId) return null; // rendered as a child below its parent
 
-      if (msg.role === "tool") {
-        const label = msg.badge ?? msg.content.substring(0, 60);
-        const toolName = parseToolNameFromToolMessage(msg.content);
-        const isRead = /read|search|view|cat|ls|get/i.test(toolName);
-        const isWrite = /write|edit|create|patch|insert|update/i.test(toolName);
+      const node = renderSingleMessage(msg);
+      const children = msg.toolUseId ? childrenByParent.get(msg.toolUseId) : undefined;
+      if (!children || children.length === 0) return node;
 
-        const icon = isRead ? (
-          <SearchIcon width={14} height={14} />
-        ) : isWrite ? (
-          <WriteIcon width={14} height={14} />
-        ) : (
-          <Text style={styles.toolCallEmoji}>{getToolCallIcon(toolName)}</Text>
-        );
-
-        return <ToolCallPill key={msg.msgId} label={label} icon={icon} />;
-      }
-
-      if (msg.role === "assistant") {
-        return (
-          <View key={msg.msgId} style={styles.agentBlock}>
-            <MarkdownText content={msg.content} />
+      return (
+        <View key={msg.msgId}>
+          {node}
+          <View style={styles.subagentBlock}>
+            {children.map((child) => renderSingleMessage(child))}
           </View>
-        );
-      }
-
-      if (msg.role === "error") {
-        return (
-          <View key={msg.msgId} style={styles.agentBlock}>
-            <Text style={[styles.agentText, { color: "#B20000" }]}>
-              {msg.content}
-            </Text>
-          </View>
-        );
-      }
-
-      return null;
+        </View>
+      );
     });
   }
 
@@ -1709,6 +1736,16 @@ const styles = StyleSheet.create({
   // Agent text block
   agentBlock: {
     alignSelf: "stretch",
+    gap: 6,
+  },
+  // Indented strip beneath a Task tool pill that contains the subagent's nested activity.
+  subagentBlock: {
+    alignSelf: "stretch",
+    paddingLeft: 16,
+    marginTop: 4,
+    marginBottom: 4,
+    borderLeftWidth: 2,
+    borderLeftColor: "#E5E5E5",
     gap: 6,
   },
   agentText: {

@@ -84,6 +84,40 @@ export async function clearAllThreads(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_KEY);
 }
 
+// Drop local threads for a (server, agent, repoPath) tuple whose grassId/sdkSessionId
+// is no longer returned by the server. Threads for other agents or other repos are
+// untouched. A grace window protects freshly-created local threads.
+export async function pruneThreads(opts: {
+  serverUrl: string;
+  agent: string;
+  repoPath?: string;
+  keepIds: Set<string>;
+  graceMs?: number;
+}): Promise<void> {
+  const { serverUrl, agent, repoPath, keepIds, graceMs = 5 * 60_000 } = opts;
+  // An empty keep set is ambiguous — could be a fresh server, a wiped opencode
+  // store, or a transient bug. Refuse to prune in that case so we never wipe
+  // the user's local history on a single suspicious response.
+  if (keepIds.size === 0) return;
+  await load();
+  const key = resolveServerKey(serverUrl);
+  const list = _map[key];
+  if (!list || list.length === 0) return;
+  const now = Date.now();
+  const filtered = list.filter(t => {
+    // Only consider pruning threads from the same agent + repo we just fetched.
+    const sameScope = t.tool === agent && (!repoPath || t.repoPath === repoPath);
+    if (!sameScope) return true;
+    if (keepIds.has(t.grassId)) return true;
+    if (t.sdkSessionId && keepIds.has(t.sdkSessionId)) return true;
+    return (now - new Date(t.time).getTime()) < graceMs;
+  });
+  if (filtered.length === list.length) return;
+  _map[key] = filtered;
+  notify();
+  await persist();
+}
+
 export function subscribeThreads(fn: () => void): () => void {
   _listeners.push(fn);
   return () => { _listeners = _listeners.filter(f => f !== fn); };
