@@ -47,6 +47,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import { BlurView } from "expo-blur";
 import { useCameraPermissions } from "expo-camera";
+import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -845,31 +846,66 @@ export default function ChatScreen() {
     });
   };
 
+  const MAX_IMAGES = 5;
+
   const handleCameraPress = async () => {
     closeOptions();
-    if (cameraPermission?.granted) {
-      Alert.alert("Camera", "Camera will open here.");
+
+    if (!cameraPermission?.granted) {
+      const perm = await requestCameraPermission();
+      if (!perm.granted) {
+        if (!perm.canAskAgain) {
+          Alert.alert(
+            "Camera Permission Required",
+            "Please enable camera access in Settings.",
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Open Settings",
+                onPress: () => Linking.openURL("app-settings:"),
+              },
+            ],
+          );
+        }
+        return;
+      }
+    }
+
+    const remaining = MAX_IMAGES - pendingImages.length;
+    if (remaining <= 0) {
+      Alert.alert('Limit reached', `You can attach up to ${MAX_IMAGES} images per message.`);
       return;
     }
-    const result = await requestCameraPermission();
-    if (result.granted) {
-      Alert.alert("Camera", "Camera will open here.");
-    } else if (!result.canAskAgain) {
-      Alert.alert(
-        "Camera Permission Required",
-        "Please enable camera access in Settings.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Open Settings",
-            onPress: () => Linking.openURL("app-settings:"),
-          },
-        ],
-      );
-    }
-  };
 
-  const MAX_IMAGES = 5;
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.85,
+    });
+    if (result.canceled) return;
+
+    const asset = result.assets[0];
+    if (!asset) return;
+
+    const newItem: PendingImage = { uri: asset.uri };
+    setPendingImages(prev => [...prev, newItem]);
+    setUploading(true);
+
+    const url = await uploadImage(asset.uri, asset.mimeType, asset.fileName).catch((err) => {
+      console.log('[upload] failed for', asset.uri.slice(-40), ':', err?.message);
+      return null;
+    });
+    console.log('[upload] camera result:', url);
+
+    setPendingImages(prev => {
+      const out = [...prev];
+      const idx = out.findIndex(x => x.uri === newItem.uri && !x.uploadedUrl && !x.error);
+      if (idx !== -1) {
+        out[idx] = url ? { uri: newItem.uri, uploadedUrl: url } : { uri: newItem.uri, error: true };
+      }
+      return out;
+    });
+    setUploading(false);
+  };
 
   const handlePhotosPress = async () => {
     closeOptions();
@@ -913,9 +949,76 @@ export default function ChatScreen() {
     setUploading(false);
   };
 
-  const handleFilesPress = () => {
+  const handleFilesPress = async () => {
     closeOptions();
-    Alert.alert("Files", "File picker will open here.");
+
+    const remaining = MAX_IMAGES - pendingImages.length;
+    if (remaining <= 0) {
+      Alert.alert('Limit reached', `You can attach up to ${MAX_IMAGES} files per message.`);
+      return;
+    }
+
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['image/png', 'image/jpeg'],
+      multiple: true,
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled) return;
+
+    // The `type` picker filter isn't strictly enforced on every platform — re-validate before upload.
+    const ALLOWED_MIMES = new Set(['image/png', 'image/jpeg']);
+    const ALLOWED_EXTS = new Set(['png', 'jpg', 'jpeg']);
+    const MAX_FILE_BYTES = 25 * 1024 * 1024;
+
+    const accepted: typeof result.assets = [];
+    const rejected: string[] = [];
+    for (const a of result.assets) {
+      const ext = (a.name?.split('.').pop() ?? '').toLowerCase();
+      const mime = a.mimeType ?? '';
+      if (!ALLOWED_MIMES.has(mime) || !ALLOWED_EXTS.has(ext)) {
+        rejected.push(a.name ?? 'file');
+        continue;
+      }
+      if (typeof a.size === 'number' && a.size > MAX_FILE_BYTES) {
+        rejected.push(`${a.name ?? 'file'} (>25MB)`);
+        continue;
+      }
+      accepted.push(a);
+    }
+
+    if (rejected.length > 0) {
+      Alert.alert(
+        'Some files skipped',
+        `Only PNG/JPEG up to 25MB are allowed.\n\nSkipped: ${rejected.join(', ')}`,
+      );
+    }
+
+    const toUpload = accepted.slice(0, remaining);
+    if (toUpload.length === 0) return;
+
+    const newItems: PendingImage[] = toUpload.map(a => ({ uri: a.uri }));
+    setPendingImages(prev => [...prev, ...newItems]);
+    setUploading(true);
+
+    const urls = await Promise.all(
+      toUpload.map((asset) => uploadImage(asset.uri, asset.mimeType, asset.name).catch((err) => {
+        console.log('[upload] failed for', asset.uri.slice(-40), ':', err?.message);
+        return null;
+      }))
+    );
+    console.log('[upload] file results:', urls);
+
+    setPendingImages(prev => {
+      const out = [...prev];
+      newItems.forEach((item, i) => {
+        const idx = out.findIndex(x => x.uri === item.uri && !x.uploadedUrl && !x.error);
+        if (idx !== -1) {
+          out[idx] = urls[i] ? { uri: item.uri, uploadedUrl: urls[i]! } : { uri: item.uri, error: true };
+        }
+      });
+      return out;
+    });
+    setUploading(false);
   };
 
   // ── Message rendering ──
