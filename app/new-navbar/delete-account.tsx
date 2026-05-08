@@ -42,7 +42,7 @@ export default function DeleteAccountScreen() {
     getUser().then((u) => setUserEmail(u?.email ?? null));
   }, []);
 
-  const emailMatches = emailInput === (userEmail ?? "");
+  const emailMatches = emailInput.trim() === (userEmail ?? "");
 
   const handleDeleteNow = async () => {
     posthog.capture("user_deleted_account");

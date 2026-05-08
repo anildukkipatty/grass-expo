@@ -106,7 +106,7 @@ function UserBubble({ text, attachments }: { text: string; attachments?: string[
       )}
       {text.length > 0 && (
         <View style={styles.userBubble}>
-          <Text style={styles.userText}>{text}</Text>
+          <Text style={styles.userText} selectable>{text}</Text>
         </View>
       )}
     </View>
@@ -123,7 +123,7 @@ function ToolCallPill({
   return (
     <View style={styles.actionPill}>
       {icon}
-      <Text style={styles.actionPillText} numberOfLines={1}>
+      <Text style={styles.actionPillText} numberOfLines={1} selectable>
         {label}
       </Text>
     </View>
@@ -330,7 +330,7 @@ function MarkdownText({ content }: { content: string }) {
       const hStyle = h1 ? styles.mdH1 : h2 ? styles.mdH2 : styles.mdH3;
       const hText = (h1 ?? h2 ?? h3)![1];
       blocks.push(
-        <Text key={key++} style={hStyle}>
+        <Text key={key++} style={hStyle} selectable>
           {parseInlineMarkdown(hText, hStyle)}
         </Text>,
       );
@@ -367,7 +367,7 @@ function MarkdownText({ content }: { content: string }) {
                     ? styles.mdTableHeaderCell
                     : styles.mdTableCell;
                   return (
-                    <Text key={ci} style={cellStyle}>
+                    <Text key={ci} style={cellStyle} selectable>
                       {parseInlineMarkdown(cell.trim(), cellStyle)}
                     </Text>
                   );
@@ -392,7 +392,7 @@ function MarkdownText({ content }: { content: string }) {
           {items.map((item, li) => (
             <View key={li} style={styles.mdListItem}>
               <Text style={styles.mdBullet}>{"•"}</Text>
-              <Text style={[styles.agentText, styles.mdListItemText]}>
+              <Text style={[styles.agentText, styles.mdListItemText]} selectable>
                 {parseInlineMarkdown(item, styles.agentText)}
               </Text>
             </View>
@@ -418,7 +418,7 @@ function MarkdownText({ content }: { content: string }) {
                 {item.n}
                 {"."}
               </Text>
-              <Text style={[styles.agentText, styles.mdListItemText]}>
+              <Text style={[styles.agentText, styles.mdListItemText]} selectable>
                 {parseInlineMarkdown(item.t, styles.agentText)}
               </Text>
             </View>
@@ -443,7 +443,7 @@ function MarkdownText({ content }: { content: string }) {
 
     // Paragraph
     blocks.push(
-      <Text key={key++} style={styles.agentText}>
+      <Text key={key++} style={styles.agentText} selectable>
         {parseInlineMarkdown(line, styles.agentText)}
       </Text>,
     );
@@ -787,6 +787,14 @@ export default function ChatScreen() {
     }
   };
 
+  const showCopiedToastWithTimeout = () => {
+    if (copyToastTimeoutRef.current) clearTimeout(copyToastTimeoutRef.current);
+    setShowCopiedToast(true);
+    copyToastTimeoutRef.current = setTimeout(() => {
+      setShowCopiedToast(false);
+    }, 1800);
+  };
+
   const handleCopyLastMessage = () => {
     const lastAssistantMessage = getLastAssistantMessage();
     if (!lastAssistantMessage) {
@@ -795,12 +803,7 @@ export default function ChatScreen() {
     }
 
     Clipboard.setString(lastAssistantMessage.content);
-
-    if (copyToastTimeoutRef.current) clearTimeout(copyToastTimeoutRef.current);
-    setShowCopiedToast(true);
-    copyToastTimeoutRef.current = setTimeout(() => {
-      setShowCopiedToast(false);
-    }, 1800);
+    showCopiedToastWithTimeout();
   };
 
   // ── Model sheet ──
@@ -1056,7 +1059,7 @@ export default function ChatScreen() {
       if (msg.role === "error") {
         return (
           <View key={msg.msgId} style={styles.agentBlock}>
-            <Text style={[styles.agentText, { color: "#B20000" }]}>
+            <Text style={[styles.agentText, { color: "#B20000" }]} selectable>
               {msg.content}
             </Text>
           </View>
@@ -1198,36 +1201,33 @@ export default function ChatScreen() {
               />
             )}
           </ScrollView>
-        </View>
 
-        {showScrollToBottom && (
-          <TouchableOpacity
-            style={[
-              styles.scrollToBottomBtn,
-              { bottom: inputContainerHeight + 12 },
-            ]}
-            activeOpacity={0.8}
-            onPress={scrollToBottom}
-          >
-            <View style={styles.scrollToBottomGlyph}>
-              <View style={styles.scrollToBottomStem} />
-              <View style={styles.scrollToBottomChevronRow}>
-                <View
-                  style={[
-                    styles.scrollToBottomChevronArm,
-                    styles.scrollToBottomChevronArmLeft,
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.scrollToBottomChevronArm,
-                    styles.scrollToBottomChevronArmRight,
-                  ]}
-                />
+          {showScrollToBottom && (
+            <TouchableOpacity
+              style={[styles.scrollToBottomBtn, { bottom: 12 }]}
+              activeOpacity={0.8}
+              onPress={scrollToBottom}
+            >
+              <View style={styles.scrollToBottomGlyph}>
+                <View style={styles.scrollToBottomStem} />
+                <View style={styles.scrollToBottomChevronRow}>
+                  <View
+                    style={[
+                      styles.scrollToBottomChevronArm,
+                      styles.scrollToBottomChevronArmLeft,
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.scrollToBottomChevronArm,
+                      styles.scrollToBottomChevronArmRight,
+                    ]}
+                  />
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        )}
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* ── Bottom input area ── */}
         <View

@@ -136,6 +136,27 @@ const _permissionsSSE = new Map<string, PermissionsSSEEntry>();
 // Reset to true when a thread transitions to 'running' or 'awaiting_permissions'.
 const _showDoneIndicator = new Map<string, boolean>();
 
+// SDK session id → live GRASS UUID, per server.
+// Persisted thread records key by SDK id (durable across server restarts), but the
+// permissions stream keys live sessions by the ephemeral GRASS UUID. This map bridges
+// the two so the home screen can look up status for a thread by its SDK id.
+// Key: `${serverKey}:${sdkId}` → grassId
+const _sdkToGrass = new Map<string, string>();
+
+function bridgeKey(serverKey: string, sdkId: string) {
+  return `${serverKey}:${sdkId}`;
+}
+
+function rememberBinding(serverKey: string, grassId: string, sdkId: string | null | undefined) {
+  if (!sdkId) return;
+  _sdkToGrass.set(bridgeKey(serverKey, sdkId), grassId);
+}
+
+export function resolveGrassIdForSdk(serverUrl: string, sdkId: string): string | null {
+  const key = resolveServerKey(serverUrl);
+  return _sdkToGrass.get(bridgeKey(key, sdkId)) ?? null;
+}
+
 export function markThreadSeen(serverUrl: string, grassId: string) {
   _showDoneIndicator.set(grassId, false);
   notifyPermissionsListeners(resolveServerKey(serverUrl));
@@ -197,6 +218,9 @@ async function openPermissionsSSE(serverUrl: string) {
               // Reset done indicator for any thread that transitions to an active state
               const prevMap = new Map(prevSessions.map(s => [s.grassId, s.status]));
               for (const next of nextSessions) {
+                if (next.sessionId) {
+                  rememberBinding(key, next.grassId, next.sessionId);
+                }
                 if (next.status === 'running' || next.status === 'awaiting_permissions') {
                   const prev = prevMap.get(next.grassId);
                   if (prev !== next.status) {
@@ -351,6 +375,9 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
     const sessionIdVal = (d?.session_id ?? parsed.session_id) as string | undefined;
     if (sessionIdVal && !entry.sdkSessionId) {
       entry.sdkSessionId = sessionIdVal;
+      if (entry.currentSessionId) {
+        rememberBinding(serverUrl, entry.currentSessionId, sessionIdVal);
+      }
       notifyListeners(serverUrl);
     }
     return;

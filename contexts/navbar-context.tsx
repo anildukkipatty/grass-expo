@@ -444,26 +444,26 @@ export function NavbarProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const token = await getToken();
-        if (wakeRunIdRef.current !== runId) return;
+        if (wakeRunIdRef.current !== runId) { wakeTriggeredRef.current = false; return; }
         if (!token) { wakeTriggeredRef.current = false; setWakeFailed(true); return; }
 
         const req = await requestContainer(token);
-        if (wakeRunIdRef.current !== runId) return;
+        if (wakeRunIdRef.current !== runId) { wakeTriggeredRef.current = false; return; }
         if (!req.ok) { wakeTriggeredRef.current = false; setWakeFailed(true); return; }
 
         const pollStart = Date.now();
         while (wakeRunIdRef.current === runId && Date.now() - pollStart < 120000) {
           const hb = await heartbeat(token);
-          if (wakeRunIdRef.current !== runId) return;
+          if (wakeRunIdRef.current !== runId) { wakeTriggeredRef.current = false; return; }
           if (hb.ok && hb.data.container === "running" && hb.data.grass) {
             let previewUrl = hb.data.url;
             if (!previewUrl) {
               const preview = await signedPreviewUrl(token);
               if (preview.ok) previewUrl = preview.data.url;
             }
-            if (wakeRunIdRef.current !== runId) return;
+            if (wakeRunIdRef.current !== runId) { wakeTriggeredRef.current = false; return; }
             if (previewUrl) await saveVmUrl(previewUrl);
-            if (wakeRunIdRef.current !== runId) return;
+            if (wakeRunIdRef.current !== runId) { wakeTriggeredRef.current = false; return; }
             notifyGrassVmReady();
             return;
           }
