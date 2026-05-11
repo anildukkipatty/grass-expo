@@ -299,7 +299,9 @@ export default function HomeScreen() {
               pathname: "/new-navbar/chat",
               params: {
                 serverUrl: thread.serverUrl,
-                sessionId: thread.grassId,
+                // Dispatch threads have a synthetic grassId that the Grass server
+                // does not know — passing it would 404 on /sessions/:id/history.
+                ...(thread.isDispatch ? {} : { sessionId: thread.grassId }),
                 repoName: thread.repo,
                 repoPath: thread.repoPath,
                 agent: thread.tool,

@@ -1090,8 +1090,31 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
   if (repoPath !== undefined) entry.currentRepoPath = repoPath ?? null;
   entry.messages = [];
   entry.activity = null;
-  entry.sessionLoading = !!id;
+  // If no explicit session ID but we have a repoPath, show loading while we
+  // look up the most recent session for that repo (dispatch notification fallback).
+  entry.sessionLoading = !!id || (!id && !!repoPath);
   notifyListeners(key);
+
+  if (!id && repoPath) {
+    try {
+      const params = new URLSearchParams();
+      if (agent) params.set('agent', agent);
+      params.set('repoPath', repoPath);
+      const res = await fetch(`${entry.baseUrl}/sessions?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json() as { sessions?: { id: string }[] };
+        const latestId = json.sessions?.[0]?.id ?? null;
+        if (latestId && _connections.has(key)) {
+          return initSessionStore(serverUrl, latestId, agent, repoPath);
+        }
+      }
+    } catch { /* ignore — fall through to empty chat */ }
+    if (_connections.has(key)) {
+      entry.sessionLoading = false;
+      notifyListeners(key);
+    }
+    return;
+  }
 
   if (id) {
     try {
