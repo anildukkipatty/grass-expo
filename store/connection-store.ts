@@ -13,6 +13,8 @@ export interface Message {
   seq?: string;
   badge?: string;
   attachments?: string[];   // S3 URLs — only present on role:'user' messages
+  toolUseId?: string;       // present on role:'tool' messages that came from a tool_use event
+  parentToolUseId?: string; // set when this message is from a subagent run nested under a parent Task tool_use
 }
 
 export interface PermissionItem {
@@ -401,8 +403,17 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
 
   if (event === 'tool_use') {
     const toolLabel = (parsed.tool_name as string) + ': ' + (parsed.tool_input as string);
+    const toolUseId = parsed.tool_use_id as string | undefined;
+    const parentToolUseId = parsed.parent_tool_use_id as string | undefined;
     entry.activity = { label: toolLabel };
-    entry.messages = [...entry.messages, { role: 'tool', content: toolLabel, complete: true, msgId: nextMsgId(entry) }];
+    entry.messages = [...entry.messages, {
+      role: 'tool',
+      content: toolLabel,
+      complete: true,
+      msgId: nextMsgId(entry),
+      ...(toolUseId ? { toolUseId } : {}),
+      ...(parentToolUseId ? { parentToolUseId } : {}),
+    }];
     notifyListeners(serverUrl);
     return;
   }
@@ -412,16 +423,26 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
     // stays visible during streaming even if events are batched.
     const seq = parsed.seq as string | undefined;
     const content = parsed.content as string;
+    const parentToolUseId = parsed.parent_tool_use_id as string | undefined;
     const prev = entry.messages;
     const last = prev[prev.length - 1];
-    if (last && last.role === 'assistant' && !last.complete) {
+    // Only coalesce with the previous assistant chunk if it shares the same parent linkage —
+    // a subagent's text shouldn't merge into the parent's in-flight bubble.
+    if (last && last.role === 'assistant' && !last.complete && last.parentToolUseId === parentToolUseId) {
       entry.messages = [...prev.slice(0, -1), { ...last, content, seq }];
     } else {
       // Guard against SSE replay arriving after history loaded the same message as complete.
       // This can happen when buffered SSE chunks are processed after closeSSEStream is called.
       const alreadyComplete = prev.some(m => m.role === 'assistant' && m.complete && m.content === content);
       if (!alreadyComplete) {
-        entry.messages = [...prev, { role: 'assistant', content, complete: false, msgId: nextMsgId(entry), seq }];
+        entry.messages = [...prev, {
+          role: 'assistant',
+          content,
+          complete: false,
+          msgId: nextMsgId(entry),
+          seq,
+          ...(parentToolUseId ? { parentToolUseId } : {}),
+        }];
       }
     }
     notifyListeners(serverUrl);
