@@ -8,9 +8,11 @@ import { getToken } from "@/store/auth-store";
 import { registerPushToken, removePushToken } from "@/api/notifications";
 import { ackDispatchSessions, fetchDispatchSessions } from "@/api/dispatch";
 import { findThreadById, upsertThread } from "@/store/thread-store";
+import { refreshPrimaryVmUrl } from "@/store/url-store";
 
 type DispatchCompleteData = {
   type: "dispatch_complete";
+  status?: "success" | "failed";
   grassId: string;
   sessionId?: string;   // real grass-ide session ID; absent when fallback headless path ran
   repo: string;
@@ -31,17 +33,19 @@ type NotificationData =
 const PUSH_TOKEN_KEY = "expo_push_token";
 const EAS_PROJECT_ID = "5f83639c-9362-4793-86cd-31ab41f09788";
 
-// Show notifications only when the app is in the background.
-// If the app is active (foreground), suppress the banner — the user is already in the app.
 Notifications.setNotificationHandler({
-  handleNotification: async () => {
+  handleNotification: async (notification) => {
     const isActive = AppState.currentState === "active";
+    const data = notification.request.content.data as NotificationData | undefined;
+    const isFailedDispatch =
+      data?.type === "dispatch_complete" && data.status === "failed";
+    const suppress = isActive && !isFailedDispatch;
     return {
-      shouldShowAlert: !isActive,
-      shouldPlaySound: !isActive,
+      shouldShowAlert: !suppress,
+      shouldPlaySound: !suppress,
       shouldSetBadge: false,
-      shouldShowBanner: !isActive,
-      shouldShowList: !isActive,
+      shouldShowBanner: !suppress,
+      shouldShowList: !suppress,
     };
   },
 });
@@ -115,6 +119,36 @@ async function saveDispatchThread(data: DispatchCompleteData): Promise<void> {
   } catch (_err) {}
 }
 
+// Drains the server-side DispatchSession queue: fetches unacknowledged completed
+// sessions, saves each as a local thread, then acks so they aren't re-inserted.
+// Called on mount (Scenario 4) and on every foreground transition (AppState "active").
+async function syncDispatchSessions(): Promise<void> {
+  try {
+    await refreshPrimaryVmUrl();
+    const authToken = await getToken();
+    if (!authToken) return;
+    const result = await fetchDispatchSessions(authToken);
+    if (!result.ok) return;
+    const sessions = result.data.data?.sessions ?? [];
+    const ackedIds: string[] = [];
+    for (const s of sessions) {
+      if (!s.serverUrl) continue;
+      await upsertThread({
+        grassId: s.sessionId || s.id,
+        title: s.title || s.repo,
+        repo: s.repo,
+        repoPath: s.repoPath,
+        tool: "claude-code",
+        serverUrl: s.serverUrl,
+        time: s.createdAt,
+        isDispatch: !s.sessionId,
+      });
+      ackedIds.push(s.id);
+    }
+    if (ackedIds.length) await ackDispatchSessions(ackedIds, authToken);
+  } catch (_err) {}
+}
+
 // Exported so logout flows can deregister the device token before clearing auth
 export async function unregisterPushTokenOnLogout(): Promise<void> {
   try {
@@ -140,6 +174,7 @@ export function usePushNotifications() {
     const appStateListener = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         Notifications.dismissAllNotificationsAsync();
+        void syncDispatchSessions();
       }
     });
 
@@ -176,35 +211,7 @@ export function usePushNotifications() {
       } catch (_err) {}
 
       // ── Scenario 4: user opened the app directly (bypassed the notification) ──
-      // GET returns only unacknowledged sessions; we ack after saving so evicted
-      // threads never get re-inserted on later mounts.
-      if (!cancelled) {
-        try {
-          const authToken = await getToken();
-          if (authToken) {
-            const result = await fetchDispatchSessions(authToken);
-            if (result.ok) {
-              const sessions = result.data.data?.sessions ?? [];
-              const ackedIds: string[] = [];
-              for (const s of sessions) {
-                if (!s.serverUrl) continue;
-                await upsertThread({
-                  grassId: s.sessionId || s.id,
-                  title: s.title || s.repo,
-                  repo: s.repo,
-                  repoPath: s.repoPath,
-                  tool: "claude-code",
-                  serverUrl: s.serverUrl,
-                  time: s.createdAt,
-                  isDispatch: !s.sessionId,
-                });
-                ackedIds.push(s.id);
-              }
-              if (ackedIds.length) await ackDispatchSessions(ackedIds, authToken);
-            }
-          }
-        } catch (_err) {}
-      }
+      if (!cancelled) await syncDispatchSessions();
     })();
 
     // Fires when a notification is received while the app is in the foreground

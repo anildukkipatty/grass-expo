@@ -428,12 +428,24 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
     const cost = parsed.cost != null ? '$' + (parsed.cost as number).toFixed(4) : null;
     const duration = parsed.duration_ms != null ? ((parsed.duration_ms as number) / 1000).toFixed(1) + 's' : null;
     const badge = [cost, duration].filter(Boolean).join(' · ');
-    const lastIdx = entry.messages.length - 1;
-    entry.messages = entry.messages.map((msg, i) =>
-      msg.role === 'assistant' && !msg.complete
-        ? { ...msg, complete: true, ...(i === lastIdx ? { badge } : {}) }
-        : msg
-    );
+    const resultText = parsed.result as string | undefined;
+    const hasIncompleteAssistant = entry.messages.some(m => m.role === 'assistant' && !m.complete);
+    if (hasIncompleteAssistant) {
+      const lastIdx = entry.messages.length - 1;
+      entry.messages = entry.messages.map((msg, i) =>
+        msg.role === 'assistant' && !msg.complete
+          ? { ...msg, complete: true, ...(i === lastIdx ? { badge } : {}) }
+          : msg
+      );
+    } else if (resultText && !entry.messages.some(m => m.role === 'assistant' && m.content === resultText)) {
+      entry.messages = [...entry.messages, {
+        role: 'assistant',
+        content: resultText,
+        complete: true,
+        msgId: nextMsgId(entry),
+        badge,
+      }];
+    }
     notifyListeners(serverUrl);
     return;
   }
