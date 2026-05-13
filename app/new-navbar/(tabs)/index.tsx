@@ -26,6 +26,7 @@ import { setSessionLabel } from "@/store/session-label-store";
 import {
   getSessionStatuses,
   markThreadSeen,
+  resolveGrassIdForSdk,
   SessionStatusItem,
   shouldShowDoneIndicator,
   subscribeToPermissions,
@@ -246,6 +247,8 @@ export default function HomeScreen() {
   });
 
   const selectedMachineId = vmUrls[activeVmTab] ?? undefined;
+  const selectedVmOffline =
+    !!selectedVmUrl && vmUrlStatuses.get(selectedVmUrl) === false;
 
   const isLoading = vmUrls.length === 0;
   const onPrimaryVm = !!primaryVmUrl && selectedVmUrl === primaryVmUrl;
@@ -274,7 +277,14 @@ export default function HomeScreen() {
 
     return threads.map((thread) => {
       const AgentIcon = AGENT_ICONS[thread.tool] ?? ClaudeIcon;
+      // thread.grassId holds the SDK session id (durable across server restarts).
+      // Bridge it to the live GRASS UUID so statusByGrassId hits even before the
+      // permissions stream has reported sessionId for this session.
+      const liveGrassId = selectedVmUrl
+        ? resolveGrassIdForSdk(selectedVmUrl, thread.grassId)
+        : null;
       const matchedStatus =
+        (liveGrassId ? statusByGrassId.get(liveGrassId) : undefined) ??
         statusByGrassId.get(thread.grassId) ??
         (thread.sdkSessionId
           ? statusBySessionId.get(thread.sdkSessionId)
@@ -409,7 +419,15 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: bottom }}
         showsVerticalScrollIndicator={false}
       >
-        {renderThreadList()}
+        {selectedVmOffline ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>
+              This machine looks offline. Start Grass server on it, then refresh.
+            </Text>
+          </View>
+        ) : (
+          renderThreadList()
+        )}
       </ScrollView>
 
       <TouchableOpacity
