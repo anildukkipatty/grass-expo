@@ -656,7 +656,7 @@ export default function ChatScreen() {
     threadSaved.current = true;
     setFirstSendOverlayStatus("idle");
     upsertThread({
-      grassId: threadId,
+      grassId: initialSessionId || threadId,
       sdkSessionId: ws.sdkSessionId ?? undefined,
       title: sessionLabel ?? title,
       repo: repoNameStr,
@@ -750,7 +750,7 @@ export default function ChatScreen() {
     const threadId = ws.sdkSessionId || ws.grassId;
     if (threadId && serverUrl) {
       upsertThread({
-        grassId: threadId,
+        grassId: initialSessionId || threadId,
         sdkSessionId: ws.sdkSessionId ?? undefined,
         title: sessionLabel ?? repoNameStr ?? "Chat",
         repo: repoNameStr,

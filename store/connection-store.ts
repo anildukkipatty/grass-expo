@@ -455,12 +455,24 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
     const cost = parsed.cost != null ? '$' + (parsed.cost as number).toFixed(4) : null;
     const duration = parsed.duration_ms != null ? ((parsed.duration_ms as number) / 1000).toFixed(1) + 's' : null;
     const badge = [cost, duration].filter(Boolean).join(' · ');
-    const lastIdx = entry.messages.length - 1;
-    entry.messages = entry.messages.map((msg, i) =>
-      msg.role === 'assistant' && !msg.complete
-        ? { ...msg, complete: true, ...(i === lastIdx ? { badge } : {}) }
-        : msg
-    );
+    const resultText = parsed.result as string | undefined;
+    const hasIncompleteAssistant = entry.messages.some(m => m.role === 'assistant' && !m.complete);
+    if (hasIncompleteAssistant) {
+      const lastIdx = entry.messages.length - 1;
+      entry.messages = entry.messages.map((msg, i) =>
+        msg.role === 'assistant' && !msg.complete
+          ? { ...msg, complete: true, ...(i === lastIdx ? { badge } : {}) }
+          : msg
+      );
+    } else if (resultText && !entry.messages.some(m => m.role === 'assistant' && m.content === resultText)) {
+      entry.messages = [...entry.messages, {
+        role: 'assistant',
+        content: resultText,
+        complete: true,
+        msgId: nextMsgId(entry),
+        badge,
+      }];
+    }
     notifyListeners(serverUrl);
     return;
   }
@@ -1117,8 +1129,31 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
   if (repoPath !== undefined) entry.currentRepoPath = repoPath ?? null;
   entry.messages = [];
   entry.activity = null;
-  entry.sessionLoading = !!id;
+  // If no explicit session ID but we have a repoPath, show loading while we
+  // look up the most recent session for that repo (dispatch notification fallback).
+  entry.sessionLoading = !!id || (!id && !!repoPath);
   notifyListeners(key);
+
+  if (!id && repoPath) {
+    try {
+      const params = new URLSearchParams();
+      if (agent) params.set('agent', agent);
+      params.set('repoPath', repoPath);
+      const res = await fetch(`${entry.baseUrl}/sessions?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json() as { sessions?: { id: string }[] };
+        const latestId = json.sessions?.[0]?.id ?? null;
+        if (latestId && _connections.has(key)) {
+          return initSessionStore(serverUrl, latestId, agent, repoPath);
+        }
+      }
+    } catch { /* ignore — fall through to empty chat */ }
+    if (_connections.has(key)) {
+      entry.sessionLoading = false;
+      notifyListeners(key);
+    }
+    return;
+  }
 
   if (id) {
     try {

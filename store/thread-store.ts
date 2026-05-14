@@ -13,6 +13,7 @@ export interface Thread {
   tool: string;           // agent
   serverUrl: string;
   time: string;           // ISO timestamp of last interaction
+  isDispatch?: boolean;   // true for synthetic threads created from dispatched tasks (no real Grass session)
 }
 
 type ThreadMap = Record<string, Thread[]>; // keyed by serverUrl
