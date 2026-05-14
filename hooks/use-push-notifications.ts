@@ -138,7 +138,7 @@ async function syncDispatchSessions(): Promise<void> {
         title: s.title || s.repo,
         repo: s.repo,
         repoPath: s.repoPath,
-        tool: "claude-code",
+        tool: s.agent || "claude-code",
         serverUrl: s.serverUrl,
         time: s.createdAt,
         isDispatch: !s.sessionId,

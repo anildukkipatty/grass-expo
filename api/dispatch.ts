@@ -7,6 +7,7 @@ export type DispatchSessionDTO = {
   serverUrl: string;
   title: string;
   sessionId: string | null;
+  agent: string;
   createdAt: string;
 };
 
