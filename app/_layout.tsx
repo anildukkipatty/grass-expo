@@ -4,6 +4,7 @@ import { PostHogProvider } from "posthog-react-native";
 import { useTheme } from "@/store/theme-store";
 import { getUser, setAuthErrorHandler, clearAuth } from "@/store/auth-store";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
+import { initSeenSessions } from "@/store/connection-store";
 import { useFonts } from "expo-font";
 import { Stack, usePathname, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -36,6 +37,7 @@ if (ErrorUtils) {
 
 
 SplashScreen.preventAutoHideAsync();
+initSeenSessions();
 
 // Apply SF Pro as the default font for all Text and TextInput components
 const DefaultText = Text as any;

@@ -303,7 +303,7 @@ export default function HomeScreen() {
               agent: thread.tool,
               repo_name: thread.repo,
             });
-            markThreadSeen(thread.serverUrl, indicatorKey);
+            markThreadSeen(thread.serverUrl, indicatorKey, thread.grassId);
             setSessionLabel(thread.title);
             router.push({
               pathname: "/new-navbar/chat",
@@ -342,7 +342,7 @@ export default function HomeScreen() {
                 {status === 'running' && (
                   <ActivityIndicator size="small" color="#4CAF50" />
                 )}
-                {status === 'done' && shouldShowDoneIndicator(indicatorKey) && (
+                {status === 'done' && shouldShowDoneIndicator(indicatorKey) && shouldShowDoneIndicator(thread.grassId) && (
                   <View style={styles.threadStatusDotGreen} />
                 )}
                 {status === 'awaiting_permissions' && (

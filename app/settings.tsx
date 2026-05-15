@@ -6,7 +6,7 @@ import ProfileIconSvg from "@/assets/images/settings/profile-icon.svg";
 import { posthog } from "@/constants/posthog";
 import { clearAuth, getUser } from "@/store/auth-store";
 import { unregisterPushTokenOnLogout } from "@/hooks/use-push-notifications";
-import { closeConnection, getConnectedUrls } from "@/store/connection-store";
+import { closeConnection, getConnectedUrls, clearSeenSessions } from "@/store/connection-store";
 import { clearAllThreads } from "@/store/thread-store";
 import { clearUrls } from "@/store/url-store";
 import { BlurView } from "expo-blur";
@@ -53,6 +53,7 @@ export default function SettingsScreen() {
           style: "destructive",
           onPress: async () => {
             await clearAllThreads();
+            await clearSeenSessions();
             Alert.alert("Done", "Recent threads cleared.");
           },
         },

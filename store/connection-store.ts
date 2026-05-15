@@ -1,6 +1,7 @@
 import { AppState } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { fetch } from 'expo/fetch';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { resolveServerKey, resolveServerUrl } from './url-store';
 import { APP_VERSION } from '@/constants/versions';
 import { checkVersionCompat, CompatResult } from '@/store/version-compat';
@@ -138,6 +139,57 @@ const _permissionsSSE = new Map<string, PermissionsSSEEntry>();
 // Reset to true when a thread transitions to 'running' or 'awaiting_permissions'.
 const _showDoneIndicator = new Map<string, boolean>();
 
+// Persisted set of session IDs the user has explicitly seen.
+// Survives cold app starts so the dot doesn't reappear for already-seen sessions.
+const SEEN_SESSIONS_KEY = 'grass_seen_sessions';
+const _persistedSeen = new Set<string>();
+let _seenLoaded = false;
+
+async function loadSeenSessions(): Promise<void> {
+  if (_seenLoaded) return;
+  _seenLoaded = true;
+  try {
+    const raw = await AsyncStorage.getItem(SEEN_SESSIONS_KEY);
+    if (raw) {
+      const ids: string[] = JSON.parse(raw);
+      ids.forEach(id => {
+        _persistedSeen.add(id);
+        _showDoneIndicator.set(id, false);
+      });
+    }
+  } catch {}
+}
+
+async function persistSeenId(id: string): Promise<void> {
+  _persistedSeen.add(id);
+  try {
+    await AsyncStorage.setItem(SEEN_SESSIONS_KEY, JSON.stringify([..._persistedSeen]));
+  } catch {}
+}
+
+async function unpersistSeenId(id: string): Promise<void> {
+  if (!_persistedSeen.has(id)) return;
+  _persistedSeen.delete(id);
+  try {
+    await AsyncStorage.setItem(SEEN_SESSIONS_KEY, JSON.stringify([..._persistedSeen]));
+  } catch {}
+}
+
+// Call once at app start to warm the seen-sessions cache before the SSE connects.
+export function initSeenSessions(): void {
+  void loadSeenSessions();
+}
+
+// Call when clearing all threads (e.g. user taps "Clear Recent Threads") so orphaned
+// seen IDs don't accumulate in AsyncStorage.
+export async function clearSeenSessions(): Promise<void> {
+  _persistedSeen.clear();
+  _showDoneIndicator.clear();
+  try {
+    await AsyncStorage.removeItem(SEEN_SESSIONS_KEY);
+  } catch {}
+}
+
 // SDK session id → live GRASS UUID, per server.
 // Persisted thread records key by SDK id (durable across server restarts), but the
 // permissions stream keys live sessions by the ephemeral GRASS UUID. This map bridges
@@ -159,13 +211,17 @@ export function resolveGrassIdForSdk(serverUrl: string, sdkId: string): string |
   return _sdkToGrass.get(bridgeKey(key, sdkId)) ?? null;
 }
 
-export function markThreadSeen(serverUrl: string, grassId: string) {
-  _showDoneIndicator.set(grassId, false);
+export function markThreadSeen(serverUrl: string, ...grassIds: string[]) {
+  const unique = [...new Set(grassIds.filter(Boolean))];
+  unique.forEach(id => {
+    _showDoneIndicator.set(id, false);
+    void persistSeenId(id);
+  });
   notifyPermissionsListeners(resolveServerKey(serverUrl));
 }
 
 export function shouldShowDoneIndicator(grassId: string): boolean {
-  // If never explicitly hidden, default to showing
+  if (!_seenLoaded) void loadSeenSessions();
   return _showDoneIndicator.get(grassId) !== false;
 }
 
@@ -227,6 +283,11 @@ async function openPermissionsSSE(serverUrl: string) {
                   const prev = prevMap.get(next.grassId);
                   if (prev !== next.status) {
                     _showDoneIndicator.set(next.grassId, true);
+                    void unpersistSeenId(next.grassId);
+                    if (next.sessionId) {
+                      _showDoneIndicator.set(next.sessionId, true);
+                      void unpersistSeenId(next.sessionId);
+                    }
                   }
                 }
               }
