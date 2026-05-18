@@ -418,6 +418,29 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
     return;
   }
 
+  // Codex emits `tool_result` to pair with each `command_execution` tool_use; claude-code and
+  // opencode never emit this event, so this branch only fires for codex Bash completions.
+  if (event === 'tool_result') {
+    const toolName = (parsed.tool_name as string) ?? 'Tool';
+    const exitCode = parsed.exit_code as number | null | undefined;
+    const status = parsed.status as string | undefined;
+    const output = ((parsed.output as string) ?? '').trim();
+    const exitLabel = exitCode != null ? 'exit ' + exitCode : (status ?? 'done');
+    const detail = output ? exitLabel + ' · ' + output.replace(/\s+/g, ' ') : exitLabel;
+    const toolUseId = parsed.tool_use_id as string | undefined;
+    const parentToolUseId = parsed.parent_tool_use_id as string | undefined;
+    entry.messages = [...entry.messages, {
+      role: 'tool',
+      content: toolName + ': ' + detail,
+      complete: true,
+      msgId: nextMsgId(entry),
+      ...(toolUseId ? { toolUseId } : {}),
+      ...(parentToolUseId ? { parentToolUseId } : {}),
+    }];
+    notifyListeners(serverUrl);
+    return;
+  }
+
   if (event === 'assistant') {
     // Don't clear activity here — let result/done handle it so the activity bar
     // stays visible during streaming even if events are batched.
