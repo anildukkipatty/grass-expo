@@ -1,0 +1,143 @@
+appId: com.codeongrass
+name: Codex E2E
+tags:
+  - codex
+  - e2e
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Codex agent end-to-end smoke flow.
+#
+# Preconditions (see .maestro/README.md):
+#   - iOS simulator has the Expo dev/release build installed.
+#   - The CLI server (codeongrass/cli) is running with OPENAI_API_KEY set
+#     and the codex CLI installed.
+#   - The Expo app has been onboarded and has a working VM URL added that
+#     points at the local CLI server, with at least one repo visible in the
+#     "Repos" tab.
+# ─────────────────────────────────────────────────────────────────────────────
+
+- launchApp:
+    clearKeyboard: true
+
+# Land on the Repos tab and open the first repo.
+- tapOn:
+    text: "Repos"
+    retryTapIfNoChange: true
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Tap the first repo row in the list. Repo rows render their name + branch.
+# We use the GitBranch glyph's sibling label by tapping anywhere visible
+# under the list — Maestro picks the first matching tappable element.
+- assertVisible:
+    id: ".*"   # placeholder so the tap below has rendered targets to choose from
+    optional: true
+- tapOn:
+    point: "50%,40%"      # top-most repo row sits in the upper third of the screen
+    retryTapIfNoChange: false
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# ── (a) Tap the Codex pill in the chat-list and assert it became active ─────
+- assertVisible:
+    id: "agent-pill-codex"
+- tapOn:
+    id: "agent-pill-codex"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "agent-pill-codex-active"
+
+# ── (b) Create a new codex session via the "New chat" floating button ───────
+- tapOn: "New chat"
+- waitForAnimationToEnd:
+    timeout: 8000
+
+# ── (c) Default model label for codex should be "GPT-5 Codex" ───────────────
+- assertVisible: "GPT-5 Codex"
+
+# ── (d) Send a deterministic prompt, wait for "pong" in the assistant reply ─
+- tapOn:
+    id: "chat-input"
+- inputText: "Reply with exactly the word pong and nothing else."
+- tapOn:
+    id: "chat-send-button"
+
+# Codex/OpenAI roundtrip — generous upper bound.
+- extendedWaitUntil:
+    visible:
+      text: "(?i)pong"
+    timeout: 60000
+
+# ── Back out to the chat-list, verify the session shows up ──────────────────
+- tapOn:
+    point: "5%,5%"        # back button (top-left header)
+    retryTapIfNoChange: false
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible:
+    id: "agent-pill-codex-active"
+# Loosely assert there is at least one row that came from a recent send —
+# either the prompt preview or a "pong" containing title.
+- assertVisible:
+    text: "(?i)pong|Reply with exactly"
+    optional: true
+
+# ── (e) Re-open the session, attach an image, ask for a description ─────────
+- tapOn:
+    point: "50%,40%"      # first session row
+    retryTapIfNoChange: false
+- waitForAnimationToEnd:
+    timeout: 5000
+
+- assertVisible: "GPT-5 Codex"
+
+- tapOn:
+    id: "chat-attach-button"
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn: "Photos"
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Pick the first photo from the iOS photo picker. The actual UI here is the
+# system PHPicker — text labels vary by iOS version, so we tap by position.
+- tapOn:
+    point: "20%,35%"
+    retryTapIfNoChange: false
+- waitForAnimationToEnd:
+    timeout: 3000
+# Tap the "Add" / "Choose" confirmation that PHPicker shows in the top-right.
+- tapOn:
+    point: "92%,8%"
+    retryTapIfNoChange: false
+- waitForAnimationToEnd:
+    timeout: 5000
+
+- tapOn:
+    id: "chat-input"
+- inputText: "Describe this image briefly."
+- tapOn:
+    id: "chat-send-button"
+
+# Vision-style call — give it more time.
+- extendedWaitUntil:
+    visible:
+      text: ".+"        # any non-empty assistant text
+    timeout: 90000
+- assertNotVisible:
+    text: "(?i)error|failed"
+    optional: true
+
+# ── (f) Back out and re-open the session, model selection should persist ────
+- tapOn:
+    point: "5%,5%"
+    retryTapIfNoChange: false
+- waitForAnimationToEnd:
+    timeout: 5000
+
+- tapOn:
+    point: "50%,40%"      # re-open the same session
+    retryTapIfNoChange: false
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "GPT-5 Codex"

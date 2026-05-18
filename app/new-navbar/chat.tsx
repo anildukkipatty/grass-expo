@@ -1289,6 +1289,7 @@ export default function ChatScreen() {
           )}
           <View style={styles.inputRow}>
             <TextInput
+              testID="chat-input"
               style={styles.textInput}
               value={inputText}
               onChangeText={(t) => {
@@ -1304,6 +1305,8 @@ export default function ChatScreen() {
             />
             {ws.streaming ? (
               <TouchableOpacity
+                testID="chat-stop-button"
+                accessibilityLabel="Stop"
                 style={styles.submitBtn}
                 activeOpacity={0.8}
                 onPress={() => ws.abort()}
@@ -1312,6 +1315,8 @@ export default function ChatScreen() {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
+                testID="chat-send-button"
+                accessibilityLabel="Send message"
                 style={[styles.submitBtn, !canSend && styles.submitBtnDisabled]}
                 activeOpacity={0.8}
                 onPress={handleSubmit}
@@ -1324,6 +1329,8 @@ export default function ChatScreen() {
           <View style={styles.toolbarRow}>
             <TouchableOpacity
               ref={addBtnRef}
+              testID="chat-attach-button"
+              accessibilityLabel="Attach"
               style={styles.addBtn}
               activeOpacity={0.7}
               onPress={openOptions}
@@ -1334,6 +1341,7 @@ export default function ChatScreen() {
             <View style={styles.toolbarSpacer} />
 
             <TouchableOpacity
+              testID="chat-model-dropdown"
               style={styles.modelDropdown}
               activeOpacity={0.7}
               onPress={openModelSheet}

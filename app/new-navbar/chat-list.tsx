@@ -230,6 +230,8 @@ export default function ChatListScreen() {
       {/* ── Agent tab toggle ── */}
       <View style={styles.agentTabRow}>
         <TouchableOpacity
+          testID="agent-pill-claude"
+          accessibilityLabel="Claude agent"
           style={[
             styles.agentTab,
             selectedAgent === "claude"
@@ -247,6 +249,8 @@ export default function ChatListScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          testID="agent-pill-opencode"
+          accessibilityLabel="Opencode agent"
           style={[
             styles.agentTab,
             selectedAgent === "opencode"
@@ -264,6 +268,8 @@ export default function ChatListScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          testID={selectedAgent === "codex" ? "agent-pill-codex-active" : "agent-pill-codex"}
+          accessibilityLabel={selectedAgent === "codex" ? "Codex agent selected" : "Codex agent"}
           style={[
             styles.agentTab,
             selectedAgent === "codex"
