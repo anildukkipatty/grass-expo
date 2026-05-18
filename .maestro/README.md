@@ -107,10 +107,31 @@ the only production-source changes for E2E:
 | `chat-stop-button`           | `app/new-navbar/chat.tsx`             | Stop / abort button shown while streaming            |
 | `chat-attach-button`         | `app/new-navbar/chat.tsx`             | Paperclip / photos toolbar button                    |
 | `chat-model-dropdown`        | `app/new-navbar/chat.tsx`             | Model picker chip (label is the visible model name)  |
+| `assistant-bubble`           | `app/new-navbar/chat.tsx`             | Assistant message block — scopes text assertions so the user's prompt echo doesn't match |
 
 Everything else the flow targets is matched by visible text ("New chat",
 "GPT-5 Codex", "Photos", "Repos", `(?i)pong`, etc.) or by screen position
 for the system iOS photo picker.
+
+## Brittle position taps
+
+A few interactions in the flow are still position-based and would benefit
+from stable testIDs in a future refactor:
+
+- **Repo row tap** (~line 30): `point: "50%,40%"` to open the first repo on
+  the Repos tab. Add a testID like `repo-row-<index>` or `repo-row-first` to
+  the repo list rows.
+- **Session row tap** (~lines 81 and 133): `point: "50%,40%"` to open the
+  first session in the chat-list. Add a testID like `session-row-<index>` to
+  session list rows.
+- **Back button tap** (~lines 67 and 127): `point: "5%,5%"` to hit the
+  top-left header back button. Assumes **iPhone portrait geometry** — won't
+  work on iPad or landscape. Add a testID like `header-back-button` to the
+  Stack header's back chrome.
+- **iOS PHPicker fallback** (~lines 97-105): tapping a photo thumbnail and
+  the "Add"/"Choose" confirmation by position. The PHPicker is a system UI
+  outside our process, so testIDs aren't an option — position taps are the
+  realistic fallback here.
 
 ## Assets
 

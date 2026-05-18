@@ -1056,7 +1056,7 @@ export default function ChatScreen() {
 
     if (msg.role === "assistant") {
       return (
-        <View key={msg.msgId} style={styles.agentBlock}>
+        <View key={msg.msgId} style={styles.agentBlock} testID="assistant-bubble">
           <MarkdownText content={msg.content} />
         </View>
       );

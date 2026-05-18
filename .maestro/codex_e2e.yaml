@@ -29,9 +29,6 @@ tags:
 # Tap the first repo row in the list. Repo rows render their name + branch.
 # We use the GitBranch glyph's sibling label by tapping anywhere visible
 # under the list — Maestro picks the first matching tappable element.
-- assertVisible:
-    id: ".*"   # placeholder so the tap below has rendered targets to choose from
-    optional: true
 - tapOn:
     point: "50%,40%"      # top-most repo row sits in the upper third of the screen
     retryTapIfNoChange: false
@@ -62,9 +59,11 @@ tags:
 - tapOn:
     id: "chat-send-button"
 
-# Codex/OpenAI roundtrip — generous upper bound.
+# Codex/OpenAI roundtrip — generous upper bound. Scope to the assistant bubble
+# so the user's prompt echo (which contains the word "pong") doesn't match.
 - extendedWaitUntil:
     visible:
+      id: "assistant-bubble"
       text: "(?i)pong"
     timeout: 60000
 
@@ -119,10 +118,13 @@ tags:
 - tapOn:
     id: "chat-send-button"
 
-# Vision-style call — give it more time.
+# Vision-style call — give it more time. Scope to the assistant bubble and
+# look for one of several words a vision response to a solid-color 100×100
+# PNG is likely to use ("image", "square", "color", "solid", "picture").
 - extendedWaitUntil:
     visible:
-      text: ".+"        # any non-empty assistant text
+      id: "assistant-bubble"
+      text: "(?i)(image|square|color|solid|picture)"
     timeout: 90000
 - assertNotVisible:
     text: "(?i)error|failed"
