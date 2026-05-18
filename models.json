@@ -90,5 +90,11 @@
     "openai/text-embedding-3-large": "Text Embedding 3 Large",
     "openai/text-embedding-3-small": "Text Embedding 3 Small",
     "openai/text-embedding-ada-002": "Text Embedding Ada 002"
+  },
+  "codex": {
+    "gpt-5-codex": "GPT-5 Codex",
+    "gpt-5": "GPT-5",
+    "o3": "o3",
+    "o4-mini": "o4 mini"
   }
 }

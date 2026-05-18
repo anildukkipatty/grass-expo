@@ -26,7 +26,7 @@ export interface PermissionItem {
 export interface GlobalPermissionItem {
   sessionId: string;
   sdkSessionId: string | null;
-  agent: 'claude-code' | 'opencode' | string;
+  agent: 'claude-code' | 'opencode' | 'codex' | string;
   repoPath: string;
   repoName: string;
   toolUseID: string;
