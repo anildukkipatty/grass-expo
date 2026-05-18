@@ -79,7 +79,7 @@ const MODELS_BY_AGENT = modelsJson as Record<string, Record<string, string>>;
 const MODEL_DEFAULTS: Record<string, string> = {
   "claude-code": "claude-sonnet-4-6",
   opencode: "opencode/big-pickle",
-  codex: "gpt-5-codex",
+  codex: "gpt-5",
 };
 
 function resolveAgentKey(agent: string): string {
