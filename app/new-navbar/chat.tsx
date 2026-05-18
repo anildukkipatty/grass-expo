@@ -493,6 +493,10 @@ export default function ChatScreen() {
   const repoNameStr = Array.isArray(repoName) ? repoName[0] : (repoName ?? "");
   const repoPathStr = Array.isArray(repoPath) ? repoPath[0] : (repoPath ?? "");
   const agentStr = Array.isArray(agent) ? agent[0] : (agent ?? "claude-code");
+  // Codex SDK has no programmatic approval callback, so "ask-permissions" and
+  // "allow-all-edits" don't behave correctly — only "yolo" maps to a working
+  // Codex sandbox/approval combination. Force yolo for Codex sessions.
+  const isCodex = agentStr === "codex";
 
   // ── Local state ──
   const [inputText, setInputText] = useState("");
@@ -549,6 +553,12 @@ export default function ChatScreen() {
 
   // ── Session label subscription ──
   useEffect(() => subscribeSessionLabel(setSessionLabelState), []);
+
+  useEffect(() => {
+    if (!isCodex) return;
+    if (ws.permissionMode === "yolo") return;
+    ws.patchPermissionMode(ws.grassId ?? ws.sessionId, "yolo");
+  }, [isCodex, ws.permissionMode, ws.grassId, ws.sessionId, ws.patchPermissionMode]);
 
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
@@ -1550,31 +1560,39 @@ export default function ChatScreen() {
                 { key: "ask-permissions", label: "Ask permissions", sub: "Agent asks before making changes" },
                 { key: "allow-all-edits",  label: "Allow all edits",  sub: "Agent edits files without asking" },
                 { key: "yolo",             label: "YOLO",             sub: "Agent runs commands freely, no confirmations" },
-              ] as const).map((item, index) => (
-                <TouchableOpacity
-                  key={item.key}
-                  style={[
-                    styles.modelRow,
-                    ws.permissionMode === item.key && styles.modelRowSelected,
-                    index < 2 && styles.modelRowSeparator,
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    if (serverUrl) {
-                      ws.patchPermissionMode(
-                        ws.grassId ?? ws.sessionId,
-                        item.key as PermissionMode,
-                      );
-                    }
-                  }}
-                >
-                  <View style={styles.modelInfo}>
-                    <Text style={styles.modelLabel}>{item.label}</Text>
-                    <Text style={styles.modeSheetSubLabel}>{item.sub}</Text>
-                  </View>
-                  {ws.permissionMode === item.key && <SelectedIcon width={16} height={16} />}
-                </TouchableOpacity>
-              ))}
+              ] as const).map((item, index) => {
+                const disabled = isCodex && item.key !== "yolo";
+                return (
+                  <TouchableOpacity
+                    key={item.key}
+                    style={[
+                      styles.modelRow,
+                      ws.permissionMode === item.key && styles.modelRowSelected,
+                      index < 2 && styles.modelRowSeparator,
+                      disabled && { opacity: 0.4 },
+                    ]}
+                    activeOpacity={disabled ? 1 : 0.7}
+                    disabled={disabled}
+                    onPress={() => {
+                      if (disabled) return;
+                      if (serverUrl) {
+                        ws.patchPermissionMode(
+                          ws.grassId ?? ws.sessionId,
+                          item.key as PermissionMode,
+                        );
+                      }
+                    }}
+                  >
+                    <View style={styles.modelInfo}>
+                      <Text style={styles.modelLabel}>{item.label}</Text>
+                      <Text style={styles.modeSheetSubLabel}>
+                        {disabled ? "Not supported for Codex" : item.sub}
+                      </Text>
+                    </View>
+                    {ws.permissionMode === item.key && <SelectedIcon width={16} height={16} />}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </BottomSheetScrollView>
         </View>
