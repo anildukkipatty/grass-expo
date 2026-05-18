@@ -79,7 +79,7 @@ const MODELS_BY_AGENT = modelsJson as Record<string, Record<string, string>>;
 const MODEL_DEFAULTS: Record<string, string> = {
   "claude-code": "claude-sonnet-4-6",
   opencode: "opencode/big-pickle",
-  codex: "gpt-5",
+  codex: "gpt-5.5",
 };
 
 function resolveAgentKey(agent: string): string {
@@ -1605,6 +1605,7 @@ export default function ChatScreen() {
               {modelList.map((m, index) => (
                 <TouchableOpacity
                   key={m.key}
+                  testID={`model-row-${m.key}`}
                   style={[
                     styles.modelRow,
                     tempModelKey === m.key && styles.modelRowSelected,
@@ -1625,6 +1626,7 @@ export default function ChatScreen() {
           {/* Sticky confirm button */}
           <View style={styles.sheetFooter}>
             <TouchableOpacity
+              testID="model-confirm-button"
               style={styles.confirmBtn}
               activeOpacity={0.85}
               onPress={confirmModel}

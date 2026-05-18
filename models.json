@@ -92,9 +92,10 @@
     "openai/text-embedding-ada-002": "Text Embedding Ada 002"
   },
   "codex": {
-    "gpt-5": "GPT-5",
-    "gpt-5-codex": "GPT-5 Codex",
-    "o3": "o3",
-    "o4-mini": "o4 mini"
+    "gpt-5.5": "GPT-5.5",
+    "gpt-5.4": "GPT-5.4",
+    "gpt-5.4-mini": "GPT-5.4 Mini",
+    "gpt-5.3-codex": "GPT-5.3 Codex",
+    "gpt-5.2": "GPT-5.2"
   }
 }
