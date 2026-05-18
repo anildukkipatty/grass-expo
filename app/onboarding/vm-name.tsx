@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
   Keyboard,
   Platform,
@@ -26,9 +27,22 @@ export default function VmNameScreen() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const isRename = mode === "rename";
   const [vmName, setVmName] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const blinkAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(blinkAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+        Animated.timing(blinkAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [blinkAnim]);
 
   useEffect(() => {
     const showEvent =
@@ -68,21 +82,35 @@ export default function VmNameScreen() {
             />
 
             {/* Input centered on the image; % positions are image-relative */}
-            <View style={styles.overlayInputWrapper}>
+            <TouchableOpacity
+              activeOpacity={1}
+              style={styles.overlayInputWrapper}
+              onPress={() => inputRef.current?.focus()}
+            >
               <TextInput
                 ref={inputRef}
                 style={styles.overlayInput}
                 value={vmName}
                 onChangeText={setVmName}
-                placeholder="e.g. Jarvis"
+                placeholder=""
                 placeholderTextColor="rgba(0,0,0,0.25)"
                 autoCorrect={false}
                 autoCapitalize="none"
                 returnKeyType="done"
                 onSubmitEditing={Keyboard.dismiss}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
                 caretHidden={false}
               />
-            </View>
+              {!vmName && !isFocused && (
+                <View style={styles.blinkingCursorRow} pointerEvents="none">
+                  <Text style={styles.blinkingPlaceholder}>e.g. Jarvis</Text>
+                  <Animated.Text style={[styles.blinkingCursor, { opacity: blinkAnim }]}>
+                    |
+                  </Animated.Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </TouchableOpacity>
 
           {/* ── Gradient + bottom content (hidden when keyboard is up) ── */}
@@ -203,9 +231,14 @@ const styles = StyleSheet.create({
     width: 182,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: "rgba(0, 0, 0, 0.20)",
-    backgroundColor: "rgba(255, 255, 255, 0.10)",
+    borderColor: "rgba(0, 0, 0, 0.55)",
+    backgroundColor: "rgba(255, 255, 255, 0.80)",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   overlayInput: {
     flex: 1,
@@ -217,6 +250,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     letterSpacing: -0.5,
     textAlign: "center",
+  },
+  blinkingCursorRow: {
+    position: "absolute",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    left: 0,
+    right: 0,
+  },
+  blinkingPlaceholder: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 20,
+    color: "rgba(0,0,0,0.25)",
+    letterSpacing: -0.5,
+  },
+  blinkingCursor: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 22,
+    color: "rgba(0,0,0,0.5)",
+    marginLeft: 1,
+    lineHeight: 26,
   },
 
   // ── Gradient overlay ──────────────────────────────
