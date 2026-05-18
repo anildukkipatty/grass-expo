@@ -12,6 +12,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BackButtonIcon from "@/assets/images/new-design/chat/back-button.svg";
+import ChatGPTActiveIcon from "@/assets/images/new-design/chat/chatGPT-active.svg";
+import ChatGPTIcon from "@/assets/images/new-design/chat/chatGPT.svg";
 import ClaudeLightModeIcon from "@/assets/images/new-design/chat/claude-light-mode.svg";
 import ClaudeIcon from "@/assets/images/new-design/chat/claude.svg";
 import OpenCodeLightNodeIcon from "@/assets/images/new-design/chat/opencode-light-node.svg";
@@ -35,7 +37,7 @@ import { formatRelativeTime, pruneThreads } from "@/store/thread-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AgentKey = "claude" | "opencode";
+type AgentKey = "claude" | "opencode" | "codex";
 
 function normalizeParam(input?: string | string[]): string | undefined {
   if (Array.isArray(input)) return input[0];
@@ -63,8 +65,12 @@ export default function ChatListScreen() {
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchSeqRef = useRef(0);
 
-  const selectedAgentId =
-    selectedAgent === "claude" ? "claude-code" : "opencode";
+  const selectedAgentId: "claude-code" | "opencode" | "codex" =
+    selectedAgent === "claude"
+      ? "claude-code"
+      : selectedAgent === "opencode"
+        ? "opencode"
+        : "codex";
   const selectedVmOffline =
     !!selectedVmUrl && vmUrlStatuses.get(selectedVmUrl) === false;
 
@@ -254,6 +260,23 @@ export default function ChatListScreen() {
             <OpenCodeLightNodeIcon width={24} height={24} />
           ) : (
             <OpenCodeIcon width={24} height={24} />
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.agentTab,
+            selectedAgent === "codex"
+              ? styles.openCodeActiveTab
+              : styles.inactiveTab,
+          ]}
+          activeOpacity={0.85}
+          onPress={() => setSelectedAgent("codex")}
+        >
+          {selectedAgent === "codex" ? (
+            <ChatGPTActiveIcon width={24} height={24} />
+          ) : (
+            <ChatGPTIcon width={24} height={24} />
           )}
         </TouchableOpacity>
       </View>
