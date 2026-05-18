@@ -1137,7 +1137,13 @@ export async function listSessionsStore(serverUrl: string, repoPath?: string, ag
   }
 }
 
-export async function initSessionStore(serverUrl: string, id: string | null, agent?: string | null, repoPath?: string | null) {
+export async function initSessionStore(
+  serverUrl: string,
+  id: string | null,
+  agent?: string | null,
+  repoPath?: string | null,
+  opts?: { resumeLatestForRepo?: boolean },
+) {
   const key = resolveServerKey(serverUrl);
   const entry = _connections.get(key);
   if (!entry) return;
@@ -1152,16 +1158,16 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
   if (repoPath !== undefined) entry.currentRepoPath = repoPath ?? null;
   entry.messages = [];
   entry.activity = null;
-  // If no explicit session ID but we have a repoPath, show loading while we
-  // look up the most recent session for that repo (dispatch notification fallback).
-  entry.sessionLoading = !!id || (!id && !!repoPath);
+  const shouldResumeLatest = !id && !!repoPath && !!opts?.resumeLatestForRepo;
+  // Show loading while either fetching explicit history or looking up latest-for-repo.
+  entry.sessionLoading = !!id || shouldResumeLatest;
   notifyListeners(key);
 
-  if (!id && repoPath) {
+  if (shouldResumeLatest) {
     try {
       const params = new URLSearchParams();
       if (agent) params.set('agent', agent);
-      params.set('repoPath', repoPath);
+      params.set('repoPath', repoPath!);
       const res = await fetch(`${entry.baseUrl}/sessions?${params.toString()}`);
       if (res.ok) {
         const json = await res.json() as { sessions?: { id: string }[] };

@@ -260,7 +260,9 @@ export function usePushNotifications() {
                 repoName: data.repo,
                 repoPath: data.repoPath,
                 agent: data.tool || "claude-code",
-                ...(data.sessionId ? { sessionId: data.sessionId } : {}),
+                ...(data.sessionId
+                  ? { sessionId: data.sessionId }
+                  : { resumeLatestForRepo: "1" }),
               },
             });
           } else {
