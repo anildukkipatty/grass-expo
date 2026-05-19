@@ -5,6 +5,7 @@ import {
   Image,
   Keyboard,
   Linking,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -33,13 +34,16 @@ import OpenCodeIcon from "@/assets/images/new-design/connect-more/opencode-trans
 import SecureIcon from "@/assets/images/new-design/connect-more/secure.svg";
 import SuccessMark from "@/assets/images/new-design/connect-more/success-mark.svg";
 
+import { PiOAuthWebViewModal } from "./PiOAuthWebViewModal";
+
 import { SFPro } from "@/constants/theme";
 import { claudeComplete, claudeDisconnect, claudeStart, claudeStatus } from "@/api/claude";
 import { opencodeConnect, opencodeDisconnect, opencodeStatus } from "@/api/opencode";
+import { piDisconnect, piOAuthExchange, piOAuthInit, piStatus } from "@/api/pi";
 import { getToken } from "@/store/auth-store";
 
 const OPENCODE_KEY_URL = "opencode.ai/zen";
-const TABS = ["Claude Code", "Opencode"] as const;
+const TABS = ["Claude Code", "Opencode", "Pi"] as const;
 type Tab = (typeof TABS)[number];
 type Step = "form" | "connected";
 
@@ -81,6 +85,10 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
 
   const [claudeConnected, setClaudeConnected] = useState(false);
   const [opencodeConnected, setOpencodeConnected] = useState(false);
+  const [piConnected, setPiConnected] = useState(false);
+  const [isPiConnecting, setIsPiConnecting] = useState(false);
+  const [piWebViewVisible, setPiWebViewVisible] = useState(false);
+  const [piWebViewAuthUrl, setPiWebViewAuthUrl] = useState("");
 
   const [claudeSession, setClaudeSession] = useState<{
     sessionId: string;
@@ -145,15 +153,18 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
     const token = await getToken();
     if (!token) { setIsLoading(false); return; }
 
-    const [claudeRes, opencodeRes] = await Promise.all([
+    const [claudeRes, opencodeRes, piRes] = await Promise.all([
       claudeStatus(token),
       opencodeStatus(token),
+      piStatus(token),
     ]);
 
     const isClaudeConn = claudeRes.ok && claudeRes.data.connected;
     const isOpencodeConn = opencodeRes.ok && opencodeRes.data.connected;
+    const isPiConn = piRes.ok && piRes.data.connected;
     setClaudeConnected(isClaudeConn);
     setOpencodeConnected(isOpencodeConn);
+    setPiConnected(isPiConn);
 
     if (!isClaudeConn) {
       await startClaudeAuth(token);
@@ -161,6 +172,69 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       setIsLoading(false);
     }
   }, [startClaudeAuth]);
+
+  const handlePiConnect = useCallback(async () => {
+    setIsPiConnecting(true);
+    setConnectError(null);
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const initRes = await piOAuthInit(token);
+      if (!initRes.ok) {
+        setConnectError(initRes.error ?? "Failed to start Pi authentication.");
+        return;
+      }
+      if (!initRes.data.success || !initRes.data.authUrl || !initRes.data.sessionId) {
+        setConnectError("Failed to start Pi authentication. Please try again.");
+        return;
+      }
+
+      setPiWebViewAuthUrl(initRes.data.authUrl);
+      setPiWebViewVisible(true);
+    } catch {
+      setConnectError("Something went wrong. Please try again.");
+      setIsPiConnecting(false);
+    }
+  }, []);
+
+  const handlePiOAuthCallback = useCallback(async (callbackUrl: string) => {
+    setPiWebViewVisible(false);
+    try {
+      const redirected = new URL(callbackUrl);
+      const code = redirected.searchParams.get("code");
+      const state = redirected.searchParams.get("state");
+
+      if (!code || !state) {
+        setConnectError("Missing authorization code. Please try again.");
+        return;
+      }
+
+      const token = await getToken();
+      if (!token) return;
+
+      const exchangeRes = await piOAuthExchange(token, { code, state });
+      if (exchangeRes.ok && exchangeRes.data.success) {
+        setPiConnected(true);
+        slideSuccessIn();
+      } else {
+        setConnectError(
+          exchangeRes.ok
+            ? (exchangeRes.data.message ?? "Authentication failed. Please try again.")
+            : (exchangeRes.error ?? "Authentication failed. Please try again.")
+        );
+      }
+    } catch {
+      setConnectError("Something went wrong. Please try again.");
+    } finally {
+      setIsPiConnecting(false);
+    }
+  }, [slideSuccessIn]);
+
+  const handlePiWebViewCancel = useCallback(() => {
+    setPiWebViewVisible(false);
+    setIsPiConnecting(false);
+  }, []);
 
   useEffect(() => {
     if (visible) {
@@ -173,6 +247,8 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       setClaudeSession(null);
       setClaudeConnected(false);
       setOpencodeConnected(false);
+      setPiConnected(false);
+      setIsPiConnecting(false);
       setIsConnecting(false);
       setIsDisconnecting(false);
       setStep("form");
@@ -260,11 +336,17 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
           setConnectError(null);
           await startClaudeAuth(token);
         }
-      } else {
+      } else if (activeTab === "Opencode") {
         const res = await opencodeDisconnect(token);
         if (res.ok && res.data.success) {
           setOpencodeConnected(false);
           setAuthCode("");
+          setConnectError(null);
+        }
+      } else {
+        const res = await piDisconnect(token);
+        if (res.ok && res.data.success) {
+          setPiConnected(false);
           setConnectError(null);
         }
       }
@@ -276,8 +358,13 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
   // ─── Derived UI values ────────────────────────────────────────────────────
 
   const isCurrentTabConnected =
-    activeTab === "Claude Code" ? claudeConnected : opencodeConnected;
-  const agentLabel = activeTab === "Claude Code" ? "Claude" : "Opencode";
+    activeTab === "Claude Code" ? claudeConnected
+    : activeTab === "Opencode" ? opencodeConnected
+    : piConnected;
+  const agentLabel =
+    activeTab === "Claude Code" ? "Claude"
+    : activeTab === "Opencode" ? "Opencode"
+    : "Pi";
   const isGreenStep = step === "connected";
 
   const step2Title =
@@ -287,13 +374,18 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
   const footerNote =
     activeTab === "Claude Code"
       ? "Auth happens on Anthropic's servers, not ours."
-      : "Auth happens on OpenCode's servers, not ours.";
+      : activeTab === "Opencode"
+      ? "Auth happens on OpenCode's servers, not ours."
+      : "Auth happens on OpenAI's servers, not ours.";
   const successSubtitle =
     activeTab === "Claude Code"
       ? "Claude Code is connected and ready."
-      : "Opencode is connected and ready.";
+      : activeTab === "Opencode"
+      ? "Opencode is connected and ready."
+      : "Pi Codex is connected and ready.";
 
   return (
+    <>
     <BottomSheetModal
       ref={bottomSheetRef}
       snapPoints={snapPoints}
@@ -333,10 +425,18 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       >
         <View style={styles.card}>
           {/* Tabs row */}
-          <View style={styles.tabRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabRow}
+            style={styles.tabRowScroll}
+          >
             {TABS.map((tab) => {
               const isActive = activeTab === tab;
-              const isConnected = tab === "Claude Code" ? claudeConnected : opencodeConnected;
+              const isConnected =
+                tab === "Claude Code" ? claudeConnected
+                : tab === "Opencode" ? opencodeConnected
+                : piConnected;
               return (
                 <TouchableOpacity
                   key={tab}
@@ -358,10 +458,15 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 >
                   {tab === "Claude Code" ? (
                     <ClaudeTransparentIcon width={18} height={18} />
-                  ) : (
+                  ) : tab === "Opencode" ? (
                     <OpenCodeIcon width={18} height={18} />
+                  ) : (
+                    <Text style={[styles.piTabIcon, isActive && styles.piTabIconActive]}>π</Text>
                   )}
-                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                  <Text
+                    style={[styles.tabText, isActive && styles.tabTextActive]}
+                    numberOfLines={1}
+                  >
                     {tab}
                   </Text>
                   {isConnected && (
@@ -370,7 +475,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </ScrollView>
 
           <View style={styles.cardDivider} />
 
@@ -380,8 +485,12 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
               <View style={styles.illustrationRow}>
                 {activeTab === "Claude Code" ? (
                   <ClaudeIcon width={44} height={44} />
-                ) : (
+                ) : activeTab === "Opencode" ? (
                   <OpenCodeIcon width={44} height={44} />
+                ) : (
+                  <View style={styles.piIconLarge}>
+                    <Text style={styles.piIconLargeText}>π</Text>
+                  </View>
                 )}
                 <Image
                   source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
@@ -392,7 +501,9 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
               </View>
 
               <Text style={styles.connectedAgentName}>
-                {activeTab === "Claude Code" ? "Claude Code" : "OpenCode Zen"}
+                {activeTab === "Claude Code" ? "Claude Code"
+                  : activeTab === "Opencode" ? "OpenCode Zen"
+                  : "Pi Codex"}
               </Text>
               <Text style={styles.connectedSubtitle}>Connected and ready to use.</Text>
 
@@ -416,7 +527,63 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
             </View>
           ) : (
             <>
-              {/* ── Step 1 ── */}
+              {/* ── Pi: single-step WebView OAuth ── */}
+              {activeTab === "Pi" ? (
+                <View style={styles.stepBlock}>
+                  <View style={styles.illustrationRow}>
+                    <View style={styles.piIconLarge}>
+                      <Text style={styles.piIconLargeText}>π</Text>
+                    </View>
+                    <Image
+                      source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
+                      style={styles.arrowImage}
+                      resizeMode="contain"
+                    />
+                    <LogoIcon width={44} height={44} />
+                  </View>
+
+                  <View style={styles.stepHeader}>
+                    <View style={styles.stepBadge}>
+                      <Text style={styles.stepBadgeText}>1</Text>
+                    </View>
+                    <Text style={styles.stepTitle}>Connect Pi Codex</Text>
+                  </View>
+
+                  <Text style={styles.stepDesc}>
+                    You&#39;ll be redirected to OpenAI to log in with your ChatGPT Plus/Pro account
+                    and authorize Pi Codex.
+                  </Text>
+
+                  {connectError && (
+                    <Text style={styles.errorText}>{connectError}</Text>
+                  )}
+
+                  <View
+                    style={[
+                      styles.connectButtonWrap,
+                      isPiConnecting && styles.connectButtonWrapNoShadow,
+                    ]}
+                  >
+                    <TouchableOpacity
+                      style={[
+                        styles.connectButton,
+                        !isPiConnecting ? styles.connectButtonActive : styles.connectButtonDisabled,
+                      ]}
+                      onPress={handlePiConnect}
+                      activeOpacity={0.88}
+                      disabled={isPiConnecting}
+                    >
+                      {isPiConnecting ? (
+                        <ActivityIndicator color="#FFF" size="small" />
+                      ) : (
+                        <Text style={styles.connectButtonText}>Authenticate with ChatGPT</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+              <>
+              {/* ── Step 1 (Claude / Opencode) ── */}
               <View style={styles.stepBlock}>
                 <View style={styles.illustrationRow}>
                   {isLoading ? (
@@ -586,6 +753,8 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 )}
               </View>
             </>
+            )}
+            </>
           )}
         </View>
 
@@ -641,6 +810,14 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
         )}
       </Animated.View>
     </BottomSheetModal>
+
+    <PiOAuthWebViewModal
+      visible={piWebViewVisible}
+      authUrl={piWebViewAuthUrl}
+      onCallback={handlePiOAuthCallback}
+      onCancel={handlePiWebViewCancel}
+    />
+    </>
   );
 }
 
@@ -697,9 +874,9 @@ const styles = StyleSheet.create({
   cardDivider: { height: 1, backgroundColor: "#DFDFDF" },
 
   // Tabs
+  tabRowScroll: { flexGrow: 0 },
   tabRow: { flexDirection: "row", gap: 10, padding: 14 },
   tab: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -712,7 +889,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
   },
   tabActive: { borderColor: "#3D841E", backgroundColor: "#E3FDD7" },
-  tabText: { fontFamily: SFPro.semiBold, fontSize: 17, color: "#000", letterSpacing: -0.2 },
+  tabText: { fontFamily: SFPro.semiBold, fontSize: 13, color: "#000", letterSpacing: -0.2 },
   tabTextActive: { color: "#000", fontFamily: SFPro.semiBold },
   tabConnectedDot: {
     width: 7,
@@ -720,6 +897,26 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#3D841E",
     marginLeft: 2,
+  },
+  piTabIcon: {
+    fontSize: 16,
+    fontFamily: SFPro.semiBold,
+    color: "#808080",
+    lineHeight: 20,
+  },
+  piTabIconActive: { color: "#3D841E" },
+  piIconLarge: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: "#F0F0F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  piIconLargeText: {
+    fontSize: 24,
+    fontFamily: SFPro.bold,
+    color: "#333",
   },
 
   // Connected state
@@ -935,7 +1132,7 @@ const styles = StyleSheet.create({
     height: 5,
     borderRadius: 100,
     backgroundColor: "#CCC",
-    mixBlendMode: "plus-darker",
+    mixBlendMode: "plus-darker" as any,
   },
   // Green success overlay
   successOverlay: {
