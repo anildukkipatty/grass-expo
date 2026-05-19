@@ -1294,7 +1294,12 @@ export default function ChatScreen() {
                 <View key={img.uri + idx} style={styles.thumbnailWrapper}>
                   <Image source={{ uri: img.uri }} style={styles.thumbnail} />
                   {!img.uploadedUrl && !img.error && (
-                    <ActivityIndicator style={StyleSheet.absoluteFill} color="#fff" size="small" />
+                    <ActivityIndicator
+                      testID="pending-image-uploading"
+                      style={StyleSheet.absoluteFill}
+                      color="#fff"
+                      size="small"
+                    />
                   )}
                   {img.error && <Text style={styles.thumbnailError}>!</Text>}
                   <TouchableOpacity

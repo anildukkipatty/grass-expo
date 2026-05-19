@@ -421,9 +421,10 @@ export default function ReposScreen() {
             );
           }
 
-          return repos.map((repo) => (
+          return repos.map((repo, index) => (
             <TouchableOpacity
               key={repo.id}
+              testID={`repo-row-${index}`}
               style={styles.repoItem}
               activeOpacity={0.7}
               onPress={() =>
