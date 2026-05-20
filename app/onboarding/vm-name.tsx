@@ -48,6 +48,11 @@ export default function VmNameScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    const t = setTimeout(() => inputRef.current?.focus(), 350);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -55,7 +60,7 @@ export default function VmNameScreen() {
         <View style={styles.container}>
           {/* ── Hint at the very top ── */}
           <SafeAreaView style={styles.hintArea}>
-            <Text style={styles.hint}>You can always rename them later.</Text>
+            <Text style={styles.hint}></Text>
           </SafeAreaView>
 
           {/* ── Illustration – image is the direct parent of the input overlay ── */}
@@ -77,10 +82,10 @@ export default function VmNameScreen() {
                 style={styles.overlayInput}
                 value={vmName}
                 onChangeText={setVmName}
-                placeholder=""
-                placeholderTextColor="transparent"
+                placeholder="Type a name"
+                placeholderTextColor="#9F9F9F"
                 autoCorrect={false}
-                autoCapitalize="none"
+                autoCapitalize="words"
                 returnKeyType="done"
                 onSubmitEditing={Keyboard.dismiss}
                 caretHidden={false}
@@ -207,9 +212,14 @@ const styles = StyleSheet.create({
     width: 182,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: "rgba(0, 0, 0, 0.20)",
-    backgroundColor: "rgba(255, 255, 255, 0.10)",
+    borderColor: "#3D841E",
+    backgroundColor: "#FFFFFF",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   overlayInput: {
     flex: 1,
