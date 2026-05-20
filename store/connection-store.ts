@@ -1114,7 +1114,7 @@ export async function listSessionsStore(serverUrl: string, repoPath?: string, ag
   }
 }
 
-export async function initSessionStore(serverUrl: string, id: string | null, agent?: string | null, repoPath?: string | null) {
+export async function initSessionStore(serverUrl: string, id: string | null, agent?: string | null, repoPath?: string | null, resumeLatest = false) {
   const key = resolveServerKey(serverUrl);
   const entry = _connections.get(key);
   if (!entry) return;
@@ -1129,12 +1129,14 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
   if (repoPath !== undefined) entry.currentRepoPath = repoPath ?? null;
   entry.messages = [];
   entry.activity = null;
-  // If no explicit session ID but we have a repoPath, show loading while we
-  // look up the most recent session for that repo (dispatch notification fallback).
-  entry.sessionLoading = !!id || (!id && !!repoPath);
+  // If no explicit session ID but we have a repoPath AND the caller opted into
+  // resuming, show loading while we look up the most recent session for that repo
+  // (dispatch notification fallback). New-chat callers leave resumeLatest false so
+  // they fall straight through to an empty chat.
+  entry.sessionLoading = !!id || (!id && !!repoPath && resumeLatest);
   notifyListeners(key);
 
-  if (!id && repoPath) {
+  if (!id && repoPath && resumeLatest) {
     try {
       const params = new URLSearchParams();
       if (agent) params.set('agent', agent);

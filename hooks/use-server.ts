@@ -37,7 +37,7 @@ export interface UseServerResult {
   abort: () => void;
   respondPermission: (approved: boolean) => void;
   listSessions: (repoPath?: string, agent?: string) => void;
-  initSession: (id: string | null, agent?: string | null, repoPath?: string | null) => void;
+  initSession: (id: string | null, agent?: string | null, repoPath?: string | null, resumeLatest?: boolean) => void;
   listRepos: () => void;
   dirListing: import('@/store/connection-store').DirEntry[] | null;
   fileContent: import('@/store/connection-store').FileContentResult | null;
@@ -62,7 +62,7 @@ export function useServer(serverUrl: string | null): UseServerResult {
   const abort            = useCallback(() => { if (serverUrl) abortStore(serverUrl); }, [serverUrl]);
   const respondPerm      = useCallback((ok: boolean) => { if (serverUrl) respondPermissionStore(serverUrl, ok); }, [serverUrl]);
   const listSess         = useCallback((repoPath?: string, agent?: string) => { if (serverUrl) listSessionsStore(serverUrl, repoPath, agent); }, [serverUrl]);
-  const initSess         = useCallback((id: string | null, agent?: string | null, rp?: string | null) => { if (serverUrl) initSessionStore(serverUrl, id, agent, rp); }, [serverUrl]);
+  const initSess         = useCallback((id: string | null, agent?: string | null, rp?: string | null, resumeLatest?: boolean) => { if (serverUrl) initSessionStore(serverUrl, id, agent, rp, resumeLatest); }, [serverUrl]);
   const listRepos        = useCallback(() => { if (serverUrl) listReposStore(serverUrl); }, [serverUrl]);
   const listDir          = useCallback((path: string, repoPath: string) => { if (serverUrl) listDirStore(serverUrl, path, repoPath); }, [serverUrl]);
   const readFile         = useCallback((path: string, repoPath: string) => { if (serverUrl) readFileStore(serverUrl, path, repoPath); }, [serverUrl]);

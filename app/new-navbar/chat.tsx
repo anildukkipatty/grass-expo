@@ -466,6 +466,7 @@ export default function ChatScreen() {
     repoPath,
     agent,
     initialMessage,
+    resumeLatest,
   } = useLocalSearchParams<{
     serverUrl: string;
     sessionId?: string;
@@ -473,6 +474,7 @@ export default function ChatScreen() {
     repoPath?: string;
     agent?: string;
     initialMessage?: string;
+    resumeLatest?: string;
   }>();
 
   // Pin the first non-null serverUrl so it never reverts mid-session
@@ -590,7 +592,7 @@ export default function ChatScreen() {
   useEffect(() => {
     if (!sessionInitialized.current && serverUrl) {
       sessionInitialized.current = true;
-      ws.initSession(initialSessionId ?? null, agentStr, repoPathStr || null);
+      ws.initSession(initialSessionId ?? null, agentStr, repoPathStr || null, resumeLatest === "1");
     }
     return () => {
       if (serverUrl) closeSSEStream(serverUrl);
