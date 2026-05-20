@@ -50,7 +50,7 @@ export function NewChatSlider2({ visible, onClose }: Props) {
   const [addRepoVisible, setAddRepoVisible] = useState(false);
   const [gitAccessVisible, setGitAccessVisible] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState<"claude-code" | "opencode">("claude-code");
+  const [selectedAgent, setSelectedAgent] = useState<"claude-code" | "opencode" | "pi">("claude-code");
   const [showRepoPicker, setShowRepoPicker] = useState(false);
   const [vmMetadataMap, setVmMetadataMap] = useState<Record<string, { name: string; iconIndex: number }>>({});
   const [grassVmName, setGrassVmName] = useState<string | null>(null);
@@ -100,7 +100,7 @@ export function NewChatSlider2({ visible, onClose }: Props) {
       setVmMetadataMap(metadataMap);
       setGrassVmName(storedGrassVmName);
       setSelectedAgent(
-        lastAgent === "claude-code" || lastAgent === "opencode" ? lastAgent : "claude-code",
+        lastAgent === "claude-code" || lastAgent === "opencode" || lastAgent === "pi" ? lastAgent : "claude-code",
       );
       if (lastRepoRaw) {
         try {
@@ -282,6 +282,16 @@ export function NewChatSlider2({ visible, onClose }: Props) {
                   <OpenCodeIconChat width={20} height={20} />
                   <Text style={[styles.agentBtnText, selectedAgent === "opencode" && styles.agentBtnTextWhite]}>
                     OpenCode
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.agentBtn, selectedAgent === "pi" && styles.agentBtnActivePi]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedAgent("pi")}
+                >
+                  <Text style={[styles.piSymbol, selectedAgent === "pi" && styles.piSymbolActive]}>π</Text>
+                  <Text style={[styles.agentBtnText, selectedAgent === "pi" && styles.agentBtnTextWhite]}>
+                    Pi Codex
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -527,6 +537,9 @@ const styles = StyleSheet.create({
   },
   agentBtnActive: { backgroundColor: "#3D841E", borderColor: "#3D841E" },
   agentBtnActiveBlack: { backgroundColor: "#000", borderColor: "#000" },
+  agentBtnActivePi: { backgroundColor: "#1D3461", borderColor: "#1D3461" },
+  piSymbol: { fontSize: 18, fontFamily: SFPro.bold, color: "#333", lineHeight: 22 },
+  piSymbolActive: { color: "#FFF" },
   agentBtnText: {
     fontFamily: SFPro.semiBold,
     fontSize: 15,

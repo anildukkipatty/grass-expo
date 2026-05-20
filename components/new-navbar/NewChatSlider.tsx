@@ -79,7 +79,7 @@ export function NewChatSlider({ visible, onClose }: Props) {
   const [localVmUrl, setLocalVmUrl] = useState<string>("");
 const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<
-    "claude-code" | "opencode"
+    "claude-code" | "opencode" | "pi"
   >("claude-code");
   const [showRepoPicker, setShowRepoPicker] = useState(false);
 
@@ -133,7 +133,7 @@ const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
       }
 
       setSelectedAgent(
-        lastAgent === "claude-code" || lastAgent === "opencode"
+        lastAgent === "claude-code" || lastAgent === "opencode" || lastAgent === "pi"
           ? lastAgent
           : "claude-code",
       );
@@ -334,6 +334,25 @@ const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
                 OpenCode
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.agentBtn,
+                selectedAgent === "pi" && styles.agentBtnActivePi,
+              ]}
+              activeOpacity={0.8}
+              onPress={() => setSelectedAgent("pi")}
+            >
+              <Text style={[styles.piSymbol, selectedAgent === "pi" && styles.piSymbolActive]}>π</Text>
+              <Text
+                style={[
+                  styles.agentBtnText,
+                  selectedAgent === "pi" && styles.agentBtnTextWhite,
+                ]}
+              >
+                Pi Codex
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
@@ -477,6 +496,19 @@ const styles = StyleSheet.create({
   agentBtnActiveBlack: {
     backgroundColor: "#000",
     borderColor: "#000",
+  },
+  agentBtnActivePi: {
+    backgroundColor: "#1D3461",
+    borderColor: "#1D3461",
+  },
+  piSymbol: {
+    fontSize: 18,
+    fontFamily: SFPro.bold,
+    color: "#333",
+    lineHeight: 22,
+  },
+  piSymbolActive: {
+    color: "#FFF",
   },
   agentBtnText: {
     fontFamily: SFPro.semiBold,

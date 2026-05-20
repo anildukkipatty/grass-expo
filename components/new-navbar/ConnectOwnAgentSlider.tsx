@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Clipboard,
+  Dimensions,
   Image,
   Keyboard,
   Linking,
@@ -12,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -41,6 +43,7 @@ import { claudeComplete, claudeDisconnect, claudeStart, claudeStatus } from "@/a
 import { opencodeConnect, opencodeDisconnect, opencodeStatus } from "@/api/opencode";
 import { piDisconnect, piOAuthExchange, piOAuthInit, piStatus } from "@/api/pi";
 import { getToken } from "@/store/auth-store";
+import { useNavbar } from "@/contexts/navbar-context";
 
 const OPENCODE_KEY_URL = "opencode.ai/zen";
 const TABS = ["Claude Code", "Opencode", "Pi"] as const;
@@ -71,7 +74,11 @@ function SkeletonBox({
 }
 
 export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
+  const { selectedVmUrl, primaryVmUrl } = useNavbar();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
+
+  const insets = useSafeAreaInsets();
+  const sheetHeight = Dimensions.get("window").height * 0.9;
 
   const [activeTab, setActiveTab] = useState<Tab>("Claude Code");
   const [authCode, setAuthCode] = useState("");
@@ -111,16 +118,17 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
   );
 
   // Success overlay animation (slides up from bottom within the sheet)
-  const successTranslateY = useSharedValue(800);
+  const successTranslateY = useSharedValue(sheetHeight);
   const successStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: successTranslateY.value }],
   }));
 
   const slideSuccessIn = useCallback(() => {
     setStep("connected");
-    successTranslateY.value = 800;
+    successTranslateY.value = sheetHeight;
     successTranslateY.value = withSpring(0, { damping: 20, stiffness: 180 });
-  }, [successTranslateY]);
+    bottomSheetRef.current?.snapToIndex(0);
+  }, [successTranslateY, sheetHeight]);
 
   // ─── API helpers ──────────────────────────────────────────────────────────
 
@@ -215,6 +223,20 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
 
       const exchangeRes = await piOAuthExchange(token, { code, state });
       if (exchangeRes.ok && exchangeRes.data.success) {
+        // Also write auth.json to the grass-ide machine (needed when grass-ide runs locally)
+        const authJson = exchangeRes.data.authJson;
+        const grassIdeUrl = selectedVmUrl ?? primaryVmUrl;
+        if (authJson && grassIdeUrl) {
+          try {
+            await fetch(`${grassIdeUrl}/pi/auth`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(authJson),
+            });
+          } catch {
+            // non-fatal — Daytona sandbox still has the credentials
+          }
+        }
         setPiConnected(true);
         slideSuccessIn();
       } else {
@@ -229,7 +251,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
     } finally {
       setIsPiConnecting(false);
     }
-  }, [slideSuccessIn]);
+  }, [slideSuccessIn, selectedVmUrl, primaryVmUrl]);
 
   const handlePiWebViewCancel = useCallback(() => {
     setPiWebViewVisible(false);
@@ -365,8 +387,6 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
     activeTab === "Claude Code" ? "Claude"
     : activeTab === "Opencode" ? "Opencode"
     : "Pi";
-  const isGreenStep = step === "connected";
-
   const step2Title =
     activeTab === "Claude Code" ? "Paste your auth code here" : "Paste your API key here";
   const step2Placeholder =
@@ -389,15 +409,53 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
     <BottomSheetModal
       ref={bottomSheetRef}
       snapPoints={snapPoints}
-      enablePanDownToClose
+      enablePanDownToClose={step !== "connected"}
       animationConfigs={animationConfigs}
       backdropComponent={renderBackdrop}
       onDismiss={onClose}
-      backgroundStyle={styles.sheetBackground}
+      backgroundStyle={step === "connected" ? styles.sheetBackgroundGreen : styles.sheetBackground}
       handleIndicatorStyle={styles.dragHandle}
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
     >
+      {step === "connected" ? (
+        /* ── Green success screen ── */
+        <Animated.View style={[styles.successScreen, successStyle]}>
+          <View style={styles.greenContent}>
+            <View style={styles.greenCenter}>
+              <SuccessMark width={192} height={244} />
+              <Text style={styles.greenTitle}>Agent connected</Text>
+              <Text style={styles.greenSubtitle}>{successSubtitle}</Text>
+            </View>
+            <View style={[styles.greenFooter, { paddingBottom: insets.bottom + 16 }]}>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() => { bottomSheetRef.current?.dismiss(); }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.primaryButtonText}>Start a session</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.addAnotherButton}
+                onPress={async () => {
+                  setStep("form");
+                  setAuthCode("");
+                  setAuthError(false);
+                  setConnectError(null);
+                  if (activeTab === "Claude Code") {
+                    const token = await getToken();
+                    if (token) startClaudeAuth(token);
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.addAnotherButtonText}>Connect another</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
+      ) : (
+      <>
       {/* Close button */}
       <TouchableOpacity
         onPress={() => { Keyboard.dismiss(); bottomSheetRef.current?.dismiss(); }}
@@ -767,48 +825,8 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
           <Text style={styles.learnMoreText}>Learn more →</Text>
         </TouchableOpacity>
       </BottomSheetScrollView>
-
-      {/* ── Green success overlay (slides up from bottom within the sheet) ── */}
-      <Animated.View
-        style={[styles.successOverlay, successStyle]}
-        pointerEvents={isGreenStep ? "auto" : "none"}
-      >
-        {step === "connected" && (
-          <View style={styles.greenContent}>
-            <View style={styles.greenCenter}>
-              <SuccessMark width={192} height={244} />
-              <Text style={styles.greenTitle}>Agent connected</Text>
-              <Text style={styles.greenSubtitle}>{successSubtitle}</Text>
-            </View>
-            <View style={styles.greenFooter}>
-              <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={() => { bottomSheetRef.current?.dismiss(); }}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.primaryButtonText}>Start a session</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.addAnotherButton}
-                onPress={async () => {
-                  successTranslateY.value = 800;
-                  setStep("form");
-                  setAuthCode("");
-                  setAuthError(false);
-                  setConnectError(null);
-                  if (activeTab === "Claude Code") {
-                    const token = await getToken();
-                    if (token) startClaudeAuth(token);
-                  }
-                }}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.addAnotherButtonText}>Connect another</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </Animated.View>
+      </>
+      )}
     </BottomSheetModal>
 
     <PiOAuthWebViewModal
@@ -1134,13 +1152,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#CCC",
     mixBlendMode: "plus-darker" as any,
   },
-  // Green success overlay
-  successOverlay: {
-    position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
+  sheetBackgroundGreen: {
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     backgroundColor: "#3D841E",
   },
-  greenContent: { flex: 1, paddingBottom: 40 },
+  successScreen: {
+    flex: 1,
+    backgroundColor: "#3D841E",
+  },
+  greenContent: { flex: 1 },
   greenCenter: {
     flex: 1,
     alignItems: "center",

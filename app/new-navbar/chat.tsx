@@ -79,16 +79,17 @@ const MODELS_BY_AGENT = modelsJson as Record<string, Record<string, string>>;
 const MODEL_DEFAULTS: Record<string, string> = {
   "claude-code": "claude-sonnet-4-6",
   opencode: "opencode/big-pickle",
+  pi: "gpt-5.5",
 };
 
 function getModelsForAgent(agent: string): { key: string; label: string }[] {
-  const agentKey = agent === "opencode" ? "opencode" : "claude-code";
+  const agentKey = agent === "opencode" ? "opencode" : agent === "pi" ? "pi" : "claude-code";
   const map = MODELS_BY_AGENT[agentKey] ?? MODELS_BY_AGENT["claude-code"];
   return Object.entries(map).map(([key, label]) => ({ key, label }));
 }
 
 function getDefaultModel(agent: string): string {
-  const agentKey = agent === "opencode" ? "opencode" : "claude-code";
+  const agentKey = agent === "opencode" ? "opencode" : agent === "pi" ? "pi" : "claude-code";
   return MODEL_DEFAULTS[agentKey] ?? "claude-sonnet-4-6";
 }
 
@@ -1558,7 +1559,7 @@ export default function ChatScreen() {
       {/* ── Model picker bottom sheet ── */}
       <BottomSheetModal
         ref={modelSheetRef}
-        snapPoints={[agentStr === "claude-code" ? "55%" : "75%"]}
+        snapPoints={[agentStr === "claude-code" ? "55%" : agentStr === "pi" ? "55%" : "75%"]}
         enableDynamicSizing={false}
         enablePanDownToClose
         backdropComponent={renderModelBackdrop}

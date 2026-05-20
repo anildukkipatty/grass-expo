@@ -35,7 +35,7 @@ import { formatRelativeTime, pruneThreads } from "@/store/thread-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AgentKey = "claude" | "opencode";
+type AgentKey = "claude" | "opencode" | "pi";
 
 function normalizeParam(input?: string | string[]): string | undefined {
   if (Array.isArray(input)) return input[0];
@@ -64,7 +64,7 @@ export default function ChatListScreen() {
   const fetchSeqRef = useRef(0);
 
   const selectedAgentId =
-    selectedAgent === "claude" ? "claude-code" : "opencode";
+    selectedAgent === "claude" ? "claude-code" : selectedAgent === "pi" ? "pi" : "opencode";
   const selectedVmOffline =
     !!selectedVmUrl && vmUrlStatuses.get(selectedVmUrl) === false;
 
@@ -256,6 +256,19 @@ export default function ChatListScreen() {
             <OpenCodeIcon width={24} height={24} />
           )}
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.agentTab,
+            selectedAgent === "pi"
+              ? styles.piActiveTab
+              : styles.inactiveTab,
+          ]}
+          activeOpacity={0.85}
+          onPress={() => setSelectedAgent("pi")}
+        >
+          <Text style={[styles.piTabLabel, selectedAgent === "pi" && styles.piTabLabelActive]}>π</Text>
+        </TouchableOpacity>
       </View>
 
       {/* ── Search bar ── */}
@@ -400,6 +413,20 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "rgba(255, 255, 255, 0.50)",
     backgroundColor: "#000000",
+  },
+  piActiveTab: {
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.50)",
+    backgroundColor: "#1D3461",
+  },
+  piTabLabel: {
+    fontFamily: SFPro.bold,
+    fontSize: 20,
+    color: "#808080",
+  },
+  piTabLabelActive: {
+    color: "#FFFFFF",
   },
   inactiveTab: {
     borderRadius: 50,

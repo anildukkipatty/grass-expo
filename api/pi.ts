@@ -15,6 +15,7 @@ export type PiOAuthInitResponse = {
 export type PiOAuthExchangeResponse = {
   success: boolean;
   message: string;
+  authJson?: Record<string, unknown>;
 };
 
 export type PiDisconnectResponse = {
