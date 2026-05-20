@@ -563,7 +563,7 @@ export default function Chat() {
         {/* Onboarding home nudge — shown after first message is sent */}
         {showOnboarding && hasSentState && (
           <TouchableOpacity
-            onPress={() => router.replace('/(tabs)/home')}
+            onPress={() => router.replace('/new-navbar/(tabs)')}
             style={styles.onboardingNudge}
             activeOpacity={0.7}
           >
