@@ -260,7 +260,9 @@ export function usePushNotifications() {
                 repoName: data.repo,
                 repoPath: data.repoPath,
                 agent: data.tool || "claude-code",
-                ...(data.sessionId ? { sessionId: data.sessionId } : {}),
+                // No real sessionId (headless fallback ran) — resume the latest
+                // session for the repo rather than opening an empty chat.
+                ...(data.sessionId ? { sessionId: data.sessionId } : { resumeLatest: "1" }),
               },
             });
           } else {

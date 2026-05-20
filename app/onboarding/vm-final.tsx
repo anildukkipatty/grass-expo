@@ -23,8 +23,8 @@ import {
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const ITEM_DELAY_MS = 1500;
-// Show retry option if provisioning takes longer than 15s
-const PROVISION_TIMEOUT_MS = 15000;
+// Show retry option if provisioning takes longer than 25s
+const PROVISION_TIMEOUT_MS = 30000;
 // Cooldown before retry button becomes active again
 const RETRY_COOLDOWN_S = 15;
 

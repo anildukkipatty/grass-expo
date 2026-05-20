@@ -143,7 +143,7 @@ export default function PushCommitScreen() {
           <TouchableOpacity
             style={styles.skipButton}
             activeOpacity={0.6}
-            onPress={() => router.push("/(tabs)/home")}
+            onPress={() => router.push("/new-navbar/(tabs)")}
           >
             <Text style={styles.skipButtonText}>Skip for now</Text>
           </TouchableOpacity>
