@@ -1317,6 +1317,7 @@ export default function ChatScreen() {
             )}
           </View>
           <View style={styles.toolbarRow}>
+            {/* Image attachments button — temporarily disabled, re-enable after testing
             <TouchableOpacity
               ref={addBtnRef}
               style={styles.addBtn}
@@ -1325,6 +1326,7 @@ export default function ChatScreen() {
             >
               <PhotosIcon width={18} height={18} />
             </TouchableOpacity>
+            */}
 
             <View style={styles.toolbarSpacer} />
 
