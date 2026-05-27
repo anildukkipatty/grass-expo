@@ -1,11 +1,14 @@
 import { getVmName } from "@/store/vm-metadata-store";
-import LogoIcon from "@/assets/images/new-design/onboarding/logo.svg";
 import { OnboardingAuthSheet } from "@/components/onboarding/OnboardingAuthSheet";
 import { SFPro } from "@/constants/theme";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
+  Animated,
   Linking,
+  Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -16,6 +19,27 @@ import {
 export default function OnboardingScreen() {
   const router = useRouter();
   const [loginVisible, setLoginVisible] = useState(false);
+  const scale = useRef(new Animated.Value(1)).current;
+  const colorAnim = useRef(new Animated.Value(0)).current;
+
+  const backgroundColor = colorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["#3D841E", "#2A5C14"],
+  });
+
+  const onPressIn = () => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 60, bounciness: 0 }),
+      Animated.spring(colorAnim, { toValue: 1, useNativeDriver: false, speed: 60, bounciness: 0 }),
+    ]).start();
+  };
+
+  const onPressOut = () => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 5 }),
+      Animated.spring(colorAnim, { toValue: 0, useNativeDriver: false, speed: 30, bounciness: 0 }),
+    ]).start();
+  };
 
   const handleVerified = async (type: "new" | "old") => {
     const existingName = await getVmName();
@@ -40,25 +64,41 @@ export default function OnboardingScreen() {
       <View style={styles.content}>
         {/* Logo */}
         <View style={styles.logoWrap}>
-          <LogoIcon width={56} height={44} />
+          <Image
+            source={require("@/assets/images/new-design/onboarding/grass-logomark-realistic.png")}
+            style={styles.logoImage}
+            contentFit="contain"
+          />
         </View>
 
-        <Text style={styles.title}>Welcome to Grass</Text>
+        <Text style={styles.title}>Close your laptop.{"\n"}Your agents keep running.</Text>
         <Text style={styles.subtitle}>
-          A dedicated VM, always available. Your{"\n"}agent runs whether
-          you&#39;re watching or not.
+          Grass gives your coding agents a dedicated VM that stays alive when
+          your laptop, WiFi, or focus doesn’t.
         </Text>
 
+        <Text style={styles.benefit}>Start with 10 free agent hours.</Text>
+
         {/* Get Started button */}
-        <View style={styles.buttonShadowWrap}>
-          <TouchableOpacity
-            style={styles.button}
-            activeOpacity={0.85}
-            onPress={() => router.push("/onboarding/claim" as any)}
-          >
-            <Text style={styles.buttonText}>Get Started</Text>
-          </TouchableOpacity>
-        </View>
+        <Pressable
+          style={styles.pressable}
+          onPressIn={onPressIn}
+          onPressOut={onPressOut}
+          onPress={() => router.push("/onboarding/claim" as any)}
+        >
+          <Animated.View style={[styles.buttonShadowWrap, { transform: [{ scale }] }]}>
+            <LinearGradient
+              colors={["#7ED957", "#1A4D09"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.buttonBorder}
+            >
+              <Animated.View style={[styles.button, { backgroundColor }]}>
+                <Text style={styles.buttonText}>Get started</Text>
+              </Animated.View>
+            </LinearGradient>
+          </Animated.View>
+        </Pressable>
 
         {/* Login line */}
         <TouchableOpacity
@@ -67,13 +107,13 @@ export default function OnboardingScreen() {
         >
           <Text style={styles.loginText}>
             Already have an account?{" "}
-            <Text style={styles.loginLink}>Log In</Text>
+            <Text style={styles.loginLink}>Log in</Text>
           </Text>
         </TouchableOpacity>
 
         {/* Terms & Privacy */}
         <Text style={styles.legal}>
-          By tapping Get Started, you agree to our{"\n"}
+          By tapping Get started, you agree to our{"\n"}
           <Text
             style={styles.legalLink}
             onPress={() => Linking.openURL("https://codeongrass.com/terms")}
@@ -112,76 +152,91 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
+  logoImage: {
+    width: 56,
+    height: 56,
+  },
   content: {
     alignItems: "center",
     paddingHorizontal: 24,
-    paddingBottom: 60,
+    paddingBottom: 48,
   },
   title: {
     color: "#000000",
-    fontFamily: SFPro.displayBold,
-    fontSize: 34,
-    lineHeight: 42,
-    letterSpacing: -0.5,
+    fontFamily: SFPro.bold,
+    fontSize: 28,
+    lineHeight: 32,
+    letterSpacing: -1,
     textAlign: "center",
     marginBottom: 12,
   },
   subtitle: {
     fontFamily: SFPro.regular,
     fontSize: 17,
-    color: "#606060",
-    lineHeight: 24,
+    color: "#000",
+    lineHeight: 22,
+    letterSpacing: -0.5,
     textAlign: "center",
-    marginBottom: 40,
   },
-  buttonShadowWrap: {
-    borderRadius: 50,
-    shadowColor: "rgba(84, 147, 50, 0.70)",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 25,
-    elevation: 12,
+  benefit: {
+    marginTop: 24,
+    fontFamily: SFPro.regular,
+    fontSize: 15,
+    lineHeight: 20,
+    color: "#999",
+    textAlign: "center",
+  },
+  pressable: {
+    marginTop: 10,
     marginBottom: 20,
     width: "100%",
   },
-  button: {
-    borderRadius: 50,
-    borderWidth: 2,
-    borderColor: "#72C44E",
-    backgroundColor: "#3D841E",
-    height: 52,
+  buttonShadowWrap: {
     width: "100%",
+  },
+  buttonBorder: {
+    width: "100%",
+    borderRadius: 25,
+    borderCurve: "continuous",
+    padding: 2,
+  },
+  button: {
+    height: 46,
+    borderRadius: 23,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   buttonText: {
-    fontFamily: SFPro.semiBold,
     fontSize: 17,
+    fontWeight: "500",
     color: "#FFFFFF",
-    letterSpacing: 0.2,
+    letterSpacing: 0,
   },
   loginRow: {
     marginBottom: 40,
   },
   loginText: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 17,
-    color: "#000000",
+    fontFamily: SFPro.regular,
+    fontSize: 15,
+    color: "#888",
   },
   loginLink: {
-    fontFamily: SFPro.bold,
-    color: "#000000",
+    fontFamily: SFPro.regular,
+    color: "#3D841E",
+    textDecorationLine: "underline",
   },
   legal: {
     fontFamily: SFPro.regular,
-    fontSize: 13,
-    color: "#606060",
+    fontSize: 15,
+    color: "#999",
     textAlign: "center",
-    lineHeight: 18,
+    lineHeight: 20,
     paddingHorizontal: 16,
   },
   legalLink: {
     fontFamily: SFPro.semiBold,
-    color: "#000000",
+    color: "#666",
   },
 });
