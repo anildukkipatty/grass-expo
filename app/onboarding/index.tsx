@@ -71,13 +71,11 @@ export default function OnboardingScreen() {
           />
         </View>
 
-        <Text style={styles.title}>Close your laptop.{"\n"}Your agents keep running.</Text>
+        <Text style={styles.title}>Welcome to Grass</Text>
         <Text style={styles.subtitle}>
-          Grass gives your coding agents a dedicated VM that stays alive when
-          your laptop, WiFi, or focus doesn’t.
+          A dedicated VM, always available. Your{"\n"}agent runs whether
+          you&#39;re watching or not.
         </Text>
-
-        <Text style={styles.benefit}>Start with 10 free agent hours.</Text>
 
         {/* Get Started button */}
         <Pressable
@@ -94,7 +92,7 @@ export default function OnboardingScreen() {
               style={styles.buttonBorder}
             >
               <Animated.View style={[styles.button, { backgroundColor }]}>
-                <Text style={styles.buttonText}>Get started</Text>
+                <Text style={styles.buttonText}>Get Started</Text>
               </Animated.View>
             </LinearGradient>
           </Animated.View>
@@ -113,7 +111,7 @@ export default function OnboardingScreen() {
 
         {/* Terms & Privacy */}
         <Text style={styles.legal}>
-          By tapping Get started, you agree to our{"\n"}
+          By tapping Get Started, you agree to our{"\n"}
           <Text
             style={styles.legalLink}
             onPress={() => Linking.openURL("https://codeongrass.com/terms")}
@@ -178,16 +176,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     textAlign: "center",
   },
-  benefit: {
-    marginTop: 24,
-    fontFamily: SFPro.regular,
-    fontSize: 15,
-    lineHeight: 20,
-    color: "#999",
-    textAlign: "center",
-  },
   pressable: {
-    marginTop: 10,
+    marginTop: 24,
     marginBottom: 20,
     width: "100%",
   },
