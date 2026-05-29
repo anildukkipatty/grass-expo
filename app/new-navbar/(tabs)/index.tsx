@@ -314,7 +314,7 @@ export default function HomeScreen() {
                 // Dispatch threads have a synthetic grassId that the Grass server
                 // does not know — passing it would 404 on /sessions/:id/history.
                 // Opt into resuming the latest real session for the repo instead.
-                ...(thread.isDispatch ? { resumeLatest: "1" } : { sessionId: thread.grassId }),
+                ...(thread.isDispatch ? { resumeLatestForRepo: "1" } : { sessionId: thread.grassId }),
                 repoName: thread.repo,
                 repoPath: thread.repoPath,
                 agent: thread.tool,
