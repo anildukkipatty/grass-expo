@@ -2,6 +2,7 @@ import {
   BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
+  BottomSheetTextInput,
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -10,13 +11,10 @@ import {
   Alert,
   Clipboard,
   Keyboard,
-  KeyboardAvoidingView,
   Linking,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -60,6 +58,8 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
   const [machineName, setMachineName] = useState("");
   const [selectedIconIndex, setSelectedIconIndex] = useState(0);
   const [scannedUrl, setScannedUrl] = useState("");
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [manualUrl, setManualUrl] = useState("");
 
   const snapPoints = ["90%"];
   const animationConfigs = useBottomSheetTimingConfigs({
@@ -112,6 +112,8 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
       setStep("scan");
       setMachineName("");
       setSelectedIconIndex(0);
+      setShowManualInput(false);
+      setManualUrl("");
     } else {
       bottomSheetRef.current?.dismiss();
     }
@@ -156,6 +158,24 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
     }
   }, [cameraPermission, requestCameraPermission]);
 
+  const handleManualSubmit = useCallback(() => {
+    const url = manualUrl.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) {
+      Alert.alert(
+        "Invalid URL",
+        "The URL must start with http:// or https://.",
+      );
+      return;
+    }
+    Keyboard.dismiss();
+    setScannedUrl(url);
+    setCameraEnabled(false);
+    setShowManualInput(false);
+    setManualUrl("");
+    slideSuccessIn("paired");
+  }, [manualUrl, slideSuccessIn]);
+
   const isGreenStep = step === "paired" || step === "ready";
   const SelectedIconComponent = ICONS[selectedIconIndex];
 
@@ -164,6 +184,9 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
       ref={bottomSheetRef}
       snapPoints={snapPoints}
       enablePanDownToClose
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      android_keyboardInputMode="adjustResize"
       animationConfigs={animationConfigs}
       backdropComponent={renderBackdrop}
       onDismiss={() => {
@@ -263,6 +286,47 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
                   </TouchableOpacity>
                 )}
               </View>
+
+              {showManualInput ? (
+                <View style={styles.manualInputContainer}>
+                  <BottomSheetTextInput
+                    style={styles.manualInput}
+                    placeholder="https://your-machine-url"
+                    placeholderTextColor="#888"
+                    value={manualUrl}
+                    onChangeText={setManualUrl}
+                    autoFocus
+                    selectTextOnFocus
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                    returnKeyType="go"
+                    onSubmitEditing={handleManualSubmit}
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.manualSubmitButton,
+                      manualUrl.trim()
+                        ? styles.manualSubmitActive
+                        : styles.manualSubmitInactive,
+                    ]}
+                    onPress={handleManualSubmit}
+                    activeOpacity={manualUrl.trim() ? 0.85 : 1}
+                  >
+                    <Text style={styles.manualSubmitText}>Use this link</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.manualToggle}
+                  onPress={() => setShowManualInput(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.manualToggleText}>
+                    Or enter the URL manually
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             <View style={styles.footerSection}>
@@ -282,10 +346,7 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
 
       {/* ── Setup step ── */}
       {step === "setup" && (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
+        <>
           <View style={styles.header}>
             <View style={styles.headerText}>
               <Text style={styles.headerTitle}>Set up this machine</Text>
@@ -295,7 +356,7 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
             </View>
           </View>
 
-          <ScrollView
+          <BottomSheetScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.setupScrollContent}
             bounces={false}
@@ -336,7 +397,7 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
             </ScrollView>
 
             <View style={styles.nameInputContainer}>
-              <TextInput
+              <BottomSheetTextInput
                 style={styles.nameInput}
                 placeholder="Work Laptop"
                 placeholderTextColor="#888"
@@ -375,8 +436,8 @@ export function ConnectLaptopSlider({ visible, onClose }: Props) {
             >
               <Text style={styles.saveButtonText}>Save</Text>
             </TouchableOpacity>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </BottomSheetScrollView>
+        </>
       )}
 
       {/* ── Green success overlay (paired + ready) ── */}
@@ -608,6 +669,51 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#888",
     letterSpacing: -0.2,
+  },
+  manualToggle: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  manualToggleText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 14,
+    color: "#3D841E",
+    letterSpacing: -0.2,
+  },
+  manualInputContainer: {
+    gap: 10,
+  },
+  manualInput: {
+    fontFamily: SFMono.medium,
+    fontSize: 15,
+    color: "#000",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#DFDFDF",
+    backgroundColor: "#F2F2F2",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    letterSpacing: -0.2,
+  },
+  manualSubmitButton: {
+    borderRadius: 50,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderWidth: 2,
+  },
+  manualSubmitActive: {
+    borderColor: "#72C44E",
+    backgroundColor: "#3D841E",
+  },
+  manualSubmitInactive: {
+    borderColor: "#808080",
+    backgroundColor: "#9F9F9F",
+  },
+  manualSubmitText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 15,
+    color: "#FFF",
+    letterSpacing: -0.3,
   },
   footerSection: {
     alignItems: "center",

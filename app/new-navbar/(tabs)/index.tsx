@@ -19,6 +19,9 @@ import {
   MachineCarousel,
 } from "@/components/new-navbar/MachineCarousel";
 import { NewChatSlider2 } from "@/components/new-navbar/NewChatSlider2";
+import { claudeStatus } from "@/api/claude";
+import { opencodeStatus } from "@/api/opencode";
+import { getToken } from "@/store/auth-store";
 import { posthog } from "@/constants/posthog";
 import { VM_ICONS } from "@/constants/vm-icons";
 import { extractHost, useNavbar } from "@/contexts/navbar-context";
@@ -130,6 +133,8 @@ export default function HomeScreen() {
   >({});
   const [grassVmName, setGrassVmName] = useState<string | null>(null);
   const hasPromptedForName = useRef(false);
+  // null = not yet known; true/false = confirmed. Drives the "Connect your agent" nudge.
+  const [agentConnected, setAgentConnected] = useState<boolean | null>(null);
 
   const {
     vmUrls,
@@ -158,14 +163,55 @@ export default function HomeScreen() {
     return unsub;
   }, [selectedVmUrl]);
 
+  // Avoid state updates after unmount (fetch can resolve after navigating away).
+  const isMounted = useRef(true);
+  useEffect(() => () => { isMounted.current = false; }, []);
+
+  // Fetch agent-connection status (account-wide) and update the nudge. Used both on
+  // focus and whenever the Connect slider closes. To "confirm none connected" we
+  // require BOTH status calls to succeed; if either fails we leave `agentConnected`
+  // unchanged so the nudge stays hidden rather than flashing for someone whose
+  // (possibly connected) agent simply failed to report.
+  const refreshAgentStatus = React.useCallback(async () => {
+    const token = await getToken();
+    if (!token) return;
+    const [claudeRes, opencodeRes] = await Promise.all([
+      claudeStatus(token),
+      opencodeStatus(token),
+    ]);
+    if (!isMounted.current) return;
+    const anyConnected =
+      (claudeRes.ok && claudeRes.data.connected) ||
+      (opencodeRes.ok && opencodeRes.data.connected);
+    if (anyConnected) {
+      setAgentConnected(true);
+    } else if (claudeRes.ok && opencodeRes.ok) {
+      // Both reported successfully and neither is connected.
+      setAgentConnected(false);
+    }
+    // else: at least one call failed and none confirmed connected → leave unknown.
+  }, []);
+
   useFocusEffect(
     React.useCallback(() => {
       if (selectedVmUrl) setSessionStatuses(getSessionStatuses(selectedVmUrl));
       getAllVmMetadata().then(setVmMetadataMap);
       notifyWakeTabFocus();
+      refreshAgentStatus();
       return () => notifyWakeTabBlur();
-    }, [selectedVmUrl, notifyWakeTabFocus, notifyWakeTabBlur])
+    }, [selectedVmUrl, notifyWakeTabFocus, notifyWakeTabBlur, refreshAgentStatus])
   );
+
+  // The Connect slider opens on top of the home screen (no navigation), so the focus
+  // effect won't re-run. Re-check agent status when it closes to update the nudge
+  // right after a connect/disconnect.
+  const wasConnectMoreVisible = useRef(connectMoreVisible);
+  useEffect(() => {
+    if (wasConnectMoreVisible.current && !connectMoreVisible) {
+      refreshAgentStatus();
+    }
+    wasConnectMoreVisible.current = connectMoreVisible;
+  }, [connectMoreVisible, refreshAgentStatus]);
 
   // Load stored names + icons whenever the VM list changes
   useEffect(() => {
@@ -252,6 +298,11 @@ export default function HomeScreen() {
 
   const isLoading = vmUrls.length === 0;
   const onPrimaryVm = !!primaryVmUrl && selectedVmUrl === primaryVmUrl;
+
+  // No coding agent (Claude Code / Opencode) connected yet — nudge the user to connect one.
+  // `agentConnected` stays null until a status fetch resolves, so the nudge only appears
+  // once we've confirmed none is connected.
+  const showConnectAgent = agentConnected === false;
 
   function renderThreadList() {
     if (FORCE_SKELETON_PREVIEW || isLoading || (onPrimaryVm && !vmRunning)) {
@@ -386,6 +437,20 @@ export default function HomeScreen() {
         onClose={() => setNewChatVisible(false)}
       />
 
+      {/* ── Connect-agent nudge (only default Grass VM connected) ── */}
+      {showConnectAgent && (
+        <View style={styles.connectAgentCard}>
+          <Text style={styles.connectAgentText}>Connect your agent</Text>
+          <TouchableOpacity
+            style={styles.connectAgentButton}
+            activeOpacity={0.85}
+            onPress={() => setConnectMoreVisible(true)}
+          >
+            <Text style={styles.connectAgentButtonText}>Connect</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* ── Section header ── */}
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionHeader}>Recent threads</Text>
@@ -461,6 +526,37 @@ const styles = StyleSheet.create({
     fontFamily: SFPro.medium,
     fontSize: 14,
     color: "#3D841E",
+  },
+  connectAgentCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 16,
+    marginHorizontal: 16,
+    paddingVertical: 12,
+    paddingLeft: 16,
+    paddingRight: 12,
+    backgroundColor: "#E3FDD7",
+    borderRadius: 14,
+    borderCurve: "continuous",
+    borderWidth: 1,
+    borderColor: "#72C44E",
+  },
+  connectAgentText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 15,
+    color: "#2A5C14",
+  },
+  connectAgentButton: {
+    backgroundColor: "#3D841E",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  connectAgentButtonText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 14,
+    color: "#FFFFFF",
   },
   sectionHeaderRow: {
     flexDirection: "row",
