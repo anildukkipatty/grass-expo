@@ -253,6 +253,9 @@ export default function HomeScreen() {
   const isLoading = vmUrls.length === 0;
   const onPrimaryVm = !!primaryVmUrl && selectedVmUrl === primaryVmUrl;
 
+  // Only the default Grass VM is connected — nudge the user to connect their own agent.
+  const showConnectAgent = vmUrls.length === 1;
+
   function renderThreadList() {
     if (FORCE_SKELETON_PREVIEW || isLoading || (onPrimaryVm && !vmRunning)) {
       return Array.from({ length: 20 }).map((_, i) => (
@@ -386,6 +389,20 @@ export default function HomeScreen() {
         onClose={() => setNewChatVisible(false)}
       />
 
+      {/* ── Connect-agent nudge (only default Grass VM connected) ── */}
+      {showConnectAgent && (
+        <View style={styles.connectAgentCard}>
+          <Text style={styles.connectAgentText}>Connect your agent</Text>
+          <TouchableOpacity
+            style={styles.connectAgentButton}
+            activeOpacity={0.85}
+            onPress={() => setConnectMoreVisible(true)}
+          >
+            <Text style={styles.connectAgentButtonText}>Connect</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* ── Section header ── */}
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionHeader}>Recent threads</Text>
@@ -461,6 +478,37 @@ const styles = StyleSheet.create({
     fontFamily: SFPro.medium,
     fontSize: 14,
     color: "#3D841E",
+  },
+  connectAgentCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 16,
+    marginHorizontal: 16,
+    paddingVertical: 12,
+    paddingLeft: 16,
+    paddingRight: 12,
+    backgroundColor: "#E3FDD7",
+    borderRadius: 14,
+    borderCurve: "continuous",
+    borderWidth: 1,
+    borderColor: "#72C44E",
+  },
+  connectAgentText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 15,
+    color: "#2A5C14",
+  },
+  connectAgentButton: {
+    backgroundColor: "#3D841E",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  connectAgentButtonText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 14,
+    color: "#FFFFFF",
   },
   sectionHeaderRow: {
     flexDirection: "row",
