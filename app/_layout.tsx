@@ -138,7 +138,7 @@ export default function RootLayout() {
           captureTouches: true,
           propsToCapture: ["testID"],
         }}
-        debug={__DEV__}
+        debug={false}
       >
       <Stack
         screenOptions={{
