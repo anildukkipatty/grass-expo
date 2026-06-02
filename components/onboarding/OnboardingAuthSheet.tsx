@@ -9,10 +9,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -22,7 +24,7 @@ import {
   View,
 } from "react-native";
 
-const RESEND_COOLDOWN = 45;
+const RESEND_COOLDOWN = 30;
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -47,14 +49,19 @@ export function OnboardingAuthSheet({
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState<"email" | "otp">("email");
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [emailError, setEmailError] = useState("");
   const [otpError, setOtpError] = useState("");
+  const [resendSent, setResendSent] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [otpFocused, setOtpFocused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resendSentRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const emailInputRef = useRef<TextInput>(null);
   const otpInputRef = useRef<TextInput>(null);
+  const buttonScale = useRef(new Animated.Value(1)).current;
+  const buttonColorAnim = useRef(new Animated.Value(0)).current;
 
   const startResendTimer = useCallback(() => {
     setResendTimer(RESEND_COOLDOWN);
@@ -74,6 +81,7 @@ export function OnboardingAuthSheet({
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (resendSentRef.current) clearTimeout(resendSentRef.current);
     };
   }, []);
 
@@ -82,14 +90,20 @@ export function OnboardingAuthSheet({
     setEmail("");
     setOtp("");
     setLoading(false);
+    setChecking(false);
     setResendTimer(0);
     setEmailError("");
     setOtpError("");
+    setResendSent(false);
     setEmailFocused(false);
     setOtpFocused(false);
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+    if (resendSentRef.current) {
+      clearTimeout(resendSentRef.current);
+      resendSentRef.current = null;
     }
   }, []);
 
@@ -113,6 +127,7 @@ export function OnboardingAuthSheet({
     setLoading(false);
     if (result.ok) {
       posthog.capture("otp_requested", { email: email.trim() });
+      setResendSent(false);
       setStep("otp");
       startResendTimer();
     } else {
@@ -126,6 +141,13 @@ export function OnboardingAuthSheet({
     const result = await requestOtp(email.trim());
     setLoading(false);
     if (result.ok) {
+      setOtpError("");
+      setResendSent(true);
+      if (resendSentRef.current) clearTimeout(resendSentRef.current);
+      resendSentRef.current = setTimeout(() => {
+        setResendSent(false);
+        resendSentRef.current = null;
+      }, 2200);
       startResendTimer();
     } else {
       setOtpError(result.error);
@@ -134,14 +156,14 @@ export function OnboardingAuthSheet({
 
   const handleVerifyOtp = useCallback(async () => {
     if (otp.trim().length !== 6) {
-      setOtpError("That code didn't work. Try again.");
+      setOtpError("That code didn’t work. Try again.");
       return;
     }
     setOtpError("");
-    setLoading(true);
+    setChecking(true);
     Keyboard.dismiss();
     const result = await verifyOtp(email.trim(), otp.trim());
-    setLoading(false);
+    setChecking(false);
     if (result.ok) {
       await saveAuth(result.data.token, result.data.user);
       void registerPushTokenAfterLogin();
@@ -157,7 +179,7 @@ export function OnboardingAuthSheet({
       onClose();
       onVerified(result.data.user.userType);
     } else {
-      setOtpError("That code didn't work. Try again.");
+      setOtpError("That code didn’t work. Try again.");
     }
   }, [email, otp, onVerified, onClose]);
 
@@ -173,6 +195,45 @@ export function OnboardingAuthSheet({
     : emailFocused
       ? "#3D841E"
       : "#D0D0D0";
+  const buttonBackgroundColor = buttonColorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["#3D841E", "#2A5C14"],
+  });
+
+  const handleButtonPressIn = useCallback(() => {
+    if (!buttonActive || loading || checking) return;
+    Animated.parallel([
+      Animated.spring(buttonScale, {
+        toValue: 0.96,
+        useNativeDriver: true,
+        speed: 60,
+        bounciness: 0,
+      }),
+      Animated.spring(buttonColorAnim, {
+        toValue: 1,
+        useNativeDriver: false,
+        speed: 60,
+        bounciness: 0,
+      }),
+    ]).start();
+  }, [buttonActive, buttonColorAnim, buttonScale, checking, loading]);
+
+  const handleButtonPressOut = useCallback(() => {
+    Animated.parallel([
+      Animated.spring(buttonScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        speed: 30,
+        bounciness: 5,
+      }),
+      Animated.spring(buttonColorAnim, {
+        toValue: 0,
+        useNativeDriver: false,
+        speed: 30,
+        bounciness: 0,
+      }),
+    ]).start();
+  }, [buttonColorAnim, buttonScale]);
 
   return (
     <Modal
@@ -199,7 +260,7 @@ export function OnboardingAuthSheet({
               </LinearGradient>
 
               <Text style={s.title}>
-                {step === "email" ? "Create your account" : "Check your inbox"}
+                {step === "email" ? "Create your account" : "Almost there"}
               </Text>
               {step === "email" ? (
                 <Text style={s.subtitle}>
@@ -210,7 +271,7 @@ export function OnboardingAuthSheet({
                 <Text style={s.subtitle}>
                   We sent a 6-digit code to{"\n"}
                   <Text style={s.subtitleEmail}>{email.trim()}</Text>
-                  {"\n"}Enter it below to continue.
+                  {"\n\n"}Enter the code to continue.
                 </Text>
               )}
             </View>
@@ -219,7 +280,7 @@ export function OnboardingAuthSheet({
             <View
               style={[
                 s.inputSection,
-                { marginTop: step === "otp" ? 36 : 48 },
+                { marginTop: step === "otp" ? 18 : 48 },
               ]}
             >
               {step === "email" ? (
@@ -257,7 +318,7 @@ export function OnboardingAuthSheet({
                     <Text style={s.errorText}>{emailError}</Text>
                   ) : (
                     <Text style={s.helperText}>
-                      Use the email you want linked to your free agent runtime.
+                      Use the email you want linked to your free computer.
                     </Text>
                   )}
                 </>
@@ -321,6 +382,7 @@ export function OnboardingAuthSheet({
                     onChangeText={(t) => {
                       setOtp(t);
                       setOtpError("");
+                      setResendSent(false);
                     }}
                     onFocus={() => setOtpFocused(true)}
                     onBlur={() => setOtpFocused(false)}
@@ -343,8 +405,10 @@ export function OnboardingAuthSheet({
               {step === "otp" && (
                 <View style={s.resendEditRow}>
                   <View style={s.resendRow}>
-                    <Text style={s.resendLabel}>Didn&#39;t get it? </Text>
-                    {resendTimer > 0 ? (
+                    <Text style={s.resendLabel}>Didn’t get it? </Text>
+                    {resendSent ? (
+                      <Text style={s.resendTimer}>New code sent.</Text>
+                    ) : resendTimer > 0 ? (
                       <Text style={s.resendTimer}>
                         Resend in {formatTimer(resendTimer)}
                       </Text>
@@ -358,34 +422,67 @@ export function OnboardingAuthSheet({
                     )}
                   </View>
                   <TouchableOpacity onPress={handleEditEmail} style={s.editRow}>
-                    <EditIcon width={13} height={13} color="#888" />
+                    <EditIcon width={14} height={14} color="#888" />
                     <Text style={s.editText}>Edit email</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
-              <TouchableOpacity
-                style={[
-                  s.button,
-                  buttonActive ? s.buttonActive : s.buttonDisabled,
-                ]}
+              <Pressable
+                style={s.pressable}
                 onPress={step === "email" ? handleRequestOtp : handleVerifyOtp}
-                activeOpacity={0.88}
-                disabled={loading}
+                onPressIn={handleButtonPressIn}
+                onPressOut={handleButtonPressOut}
+                disabled={!buttonActive || loading || checking}
               >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={s.buttonText}>Continue</Text>
-                )}
-              </TouchableOpacity>
+                <Animated.View
+                  style={[
+                    s.buttonScale,
+                    { transform: [{ scale: buttonScale }] },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={
+                      buttonActive
+                        ? ["#7ED957", "#1A4D09"]
+                        : ["#D0D0D0", "#D0D0D0"]
+                    }
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={s.buttonBorder}
+                  >
+                    <Animated.View
+                      style={[
+                        s.button,
+                        {
+                          backgroundColor: buttonActive
+                            ? buttonBackgroundColor
+                            : "#D0D0D0",
+                        },
+                      ]}
+                    >
+                      {checking ? (
+                        step === "otp" ? (
+                          <Text style={s.buttonText}>Checking…</Text>
+                        ) : (
+                          <ActivityIndicator color="#fff" />
+                        )
+                      ) : loading && step === "email" ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={s.buttonText}>Continue</Text>
+                      )}
+                    </Animated.View>
+                  </LinearGradient>
+                </Animated.View>
+              </Pressable>
 
               {step === "email" && (
                 <TouchableOpacity onPress={() => emailInputRef.current?.focus()}>
-                  <Text style={s.loginLink}>
+                  {/* <Text style={s.loginLink}>
                     Already have an account?{" "}
                     <Text style={s.loginLinkBold}>Log in</Text>
-                  </Text>
+                  </Text> */}
                 </TouchableOpacity>
               )}
             </View>
@@ -403,7 +500,7 @@ const s = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   header: {
-    alignItems: "center",
+    alignItems: "flex-start",
     paddingTop: 44,
     paddingHorizontal: 24,
   },
@@ -418,25 +515,26 @@ const s = StyleSheet.create({
   title: {
     fontFamily: SFPro.bold,
     fontSize: 28,
+    lineHeight: 32,
     color: "#000000",
-    textAlign: "center",
+    textAlign: "left",
     letterSpacing: -1,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   subtitle: {
     fontFamily: SFPro.regular,
-    fontSize: 15,
-    color: "#555",
-    textAlign: "center",
+    fontSize: 17,
+    color: "#000",
+    textAlign: "left",
     lineHeight: 22,
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
   },
   subtitleEmail: {
-    fontFamily: SFPro.bold,
+    fontFamily: SFPro.semiBold,
     color: "#111",
   },
   inputSection: {
-    paddingHorizontal: 28,
+    paddingHorizontal: 24,
   },
   inputLabel: {
     fontFamily: SFPro.medium,
@@ -481,11 +579,12 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    width: "100%",
+    gap: 10,
   },
   otpCell: {
-    width: 44,
-    height: 54,
+    flex: 1,
+    height: 50,
     borderRadius: 10,
     borderWidth: 1.5,
     alignItems: "center",
@@ -527,7 +626,7 @@ const s = StyleSheet.create({
   },
   bottomArea: {
     paddingHorizontal: 24,
-    paddingBottom: 36,
+    paddingBottom: 12,
     alignItems: "center",
     gap: 14,
   },
@@ -547,14 +646,15 @@ const s = StyleSheet.create({
     color: "#888",
   },
   resendTimer: {
-    fontFamily: SFPro.medium,
+    fontFamily: SFPro.regular,
     fontSize: 14,
-    color: "#555",
+    color: "#888",
   },
   resendLink: {
-    fontFamily: SFPro.medium,
+    fontFamily: SFPro.regular,
     fontSize: 14,
     color: "#3D841E",
+    textDecorationLine: "underline",
   },
   editRow: {
     flexDirection: "row",
@@ -562,26 +662,34 @@ const s = StyleSheet.create({
     gap: 5,
   },
   editText: {
-    fontFamily: SFPro.medium,
-    fontSize: 13,
-    color: "#888",
+    fontFamily: SFPro.regular,
+    fontSize: 14,
+    color: "#000",
+    textDecorationLine: "underline",
+  },
+  pressable: {
+    width: "100%",
+  },
+  buttonScale: {
+    width: "100%",
+  },
+  buttonBorder: {
+    width: "100%",
+    borderRadius: 25,
+    borderCurve: "continuous",
+    padding: 2,
   },
   button: {
-    borderRadius: 50,
-    height: 52,
-    width: "100%",
+    height: 46,
+    borderRadius: 23,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
-  },
-  buttonActive: {
-    backgroundColor: "#3D841E",
-  },
-  buttonDisabled: {
-    backgroundColor: "#D0D0D0",
+    overflow: "hidden",
   },
   buttonText: {
-    fontFamily: SFPro.semiBold,
     fontSize: 17,
+    fontWeight: "500",
     color: "#fff",
     letterSpacing: 0,
   },
