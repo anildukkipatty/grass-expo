@@ -542,6 +542,7 @@ const styles = StyleSheet.create({
   profileEmail: {
     fontFamily: SFPro.medium,
     fontSize: 17,
+    letterSpacing: -0.5,
     color: "#737373",
   },
   profileImage: {
@@ -594,11 +595,11 @@ const styles = StyleSheet.create({
 
   // Section header
   sectionHeader: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 15,
+    fontFamily: SFPro.medium,
+    fontSize: 17,
     color: "#000",
     // textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: -0.5,
     marginBottom: 8,
     marginTop: 16,
   },
@@ -629,13 +630,15 @@ const styles = StyleSheet.create({
   },
   inviteTitle: {
     fontFamily: SFPro.medium,
-    fontSize: 15,
+    fontSize: 17,
+    letterSpacing: -0.5,
     color: "#000",
     marginBottom: 2,
   },
   inviteSubtitle: {
     fontFamily: SFPro.medium,
-    fontSize: 13,
+    fontSize: 17,
+    letterSpacing: -0.5,
     color: "#3D841E",
   },
 
@@ -670,13 +673,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowLabel: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 15,
+    fontFamily: SFPro.medium,
+    fontSize: 17,
+    letterSpacing: -0.5,
     color: "#9F9F9F",
   },
   rowSublabel: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 13,
+    fontFamily: SFPro.medium,
+    fontSize: 17,
+    letterSpacing: -0.5,
     color: "#000",
     marginTop: 2,
   },
@@ -767,12 +772,14 @@ const styles = StyleSheet.create({
   },
   footerTagline: {
     fontFamily: SFPro.medium,
-    fontSize: 13,
+    fontSize: 17,
+    letterSpacing: -0.5,
     color: "#000",
   },
   footerVersion: {
     fontFamily: SFPro.medium,
-    fontSize: 13,
+    fontSize: 17,
+    letterSpacing: -0.5,
     color: "#808080",
   },
 
