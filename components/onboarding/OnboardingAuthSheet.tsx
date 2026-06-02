@@ -479,10 +479,10 @@ export function OnboardingAuthSheet({
 
               {step === "email" && (
                 <TouchableOpacity onPress={() => emailInputRef.current?.focus()}>
-                  <Text style={s.loginLink}>
+                  {/* <Text style={s.loginLink}>
                     Already have an account?{" "}
                     <Text style={s.loginLinkBold}>Log in</Text>
-                  </Text>
+                  </Text> */}
                 </TouchableOpacity>
               )}
             </View>
