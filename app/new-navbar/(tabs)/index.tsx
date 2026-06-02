@@ -459,7 +459,8 @@ const styles = StyleSheet.create({
   },
   startupOverlayText: {
     fontFamily: SFPro.medium,
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 18,
     color: "#3D841E",
   },
   sectionHeaderRow: {
@@ -472,8 +473,11 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     fontFamily: SFPro.semiBold,
-    fontSize: 17,
-    color: "#000",
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: "#9F9F9F",
   },
   refreshingContainer: {
     flexDirection: "row",
@@ -483,6 +487,7 @@ const styles = StyleSheet.create({
   refreshingText: {
     fontFamily: SFPro.medium,
     fontSize: 13,
+    lineHeight: 18,
     color: "#72C44E",
   },
   retryContainer: {
@@ -493,6 +498,7 @@ const styles = StyleSheet.create({
   wakeFailedText: {
     fontFamily: SFPro.medium,
     fontSize: 13,
+    lineHeight: 18,
     color: "#C62828",
   },
   retryButton: {
@@ -503,7 +509,8 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     fontFamily: SFPro.semiBold,
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 18,
     color: "#FFFFFF",
   },
   progressTrack: {
@@ -545,13 +552,16 @@ const styles = StyleSheet.create({
   threadMessage: {
     flex: 1,
     fontFamily: SFPro.medium,
-    fontSize: 15,
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.5,
     color: "#000",
     marginRight: 8,
   },
   threadTime: {
     fontFamily: SFPro.regular,
     fontSize: 13,
+    lineHeight: 18,
     color: "#808080",
   },
   threadMeta: {
@@ -593,11 +603,10 @@ const styles = StyleSheet.create({
   },
   commandText: {
     fontFamily: SFPro.medium,
-    fontSize: 13,
-    color: "#9F9F9F",
-    marginLeft: 5,
+    fontSize: 15,
     lineHeight: 20,
-    letterSpacing: -0.3,
+    color: "#808080",
+    marginLeft: 5,
   },
   floatButton: {
     position: "absolute",
@@ -623,6 +632,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontFamily: SFPro.regular,
     fontSize: 15,
+    lineHeight: 20,
     color: "#808080",
     textAlign: "center",
   },
