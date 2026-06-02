@@ -39,6 +39,7 @@ import { claudeComplete, claudeDisconnect, claudeStart, claudeStatus } from "@/a
 import { codexComplete, codexDisconnect, codexStart, codexStatus } from "@/api/codex";
 import { opencodeConnect, opencodeDisconnect, opencodeStatus } from "@/api/opencode";
 import { getToken } from "@/store/auth-store";
+import { OAuthWebViewModal } from "./OAuthWebViewModal";
 
 type Step = "form" | "connected";
 type ProviderId = "claude" | "opencode" | "codex";
@@ -73,6 +74,15 @@ type OAuthProvider = ProviderBase & {
   flow: "oauth";
   start: StartFn;
   complete: CompleteFn;
+  /** When set, the slider opens an in-app WebView for the auth URL and
+   *  intercepts the first navigation whose URL starts with this prefix.
+   *  Used for providers (Codex) whose OAuth client is hard-locked to a
+   *  localhost redirect that no mobile browser can complete on its own.
+   *  These providers render a single-step UI (no copy URL / paste code). */
+  webviewIntercept?: string;
+  /** CTA label for the single-step button when webviewIntercept is set.
+   *  Defaults to `Connect {agentLabel}`. */
+  connectButtonLabel?: string;
 };
 
 type ApiKeyProvider = ProviderBase & {
@@ -135,6 +145,10 @@ const PROVIDERS: readonly Provider[] = [
     start: codexStart,
     complete: codexComplete,
     disconnect: codexDisconnect,
+    // OpenAI's Codex OAuth client is hard-locked to redirect to localhost:1455,
+    // which a mobile browser can't complete. Use the in-app WebView so we can
+    // intercept the redirect, pull `code` + `state`, and call /codex/complete.
+    webviewIntercept: "http://localhost:1455/auth/callback",
   },
 ];
 
@@ -191,6 +205,8 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
 
   const [connected, setConnected] = useState<Record<ProviderId, boolean>>(emptyConnected);
   const [sessions, setSessions] = useState<Record<ProviderId, Session | null>>(emptySessions);
+  // WebView OAuth — only used by providers with a `webviewIntercept` redirect prefix
+  const [webviewVisible, setWebviewVisible] = useState(false);
 
   const authInputRef = useRef<TextInput>(null);
 
@@ -316,9 +332,77 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
 
   const handleOpenBrowser = useCallback(() => {
     if (!authUrl) return;
+    // For providers whose OAuth client locks the redirect to a URL the OS
+    // can't actually load (e.g. http://localhost:1455 for Codex), drive the
+    // sign-in through an in-app WebView and intercept the redirect.
+    if (activeProvider.flow === "oauth" && activeProvider.webviewIntercept) {
+      setWebviewVisible(true);
+      return;
+    }
     const url = authUrl.startsWith("http") ? authUrl : `https://${authUrl}`;
     Linking.openURL(url);
-  }, [authUrl]);
+  }, [authUrl, activeProvider]);
+
+  // Fires once when the WebView intercepts the OAuth provider's redirect URL.
+  // Parses `code` + `state`, posts to /<provider>/complete, marks connected.
+  const handleWebViewCallback = useCallback(
+    async (callbackUrl: string) => {
+      setWebviewVisible(false);
+      if (activeProvider.flow !== "oauth") return;
+
+      let code: string | null = null;
+      let state: string | null = null;
+      try {
+        const parsed = new URL(callbackUrl);
+        code = parsed.searchParams.get("code");
+        state = parsed.searchParams.get("state");
+      } catch {
+        setConnectError("Couldn't read the auth callback URL. Please try again.");
+        return;
+      }
+      if (!code) {
+        setConnectError("Auth was cancelled or did not return a code.");
+        return;
+      }
+
+      setIsConnecting(true);
+      setConnectError(null);
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const session = sessions[activeProvider.id];
+        // Prefer the `state` returned in the redirect (round-trip integrity);
+        // fall back to the one we issued in /start if for any reason it's absent.
+        const cmdId = state ?? session?.cmdId ?? "";
+        const sessionId = session?.sessionId ?? "";
+        if (!cmdId || !sessionId) {
+          setConnectError("Session expired. Please try connecting again.");
+          return;
+        }
+        const res = await activeProvider.complete(token, {
+          authCode: code,
+          sessionId,
+          cmdId,
+        });
+        if (res.ok && res.data.success) {
+          setConnectedFor(activeProvider.id, true);
+          setAuthCode("");
+          slideSuccessIn();
+        } else {
+          setConnectError(
+            res.ok
+              ? (res.data.message ?? "Authentication failed. Please try again.")
+              : (res.error ?? "Authentication failed. Please try again."),
+          );
+        }
+      } catch {
+        setConnectError("Something went wrong. Please try again.");
+      } finally {
+        setIsConnecting(false);
+      }
+    },
+    [activeProvider, sessions, setConnectedFor, slideSuccessIn],
+  );
 
   const handleConnect = useCallback(async () => {
     if (authCode.trim().length < 1) { setAuthError(true); return; }
@@ -516,6 +600,90 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                   <Text style={styles.disconnectBtnText}>Disconnect</Text>
                 )}
               </TouchableOpacity>
+            </View>
+          ) : activeProvider.flow === "oauth" && activeProvider.webviewIntercept ? (
+            /* ── Single-step WebView OAuth (Codex / future PKCE-localhost providers) ── */
+            <View style={styles.stepBlock}>
+              <View style={styles.illustrationRow}>
+                {isLoading ? (
+                  <SkeletonBox width={44} height={44} borderRadius={10} />
+                ) : (
+                  <ActiveColorIcon width={44} height={44} />
+                )}
+                <Image
+                  source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
+                  style={styles.arrowImage}
+                  resizeMode="contain"
+                />
+                {isLoading ? (
+                  <SkeletonBox width={44} height={44} borderRadius={10} />
+                ) : (
+                  <LogoIcon width={44} height={44} />
+                )}
+              </View>
+
+              <View style={styles.stepHeader}>
+                {isLoading ? (
+                  <SkeletonBox width={160} height={18} borderRadius={6} />
+                ) : (
+                  <>
+                    <View style={styles.stepBadge}>
+                      <Text style={styles.stepBadgeText}>1</Text>
+                    </View>
+                    <Text style={styles.stepTitle}>Connect {agentLabel}</Text>
+                  </>
+                )}
+              </View>
+
+              {isLoading ? (
+                <View style={styles.skeletonDescGroup}>
+                  <SkeletonBox width="90%" height={13} borderRadius={6} />
+                  <SkeletonBox width="100%" height={13} borderRadius={6} />
+                  <SkeletonBox width="70%" height={13} borderRadius={6} />
+                  <Text style={styles.loadingHintText}>
+                    {activeProvider.loadingHint}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.stepDesc}>
+                  {activeProvider.step1Desc}
+                </Text>
+              )}
+
+              {connectError && (
+                <Text style={styles.errorText}>{connectError}</Text>
+              )}
+
+              {isLoading ? (
+                <SkeletonBox height={52} borderRadius={50} />
+              ) : (
+                <View
+                  style={[
+                    styles.connectButtonWrap,
+                    (isConnecting || !authUrl) && styles.connectButtonWrapNoShadow,
+                  ]}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.connectButton,
+                      authUrl && !isConnecting
+                        ? styles.connectButtonActive
+                        : styles.connectButtonDisabled,
+                    ]}
+                    onPress={handleOpenBrowser}
+                    activeOpacity={0.88}
+                    disabled={!authUrl || isConnecting}
+                  >
+                    {isConnecting ? (
+                      <ActivityIndicator color="#FFF" size="small" />
+                    ) : (
+                      <Text style={styles.connectButtonText}>
+                        {activeProvider.connectButtonLabel ?? `Connect ${agentLabel}`}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           ) : (
             <>
@@ -737,6 +905,16 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
           </View>
         )}
       </Animated.View>
+      {activeProvider.flow === "oauth" && activeProvider.webviewIntercept && (
+        <OAuthWebViewModal
+          visible={webviewVisible}
+          authUrl={authUrl}
+          redirectPrefix={activeProvider.webviewIntercept}
+          title={`Sign in to ${activeProvider.agentLabel}`}
+          onCallback={handleWebViewCallback}
+          onCancel={() => setWebviewVisible(false)}
+        />
+      )}
     </BottomSheetModal>
   );
 }
