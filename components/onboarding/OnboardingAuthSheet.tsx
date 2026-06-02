@@ -50,6 +50,8 @@ export function OnboardingAuthSheet({
   const [resendTimer, setResendTimer] = useState(0);
   const [emailError, setEmailError] = useState("");
   const [otpError, setOtpError] = useState("");
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [otpFocused, setOtpFocused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const emailInputRef = useRef<TextInput>(null);
   const otpInputRef = useRef<TextInput>(null);
@@ -83,6 +85,8 @@ export function OnboardingAuthSheet({
     setResendTimer(0);
     setEmailError("");
     setOtpError("");
+    setEmailFocused(false);
+    setOtpFocused(false);
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -99,7 +103,7 @@ export function OnboardingAuthSheet({
 
   const handleRequestOtp = useCallback(async () => {
     if (!emailValid) {
-      setEmailError("That doesn't look right. Check the email and try again.");
+      setEmailError("Enter a valid email address.");
       return;
     }
     setEmailError("");
@@ -130,7 +134,7 @@ export function OnboardingAuthSheet({
 
   const handleVerifyOtp = useCallback(async () => {
     if (otp.trim().length !== 6) {
-      setOtpError("That code doesn't match. Try again.");
+      setOtpError("That code didn't work. Try again.");
       return;
     }
     setOtpError("");
@@ -153,7 +157,7 @@ export function OnboardingAuthSheet({
       onClose();
       onVerified(result.data.user.userType);
     } else {
-      setOtpError("That code doesn't match. Try again.");
+      setOtpError("That code didn't work. Try again.");
     }
   }, [email, otp, onVerified, onClose]);
 
@@ -163,6 +167,12 @@ export function OnboardingAuthSheet({
     setOtpError("");
     setTimeout(() => emailInputRef.current?.focus(), 150);
   }, []);
+
+  const emailUnderlineColor = emailError
+    ? "#C0554A"
+    : emailFocused
+      ? "#3D841E"
+      : "#D0D0D0";
 
   return (
     <Modal
@@ -177,24 +187,24 @@ export function OnboardingAuthSheet({
             style={s.flex}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
           >
-            {/* Header */}
+            {/* Header — same layout on both steps */}
             <View style={s.header}>
               <LinearGradient
-                colors={["#389610", "#123005"]}
+                colors={["#389610", "#1A4A08"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 0, y: 1 }}
                 style={s.iconBox}
               >
-                <EmailIcon width={26} height={26} color="#fff" />
+                <EmailIcon width={20} height={20} color="#fff" />
               </LinearGradient>
 
               <Text style={s.title}>
-                {step === "email" ? "Create your account" : "Check your inbox."}
+                {step === "email" ? "Create your account" : "Check your inbox"}
               </Text>
               {step === "email" ? (
                 <Text style={s.subtitle}>
-                  We&#39;ll send a one-time code to your email.{"\n"}Use this to
-                  log in from any device.
+                  We&#39;ll send a one-time code to your email.{"\n"}No password
+                  needed.
                 </Text>
               ) : (
                 <Text style={s.subtitle}>
@@ -205,18 +215,24 @@ export function OnboardingAuthSheet({
               )}
             </View>
 
-            {/* Input area */}
-            <View style={s.inputArea}>
+            {/* Input section */}
+            <View
+              style={[
+                s.inputSection,
+                { marginTop: step === "otp" ? 36 : 48 },
+              ]}
+            >
               {step === "email" ? (
                 <>
+                  <Text style={s.inputLabel}>Email address</Text>
                   <TextInput
                     ref={emailInputRef}
                     style={[
                       s.emailInput,
-                      emailError ? s.emailInputError : s.emailInputDefault,
+                      emailError ? s.emailInputError : null,
                     ]}
                     placeholder="you@example.com"
-                    placeholderTextColor="#9F9F9F"
+                    placeholderTextColor="#B0B0B0"
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -227,37 +243,74 @@ export function OnboardingAuthSheet({
                       setEmailError("");
                     }}
                     onSubmitEditing={handleRequestOtp}
+                    onFocus={() => setEmailFocused(true)}
+                    onBlur={() => setEmailFocused(false)}
                     autoFocus
-                    textAlign="center"
+                  />
+                  <View
+                    style={[
+                      s.underline,
+                      { backgroundColor: emailUnderlineColor },
+                    ]}
                   />
                   {emailError ? (
                     <Text style={s.errorText}>{emailError}</Text>
-                  ) : null}
+                  ) : (
+                    <Text style={s.helperText}>
+                      Use the email you want linked to your free agent runtime.
+                    </Text>
+                  )}
                 </>
               ) : (
+                /* OTP box cells */
                 <>
                   <TouchableOpacity
                     activeOpacity={1}
                     onPress={() => otpInputRef.current?.focus()}
+                    style={s.otpRow}
                   >
-                    <View style={s.otpRow}>
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <View key={i} style={s.otpCell}>
-                          <Text
-                            style={[
-                              s.otpDigit,
-                              otpError
-                                ? s.otpDigitError
-                                : otp[i]
-                                  ? s.otpDigitFilled
-                                  : s.otpDigitEmpty,
-                            ]}
-                          >
-                            {otp[i] ?? "0"}
-                          </Text>
+                    {Array.from({ length: 6 }).map((_, i) => {
+                      const isFilled = i < otp.length;
+                      const isActive =
+                        otpFocused && otp.length === i && !otpError;
+                      const cellBorderColor = otpError
+                        ? "#C0554A"
+                        : isActive
+                          ? "#3D841E"
+                          : isFilled
+                            ? "#333"
+                            : "#E0E0E0";
+                      const cellBg = otpError
+                        ? "#FDF5F5"
+                        : isFilled || isActive
+                          ? "#FFF"
+                          : "#F8F8F8";
+                      return (
+                        <View
+                          key={i}
+                          style={[
+                            s.otpCell,
+                            {
+                              borderColor: cellBorderColor,
+                              backgroundColor: cellBg,
+                            },
+                          ]}
+                        >
+                          {isFilled ? (
+                            <Text
+                              style={[
+                                s.otpDigit,
+                                otpError ? s.otpDigitError : s.otpDigitFilled,
+                              ]}
+                            >
+                              {otp[i]}
+                            </Text>
+                          ) : isActive ? (
+                            <View style={s.otpCursor} />
+                          ) : null}
                         </View>
-                      ))}
-                    </View>
+                      );
+                    })}
                   </TouchableOpacity>
                   <TextInput
                     ref={otpInputRef}
@@ -269,26 +322,25 @@ export function OnboardingAuthSheet({
                       setOtp(t);
                       setOtpError("");
                     }}
+                    onFocus={() => setOtpFocused(true)}
+                    onBlur={() => setOtpFocused(false)}
                     autoFocus
                     caretHidden
                     returnKeyType="done"
                     onSubmitEditing={handleVerifyOtp}
                   />
                   {otpError ? (
-                    <Text style={s.errorText}>{otpError}</Text>
+                    <Text style={s.otpErrorText}>{otpError}</Text>
                   ) : null}
                 </>
               )}
             </View>
 
+            <View style={s.spacer} />
+
             {/* Bottom area */}
             <View style={s.bottomArea}>
-              {step === "email" ? (
-                <Text style={s.legal}>
-                  We&#39;ll send a verification code to your email.
-                </Text>
-              ) : (
-                /* Resend + Edit email row — same line */
+              {step === "otp" && (
                 <View style={s.resendEditRow}>
                   <View style={s.resendRow}>
                     <Text style={s.resendLabel}>Didn&#39;t get it? </Text>
@@ -306,13 +358,12 @@ export function OnboardingAuthSheet({
                     )}
                   </View>
                   <TouchableOpacity onPress={handleEditEmail} style={s.editRow}>
-                    <EditIcon width={14} height={14} color="#808080" />
+                    <EditIcon width={13} height={13} color="#888" />
                     <Text style={s.editText}>Edit email</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
-              {/* Continue button */}
               <TouchableOpacity
                 style={[
                   s.button,
@@ -328,6 +379,15 @@ export function OnboardingAuthSheet({
                   <Text style={s.buttonText}>Continue</Text>
                 )}
               </TouchableOpacity>
+
+              {step === "email" && (
+                <TouchableOpacity onPress={() => emailInputRef.current?.focus()}>
+                  <Text style={s.loginLink}>
+                    Already have an account?{" "}
+                    <Text style={s.loginLinkBold}>Log in</Text>
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -344,103 +404,117 @@ const s = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    paddingTop: 40,
+    paddingTop: 44,
+    paddingHorizontal: 24,
   },
   iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#3D841E",
+    width: 34,
+    height: 34,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   title: {
     fontFamily: SFPro.bold,
     fontSize: 28,
     color: "#000000",
     textAlign: "center",
-    letterSpacing: -0.5,
+    letterSpacing: -1,
     marginBottom: 10,
   },
   subtitle: {
-    fontFamily: SFPro.medium,
-    fontSize: 17,
-    color: "#000",
+    fontFamily: SFPro.regular,
+    fontSize: 15,
+    color: "#555",
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: 22,
+    letterSpacing: -0.3,
   },
   subtitleEmail: {
     fontFamily: SFPro.bold,
-    color: "#000000",
+    color: "#111",
   },
-  inputArea: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    // paddingHorizontal: 24,
+  inputSection: {
+    paddingHorizontal: 28,
+  },
+  inputLabel: {
+    fontFamily: SFPro.medium,
+    fontSize: 12,
+    color: "#888",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginBottom: 10,
   },
   emailInput: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 28,
+    fontFamily: SFPro.regular,
+    fontSize: 21,
     color: "#000000",
-    textAlign: "center",
-    // paddingVertical: 14,
-    paddingHorizontal: 20,
-    width: "100%",
-    height: 52,
-    // borderRadius: 50,
-    // borderWidth: 2,
-  },
-  emailInputDefault: {
-    borderColor: "#C0C0C0",
-    backgroundColor: "#FFFFFF",
+    paddingVertical: 6,
+    paddingHorizontal: 0,
+    height: 40,
   },
   emailInputError: {
-    borderColor: "#808080",
-    backgroundColor: "#FFFFFF",
-    color: "#841E1E",
+    color: "#C0554A",
   },
-  // emailInputValid: {
-  //   borderColor: "#295E13",
-  //   backgroundColor: "#123005",
-  //   color: "#FFFFFF",
-  // },
+  underline: {
+    height: 1.5,
+    width: "100%",
+  },
+  helperText: {
+    fontFamily: SFPro.regular,
+    fontSize: 13,
+    color: "#999",
+    marginTop: 10,
+    lineHeight: 18,
+    letterSpacing: -0.1,
+  },
   errorText: {
     fontFamily: SFPro.medium,
     fontSize: 13,
-    color: "#841E1E",
-    textAlign: "center",
-    marginTop: 12,
+    color: "#C0554A",
+    marginTop: 10,
     lineHeight: 18,
   },
+  /* OTP */
   otpRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    justifyContent: "center",
+    gap: 8,
   },
   otpCell: {
-    width: 20,
-    height: 52,
-    borderRadius: 23,
+    width: 44,
+    height: 54,
+    borderRadius: 10,
+    borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
   },
   otpDigit: {
-    fontFamily: SFPro.regular,
-    fontSize: 36,
+    fontFamily: SFPro.medium,
+    fontSize: 22,
     textAlign: "center",
-    lineHeight: 44,
-  },
-  otpDigitEmpty: {
-    color: "#9F9F9F",
   },
   otpDigitFilled: {
-    color: "#000000",
+    color: "#111",
   },
   otpDigitError: {
-    color: "#841E1E",
+    color: "#C0554A",
+  },
+  otpCursor: {
+    width: 1.5,
+    height: 22,
+    backgroundColor: "#3D841E",
+    borderRadius: 1,
+  },
+  otpErrorText: {
+    fontFamily: SFPro.regular,
+    fontSize: 13,
+    color: "#C0554A",
+    textAlign: "center",
+    marginTop: 14,
+    lineHeight: 18,
   },
   hiddenInput: {
     position: "absolute",
@@ -448,11 +522,14 @@ const s = StyleSheet.create({
     height: 1,
     opacity: 0,
   },
+  spacer: {
+    flex: 1,
+  },
   bottomArea: {
     paddingHorizontal: 24,
     paddingBottom: 36,
     alignItems: "center",
-    gap: 16,
+    gap: 14,
   },
   resendEditRow: {
     flexDirection: "row",
@@ -460,70 +537,62 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     width: "100%",
   },
+  resendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  resendLabel: {
+    fontFamily: SFPro.regular,
+    fontSize: 14,
+    color: "#888",
+  },
+  resendTimer: {
+    fontFamily: SFPro.medium,
+    fontSize: 14,
+    color: "#555",
+  },
+  resendLink: {
+    fontFamily: SFPro.medium,
+    fontSize: 14,
+    color: "#3D841E",
+  },
   editRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
   },
   editText: {
     fontFamily: SFPro.medium,
-    fontSize: 14,
-    color: "#000",
+    fontSize: 13,
+    color: "#888",
   },
   button: {
     borderRadius: 50,
-    borderWidth: 2,
     height: 52,
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
   buttonActive: {
-    borderColor: "#72C44E",
     backgroundColor: "#3D841E",
-    // shadowColor: "rgba(50, 147, 81, 0.70)",
-    // shadowOffset: { width: 0, height: 0 },
-    // shadowOpacity: 1,
-    // shadowRadius: 16,
-    elevation: 10,
   },
   buttonDisabled: {
-    borderColor: "#808080",
-    backgroundColor: "#9F9F9F",
+    backgroundColor: "#D0D0D0",
   },
   buttonText: {
     fontFamily: SFPro.semiBold,
     fontSize: 17,
-    color: "#F2F2F2",
-    letterSpacing: -0.5,
+    color: "#fff",
+    letterSpacing: 0,
   },
-  resendRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  resendLabel: {
-    fontFamily: SFPro.medium,
+  loginLink: {
+    fontFamily: SFPro.regular,
     fontSize: 14,
-    color: "#000",
-  },
-  resendTimer: {
-    fontFamily: SFPro.bold,
-    fontSize: 13,
-    color: "#000000",
-    textDecorationLine: "underline",
-  },
-  resendLink: {
-    fontFamily: SFPro.bold,
-    fontSize: 13,
-    color: "#000000",
-    textDecorationLine: "underline",
-  },
-  legal: {
-    fontSize: 13,
-    fontFamily: SFPro.medium,
-    color: "#000",
+    color: "#888",
     textAlign: "center",
-    lineHeight: 18,
-    letterSpacing: -0.3,
+  },
+  loginLinkBold: {
+    fontFamily: SFPro.medium,
+    color: "#3D841E",
   },
 });
