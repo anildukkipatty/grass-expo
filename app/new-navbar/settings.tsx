@@ -10,9 +10,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-import BackButton from "@/assets/images/new-design/chat/back-button.svg";
 import RightArrow from "@/assets/images/new-design/onboarding/right-arrow-head.svg";
 import AddMachineIcon from "@/assets/images/new-design/settings/add-machine.svg";
 import ContactIcon from "@/assets/images/new-design/settings/contact.svg";
@@ -150,7 +147,6 @@ function ServerNameOverlay({ name }: ServerNameOverlayProps) {
 }
 
 export default function SettingsScreen() {
-  const { top } = useSafeAreaInsets();
   const { vmUrls, primaryVmUrl } = useNavbar();
   const [connectLaptopVisible, setConnectLaptopVisible] = useState(false);
   const [notifPermVisible, setNotifPermVisible] = useState(false);
@@ -180,17 +176,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={[styles.screen, { paddingTop: top }]}>
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} hitSlop={8}>
-          <BackButton />
-        </TouchableOpacity>
-        <View style={styles.headerTitleWrap} pointerEvents="none">
-          <Text style={styles.headerTitle}>Settings & Profile</Text>
-        </View>
-      </View>
-
+    <View style={styles.screen}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -485,34 +471,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: "#FFF",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#FFF",
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f2f2f2",
-    borderRadius: 50,
-    zIndex: 1,
-  },
-  headerTitleWrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontFamily: SFPro.bold,
-    fontSize: 17,
-    color: "#000",
-    letterSpacing: -0.3,
   },
   scrollContent: {},
   paddedContent: {
