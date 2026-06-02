@@ -36,7 +36,10 @@ export default function TabsLayout() {
   // view gets stretched into a capsule. The Grass logo sits centered as the
   // native header title. Hidden on the chat-list tab, which owns its UI.
   React.useLayoutEffect(() => {
-    navigation.getParent()?.setOptions({
+    // Scope these options to the (tabs) screen in the new-navbar Stack — NOT
+    // getParent(), which reaches the root stack and would apply the logo +
+    // account header to the whole group (including the Settings screen).
+    navigation.setOptions({
       headerShown: showNavbarHeader,
       title: "",
       headerTitleAlign: "center",
