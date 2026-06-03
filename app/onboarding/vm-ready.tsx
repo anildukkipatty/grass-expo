@@ -1,24 +1,96 @@
+import { Confetti } from "@/components/onboarding/Confetti";
+import { ServerTerminal } from "@/components/onboarding/ServerTerminal";
 import { SFPro } from "@/constants/theme";
-import { Image } from "expo-image";
+import { setVmName as saveVmName } from "@/store/vm-metadata-store";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
+  Keyboard,
+  Platform,
   Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
+type Phase = "naming" | "activating" | "live";
+
+const LOADING_MSGS = [
+  "Spinning up your machine…",
+  "Allocating compute…",
+  "Booting things up…",
+  "Almost there…",
+];
+
 export default function VmReadyScreen() {
   const router = useRouter();
+  const [name, setName] = useState("");
+  const [phase, setPhase] = useState<Phase>("naming");
+  const [loadingStep, setLoadingStep] = useState(0);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
   const colorAnim = useRef(new Animated.Value(0)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const show = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      setKeyboardVisible(true);
+    });
+    const hide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+      setKeyboardVisible(false);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  // Loading sequence while "activating", then flip to "live".
+  useEffect(() => {
+    if (phase !== "activating") return;
+    setLoadingStep(0);
+    let step = 0;
+    const interval = setInterval(() => {
+      step += 1;
+      setLoadingStep(step % LOADING_MSGS.length);
+    }, 850);
+    const done = setTimeout(() => setPhase("live"), 3200);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(done);
+    };
+  }, [phase]);
+
+  const handleActivate = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    Keyboard.dismiss();
+    await saveVmName(trimmed);
+    setPhase("activating");
+    Animated.timing(overlayOpacity, {
+      toValue: 1,
+      duration: 420,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleLiveContinue = () => {
+    // The container is provisioned/verified on vm-final, which then routes
+    // into the dashboard.
+    router.replace({ pathname: "/onboarding/vm-final" as any, params: { vmName: name.trim() } });
+  };
 
   const backgroundColor = colorAnim.interpolate({
     inputRange: [0, 1],
@@ -39,63 +111,106 @@ export default function VmReadyScreen() {
     ]).start();
   };
 
+  const GreenButton = ({ text, onPress, disabled }: { text: string; onPress: () => void; disabled?: boolean }) => (
+    <Pressable
+      style={[styles.pressable, disabled && styles.pressableDisabled]}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      disabled={disabled}
+      onPress={onPress}
+    >
+      <Animated.View style={[styles.buttonShadowWrap, { transform: [{ scale }] }]}>
+        <LinearGradient
+          colors={["#7ED957", "#1A4D09"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.buttonBorder}
+        >
+          <Animated.View style={[styles.button, { backgroundColor }]}>
+            <Text style={styles.buttonText}>{text}</Text>
+          </Animated.View>
+        </LinearGradient>
+      </Animated.View>
+    </Pressable>
+  );
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.container}>
-        {/* Full-screen illustration */}
-        <Image
-          source={require("@/assets/images/new-design/onboarding/vm-illustration.png")}
-          style={styles.illustration}
-          contentFit="contain"
-        />
+        {phase === "naming" ? (
+          <>
+            {/* Server + naming card */}
+            <View style={[styles.serverWrap, keyboardVisible && styles.serverWrapKb]}>
+              <ServerTerminal style={styles.server} label={name} />
+            </View>
 
-        {/* Gradient + content overlaid at the bottom of the image */}
-        <LinearGradient
-          colors={["#ffffff30", "#ffffff30"]}
-          locations={[0, 0.45]}
-          style={styles.gradientOverlay}
-        >
-          <SafeAreaView style={styles.safeContent}>
-            <View style={styles.content}>
-              {/* Ready to provision badge */}
-              <View style={styles.badgeRow}>
-                <View style={styles.badge}>
-                  <View style={styles.dot} />
-                  <Text style={styles.badgeText}>Ready to provision</Text>
+            <View
+              style={[
+                styles.gradientOverlay,
+                keyboardVisible && { bottom: keyboardHeight },
+              ]}
+            >
+              <SafeAreaView style={styles.safeContent}>
+                <View style={styles.content}>
+                  <View style={styles.badgeRow}>
+                    <View style={styles.badge}>
+                      <View style={styles.dot} />
+                      <Text style={styles.badgeText}>Your agents computer</Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.title}>Give your Virtual{"\n"}Machine a name.</Text>
+
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Marvin"
+                    placeholderTextColor="#9AA7BD"
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    onSubmitEditing={handleActivate}
+                  />
+
+                  {/* Hidden while typing so it doesn't ride up with the keyboard. */}
+                  {!keyboardVisible && (
+                    <GreenButton text="Activate now" onPress={handleActivate} disabled={!name.trim()} />
+                  )}
+                </View>
+              </SafeAreaView>
+            </View>
+          </>
+        ) : (
+          /* ── Activating / Live ── */
+          <Animated.View style={[StyleSheet.absoluteFill, styles.activateOverlay, { opacity: overlayOpacity }]}>
+            <Confetti
+              visible={phase === "live"}
+              originX={SCREEN_WIDTH / 2}
+              originY={SCREEN_HEIGHT * 0.44}
+            />
+            <SafeAreaView style={styles.activateSafe}>
+              <View style={styles.activateContent}>
+                <Text style={styles.liveTitle}>
+                  {phase === "live" ? `${name} is live!` : "Activating your machine"}
+                </Text>
+
+                <View style={styles.activateServerWrap}>
+                  <ServerTerminal style={styles.server} label={name} />
+                </View>
+
+                <View style={styles.activateBottom}>
+                  {phase === "live" ? (
+                    <GreenButton text="Continue" onPress={handleLiveContinue} />
+                  ) : (
+                    <Text style={styles.loadingText}>{LOADING_MSGS[loadingStep]}</Text>
+                  )}
                 </View>
               </View>
-
-              <Text style={styles.title}>Meet your new{"\n"}computer.</Text>
-              <Text style={styles.subtitle}>
-                Your dedicated VM is ready.{"\n"}Always available, waiting for
-                your
-                {"\n"}first message.
-              </Text>
-
-              {/* Give them a name button */}
-              <Pressable
-                style={styles.pressable}
-                onPressIn={onPressIn}
-                onPressOut={onPressOut}
-                onPress={() => router.push("/onboarding/vm-name" as any)}
-              >
-                <Animated.View style={[styles.buttonShadowWrap, { transform: [{ scale }] }]}>
-                  <LinearGradient
-                    colors={["#7ED957", "#1A4D09"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 0, y: 1 }}
-                    style={styles.buttonBorder}
-                  >
-                    <Animated.View style={[styles.button, { backgroundColor }]}>
-                      <Text style={styles.buttonText}>Give them a name</Text>
-                    </Animated.View>
-                  </LinearGradient>
-                </Animated.View>
-              </Pressable>
-            </View>
-          </SafeAreaView>
-        </LinearGradient>
+            </SafeAreaView>
+          </Animated.View>
+        )}
       </View>
     </>
   );
@@ -106,12 +221,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
   },
-  illustration: {
+  serverWrap: {
     position: "absolute",
-    left: SCREEN_WIDTH * 0,
-    right: SCREEN_WIDTH * 0,
-    height: SCREEN_HEIGHT * 1.3,
-    bottom: 0,
+    left: 0,
+    right: 0,
+    top: SCREEN_HEIGHT * 0.3,
+    alignItems: "center",
+  },
+  server: {
+    width: "85.5%",
+  },
+  serverWrapKb: {
+    top: SCREEN_HEIGHT * 0.15,
   },
   gradientOverlay: {
     position: "absolute",
@@ -129,7 +250,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 24,
     paddingBottom: 48,
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   badgeRow: {
     marginBottom: 16,
@@ -161,22 +282,71 @@ const styles = StyleSheet.create({
     fontFamily: SFPro.bold,
     fontSize: 28,
     color: "#000000",
-    textAlign: "center",
+    textAlign: "left",
     lineHeight: 32,
     letterSpacing: -1,
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  subtitle: {
-    fontFamily: SFPro.regular,
+  input: {
+    width: "100%",
+    height: 50,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#D5DEEA",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+    fontFamily: SFPro.medium,
     fontSize: 17,
-    color: "#000",
-    textAlign: "center",
-    lineHeight: 22,
-    letterSpacing: -0.5,
+    color: "#16243A",
   },
+
+  // ── Activating / Live ──
+  activateOverlay: {
+    backgroundColor: "#fff",
+  },
+  activateSafe: {
+    flex: 1,
+  },
+  activateContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  liveTitle: {
+    fontFamily: SFPro.bold,
+    fontSize: 28,
+    color: "#000000",
+    textAlign: "center",
+    lineHeight: 32,
+    letterSpacing: -0.8,
+    marginBottom: 28,
+  },
+  activateServerWrap: {
+    width: "100%",
+    alignItems: "center",
+  },
+  activateBottom: {
+    marginTop: 32,
+    width: "100%",
+    alignItems: "center",
+    minHeight: 52,
+    justifyContent: "center",
+  },
+  loadingText: {
+    fontFamily: SFPro.medium,
+    fontSize: 17,
+    color: "#56657D",
+    letterSpacing: -0.3,
+  },
+
+  // ── Button ──
   pressable: {
     marginTop: 24,
     width: "100%",
+  },
+  pressableDisabled: {
+    opacity: 0.45,
   },
   buttonShadowWrap: {
     width: "100%",
