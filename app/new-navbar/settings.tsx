@@ -110,7 +110,7 @@ function MachineRow({
             style={[
               styles.rowSublabel,
               {
-                color: label === "Notification Settings" ? "black" : "9f9f9f",
+                color: label === "Notification Settings" ? "black" : "#9f9f9f",
               },
             ]}
           >
