@@ -1,3 +1,4 @@
+import BackButton from "@/assets/images/new-design/chat/back-button.svg";
 import { Confetti } from "@/components/onboarding/Confetti";
 import { ServerTerminal } from "@/components/onboarding/ServerTerminal";
 import { SFPro } from "@/constants/theme";
@@ -8,6 +9,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
+  Easing,
   Keyboard,
   Platform,
   Pressable,
@@ -19,6 +21,10 @@ import {
 } from "react-native";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+// Server vertical movement (all transform-based so it can animate on the native driver).
+const KB_SHIFT = -SCREEN_HEIGHT * 0.15; // up when the keyboard opens (naming)
+const ACTIVATE_SHIFT = SCREEN_HEIGHT * 0.12; // down to centre when activating
 
 type Phase = "naming" | "activating" | "live";
 
@@ -33,12 +39,21 @@ export default function VmReadyScreen() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [phase, setPhase] = useState<Phase>("naming");
+  const [mood, setMood] = useState<"idle" | "excited" | "waiting">("idle");
   const [loadingStep, setLoadingStep] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+
   const scale = useRef(new Animated.Value(1)).current;
   const colorAnim = useRef(new Animated.Value(0)).current;
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const activate = useRef(new Animated.Value(0)).current; // 0 = naming, 1 = activating/live
+  const kbShift = useRef(new Animated.Value(0)).current;
+
+  // Single server's vertical offset = keyboard shift + activation shift.
+  const activateShift = activate.interpolate({ inputRange: [0, 1], outputRange: [0, ACTIVATE_SHIFT] });
+  const serverTranslateY = Animated.add(kbShift, activateShift);
+  const namingOpacity = activate.interpolate({ inputRange: [0, 0.55], outputRange: [1, 0], extrapolate: "clamp" });
+  const activateOpacity = activate.interpolate({ inputRange: [0.45, 1], outputRange: [0, 1], extrapolate: "clamp" });
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -46,16 +61,31 @@ export default function VmReadyScreen() {
     const show = Keyboard.addListener(showEvent, (e) => {
       setKeyboardHeight(e.endCoordinates.height);
       setKeyboardVisible(true);
+      Animated.timing(kbShift, { toValue: KB_SHIFT, duration: 260, useNativeDriver: true }).start();
     });
     const hide = Keyboard.addListener(hideEvent, () => {
       setKeyboardHeight(0);
       setKeyboardVisible(false);
+      Animated.timing(kbShift, { toValue: 0, duration: 260, useNativeDriver: true }).start();
     });
     return () => {
       show.remove();
       hide.remove();
     };
-  }, []);
+  }, [kbShift]);
+
+  // Smiley gets excited on activate, then settles into "waiting" (looking down).
+  useEffect(() => {
+    if (phase === "activating" && mood === "excited") {
+      const t = setTimeout(() => setMood("waiting"), 1100);
+      return () => clearTimeout(t);
+    }
+  }, [phase, mood]);
+
+  // Happy again once it's live.
+  useEffect(() => {
+    if (phase === "live") setMood("excited");
+  }, [phase]);
 
   // Loading sequence while "activating", then flip to "live".
   useEffect(() => {
@@ -79,16 +109,28 @@ export default function VmReadyScreen() {
     Keyboard.dismiss();
     await saveVmName(trimmed);
     setPhase("activating");
-    Animated.timing(overlayOpacity, {
+    setMood("excited");
+    Animated.timing(activate, {
       toValue: 1,
-      duration: 420,
+      duration: 600,
+      easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true,
     }).start();
   };
 
+  const handleBack = () => {
+    Animated.timing(activate, {
+      toValue: 0,
+      duration: 420,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      setPhase("naming");
+      setMood("idle");
+    });
+  };
+
   const handleLiveContinue = () => {
-    // The container is provisioned/verified on vm-final, which then routes
-    // into the dashboard.
     router.replace({ pathname: "/onboarding/vm-final" as any, params: { vmName: name.trim() } });
   };
 
@@ -138,79 +180,84 @@ export default function VmReadyScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.container}>
-        {phase === "naming" ? (
-          <>
-            {/* Server + naming card */}
-            <View style={[styles.serverWrap, keyboardVisible && styles.serverWrapKb]}>
-              <ServerTerminal style={styles.server} label={name} />
-            </View>
+        {/* Confetti bursts from behind the (centred) server when live. */}
+        <Confetti visible={phase === "live"} originX={SCREEN_WIDTH / 2} originY={SCREEN_HEIGHT * 0.49} />
 
-            <View
-              style={[
-                styles.gradientOverlay,
-                keyboardVisible && { bottom: keyboardHeight },
-              ]}
-            >
-              <SafeAreaView style={styles.safeContent}>
-                <View style={styles.content}>
-                  <View style={styles.badgeRow}>
-                    <View style={styles.badge}>
-                      <View style={styles.dot} />
-                      <Text style={styles.badgeText}>Your agents computer</Text>
-                    </View>
-                  </View>
+        {/* Single server — animates from the naming spot to screen centre. */}
+        <Animated.View style={[styles.serverWrap, { transform: [{ translateY: serverTranslateY }] }]}>
+          <ServerTerminal style={styles.server} label={name} mood={mood} />
+        </Animated.View>
 
-                  <Text style={styles.title}>Give your Virtual{"\n"}Machine a name.</Text>
-
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g. Marvin"
-                    placeholderTextColor="#9AA7BD"
-                    value={name}
-                    onChangeText={setName}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    returnKeyType="done"
-                    onSubmitEditing={handleActivate}
-                  />
-
-                  {/* Hidden while typing so it doesn't ride up with the keyboard. */}
-                  {!keyboardVisible && (
-                    <GreenButton text="Activate now" onPress={handleActivate} disabled={!name.trim()} />
-                  )}
-                </View>
-              </SafeAreaView>
-            </View>
-          </>
-        ) : (
-          /* ── Activating / Live ── */
-          <Animated.View style={[StyleSheet.absoluteFill, styles.activateOverlay, { opacity: overlayOpacity }]}>
-            <Confetti
-              visible={phase === "live"}
-              originX={SCREEN_WIDTH / 2}
-              originY={SCREEN_HEIGHT * 0.44}
-            />
-            <SafeAreaView style={styles.activateSafe}>
-              <View style={styles.activateContent}>
-                <Text style={styles.liveTitle}>
-                  {phase === "live" ? `${name} is live!` : "Activating your machine"}
-                </Text>
-
-                <View style={styles.activateServerWrap}>
-                  <ServerTerminal style={styles.server} label={name} />
-                </View>
-
-                <View style={styles.activateBottom}>
-                  {phase === "live" ? (
-                    <GreenButton text="Continue" onPress={handleLiveContinue} />
-                  ) : (
-                    <Text style={styles.loadingText}>{LOADING_MSGS[loadingStep]}</Text>
-                  )}
+        {/* Naming card — fades out as we activate. */}
+        <Animated.View
+          pointerEvents={phase === "naming" ? "auto" : "none"}
+          style={[
+            styles.gradientOverlay,
+            { opacity: namingOpacity },
+            keyboardVisible && { bottom: keyboardHeight },
+          ]}
+        >
+          <SafeAreaView style={styles.safeContent}>
+            <View style={styles.content}>
+              <View style={styles.badgeRow}>
+                <View style={styles.badge}>
+                  <View style={styles.dot} />
+                  <Text style={styles.badgeText}>Your agents computer</Text>
                 </View>
               </View>
+
+              <Text style={styles.title}>Give your Virtual{"\n"}Machine a name.</Text>
+
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Marvin"
+                placeholderTextColor="#9AA7BD"
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="words"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={handleActivate}
+              />
+
+              {!keyboardVisible && (
+                <GreenButton text="Activate now" onPress={handleActivate} disabled={!name.trim()} />
+              )}
+            </View>
+          </SafeAreaView>
+        </Animated.View>
+
+        {/* Activation / live content — fades in around the centred server. */}
+        <Animated.View
+          pointerEvents={phase === "naming" ? "none" : "auto"}
+          style={[StyleSheet.absoluteFill, { opacity: activateOpacity }]}
+        >
+          {phase === "live" && (
+            <SafeAreaView style={styles.backSafe}>
+              {/* TEMP back button */}
+              <Pressable style={styles.backBtn} hitSlop={10} onPress={handleBack}>
+                <BackButton />
+              </Pressable>
             </SafeAreaView>
-          </Animated.View>
-        )}
+          )}
+
+          <Text style={styles.liveTitle}>
+            {phase === "live" ? `${name} is live!` : "Activating your machine"}
+          </Text>
+
+          {phase === "live" ? (
+            // Same place as the "Activate now" button.
+            <SafeAreaView style={styles.liveButtonSafe}>
+              <View style={styles.liveButtonInner}>
+                <GreenButton text="Continue" onPress={handleLiveContinue} />
+              </View>
+            </SafeAreaView>
+          ) : (
+            <View style={styles.activateBottom}>
+              <Text style={styles.loadingText}>{LOADING_MSGS[loadingStep]}</Text>
+            </View>
+          )}
+        </Animated.View>
       </View>
     </>
   );
@@ -230,9 +277,6 @@ const styles = StyleSheet.create({
   },
   server: {
     width: "85.5%",
-  },
-  serverWrapKb: {
-    top: SCREEN_HEIGHT * 0.15,
   },
   gradientOverlay: {
     position: "absolute",
@@ -301,37 +345,47 @@ const styles = StyleSheet.create({
   },
 
   // ── Activating / Live ──
-  activateOverlay: {
-    backgroundColor: "#fff",
+  backSafe: {
+    position: "absolute",
+    top: 0,
+    left: 0,
   },
-  activateSafe: {
-    flex: 1,
-  },
-  activateContent: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
+  backBtn: {
+    marginTop: 8,
+    marginLeft: 16,
   },
   liveTitle: {
+    position: "absolute",
+    top: SCREEN_HEIGHT * 0.32,
+    left: 24,
+    right: 24,
     fontFamily: SFPro.bold,
     fontSize: 28,
     color: "#000000",
     textAlign: "center",
     lineHeight: 32,
     letterSpacing: -0.8,
-    marginBottom: 28,
-  },
-  activateServerWrap: {
-    width: "100%",
-    alignItems: "center",
   },
   activateBottom: {
-    marginTop: 32,
-    width: "100%",
+    position: "absolute",
+    top: SCREEN_HEIGHT * 0.61,
+    left: 24,
+    right: 24,
     alignItems: "center",
     minHeight: 52,
     justifyContent: "center",
+  },
+  // Mirrors the naming card's button position (card left/right 16 + content
+  // paddingHorizontal 24 + paddingBottom 48 + safe-area inset).
+  liveButtonSafe: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 16,
+  },
+  liveButtonInner: {
+    paddingHorizontal: 24,
+    paddingBottom: 48,
   },
   loadingText: {
     fontFamily: SFPro.medium,

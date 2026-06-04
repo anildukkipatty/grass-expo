@@ -64,80 +64,133 @@ function Led({ left, top, gid }: { left: number; top: number; gid: string }) {
   );
 }
 
-/** A little green face on the monitor: blinks and glances around now and then. */
-function SmileyFace() {
+export type Mood = "idle" | "excited" | "waiting";
+
+/** A little green face on the monitor. Its behaviour depends on `mood`:
+ *  - idle: blinks and glances around now and then
+ *  - excited: bounces and pulses with quick happy blinks
+ *  - waiting: looks down (at the loading text) and blinks slowly */
+function SmileyFace({ mood = "idle" }: { mood?: Mood }) {
   const blink = useRef(new Animated.Value(1)).current; // eye scaleY (1 = open)
   const lookX = useRef(new Animated.Value(0)).current;
   const lookY = useRef(new Animated.Value(0)).current;
+  const bounceY = useRef(new Animated.Value(0)).current;
+  const scaleA = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     let cancelled = false;
-    let blinkTimer: ReturnType<typeof setTimeout>;
-    let lookTimer: ReturnType<typeof setTimeout>;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const loops: Animated.CompositeAnimation[] = [];
 
-    const doBlink = () => {
-      if (cancelled) return;
-      const seq: Animated.CompositeAnimation[] = [
-        Animated.timing(blink, { toValue: 0.1, duration: 80, useNativeDriver: true }),
-        Animated.timing(blink, { toValue: 1, duration: 90, useNativeDriver: true }),
-      ];
-      // occasional double blink
-      if (Math.random() < 0.35) {
-        seq.push(
-          Animated.delay(90),
-          Animated.timing(blink, { toValue: 0.1, duration: 80, useNativeDriver: true }),
-          Animated.timing(blink, { toValue: 1, duration: 90, useNativeDriver: true }),
-        );
-      }
-      Animated.sequence(seq).start(() => {
-        if (cancelled) return;
-        blinkTimer = setTimeout(doBlink, 1500 + Math.random() * 2800);
-      });
+    const quickBlink = (cb?: () => void) => {
+      Animated.sequence([
+        Animated.timing(blink, { toValue: 0.1, duration: 70, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 1, duration: 80, useNativeDriver: true }),
+      ]).start(cb);
     };
 
-    const doLook = () => {
-      if (cancelled) return;
-      const tx = (Math.random() * 2 - 1) * 3; // -3..3 px
-      const ty = (Math.random() * 2 - 1) * 1.2;
+    if (mood === "idle") {
       Animated.parallel([
-        Animated.timing(lookX, { toValue: tx, duration: 300, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-        Animated.timing(lookY, { toValue: ty, duration: 300, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-      ]).start(() => {
-        if (cancelled) return;
-        // hold the glance, then look back to centre
-        lookTimer = setTimeout(() => {
-          if (cancelled) return;
-          Animated.parallel([
-            Animated.timing(lookX, { toValue: 0, duration: 300, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-            Animated.timing(lookY, { toValue: 0, duration: 300, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          ]).start(() => {
-            if (cancelled) return;
-            lookTimer = setTimeout(doLook, 2200 + Math.random() * 3000);
-          });
-        }, 650 + Math.random() * 900);
-      });
-    };
+        Animated.timing(lookY, { toValue: 0, duration: 200, useNativeDriver: true }),
+        Animated.timing(bounceY, { toValue: 0, duration: 200, useNativeDriver: true }),
+        Animated.timing(scaleA, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start();
 
-    blinkTimer = setTimeout(doBlink, 1200 + Math.random() * 1500);
-    lookTimer = setTimeout(doLook, 1800 + Math.random() * 1500);
+      const doBlink = () => {
+        if (cancelled) return;
+        quickBlink(() => {
+          if (cancelled) return;
+          timers.push(setTimeout(doBlink, 1500 + Math.random() * 2800));
+        });
+      };
+      const doLook = () => {
+        if (cancelled) return;
+        const tx = (Math.random() * 2 - 1) * 3;
+        const ty = (Math.random() * 2 - 1) * 1.2;
+        Animated.parallel([
+          Animated.timing(lookX, { toValue: tx, duration: 300, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          Animated.timing(lookY, { toValue: ty, duration: 300, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+        ]).start(() => {
+          if (cancelled) return;
+          timers.push(
+            setTimeout(() => {
+              if (cancelled) return;
+              Animated.parallel([
+                Animated.timing(lookX, { toValue: 0, duration: 300, useNativeDriver: true }),
+                Animated.timing(lookY, { toValue: 0, duration: 300, useNativeDriver: true }),
+              ]).start(() => {
+                if (cancelled) return;
+                timers.push(setTimeout(doLook, 2200 + Math.random() * 3000));
+              });
+            }, 650 + Math.random() * 900),
+          );
+        });
+      };
+      timers.push(setTimeout(doBlink, 1200 + Math.random() * 1500));
+      timers.push(setTimeout(doLook, 1800 + Math.random() * 1500));
+    } else if (mood === "excited") {
+      Animated.parallel([
+        Animated.timing(lookX, { toValue: 0, duration: 150, useNativeDriver: true }),
+        Animated.timing(lookY, { toValue: -1, duration: 150, useNativeDriver: true }),
+      ]).start();
+      const bounce = Animated.loop(
+        Animated.sequence([
+          Animated.timing(bounceY, { toValue: -3, duration: 160, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(bounceY, { toValue: 0, duration: 200, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        ]),
+      );
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(scaleA, { toValue: 1.14, duration: 160, useNativeDriver: true }),
+          Animated.timing(scaleA, { toValue: 1, duration: 200, useNativeDriver: true }),
+        ]),
+      );
+      bounce.start();
+      pulse.start();
+      loops.push(bounce, pulse);
+
+      const doBlink = () => {
+        if (cancelled) return;
+        quickBlink(() => {
+          if (cancelled) return;
+          timers.push(setTimeout(() => !cancelled && quickBlink(), 140)); // double blink
+          timers.push(setTimeout(doBlink, 700 + Math.random() * 700));
+        });
+      };
+      timers.push(setTimeout(doBlink, 200));
+    } else {
+      // waiting — look down at the loading text and blink slowly
+      Animated.parallel([
+        Animated.timing(lookX, { toValue: 0, duration: 250, useNativeDriver: true }),
+        Animated.timing(lookY, { toValue: 3, duration: 380, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(bounceY, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(scaleA, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start();
+      const doBlink = () => {
+        if (cancelled) return;
+        quickBlink(() => {
+          if (cancelled) return;
+          timers.push(setTimeout(doBlink, 1800 + Math.random() * 2200));
+        });
+      };
+      timers.push(setTimeout(doBlink, 1400));
+    }
+
     return () => {
       cancelled = true;
-      clearTimeout(blinkTimer);
-      clearTimeout(lookTimer);
-      blink.stopAnimation();
-      lookX.stopAnimation();
-      lookY.stopAnimation();
+      timers.forEach(clearTimeout);
+      loops.forEach((l) => l.stop());
     };
-  }, [blink, lookX, lookY]);
+  }, [mood, blink, lookX, lookY, bounceY, scaleA]);
 
   return (
-    <View style={styles.face}>
+    <Animated.View style={[styles.face, { transform: [{ translateY: bounceY }, { scale: scaleA }] }]}>
       <Animated.View style={[styles.eyes, { transform: [{ translateX: lookX }, { translateY: lookY }] }]}>
         <Animated.View style={[styles.eye, { transform: [{ scaleY: blink }] }]} />
         <Animated.View style={[styles.eye, { transform: [{ scaleY: blink }] }]} />
       </Animated.View>
       <View style={styles.mouth} />
-    </View>
+    </Animated.View>
   );
 }
 
@@ -162,18 +215,21 @@ function TerminalText({ text }: { text: string }) {
 }
 
 /**
- * The server illustration with its little monitor. The panel shows the live
- * typed `label` (with a cursor) while typing, otherwise an animated green
- * smiley that blinks and looks around. Self-contained — drop it anywhere.
+ * The server illustration with its little monitor. While `mood` is "idle" the
+ * panel mirrors the live typed `label` (or an idle smiley when empty); other
+ * moods always show the smiley acting that mood. Self-contained — drop it anywhere.
  */
 export function ServerTerminal({
   style,
   label,
+  mood = "idle",
 }: {
   style?: StyleProp<ViewStyle>;
   label?: string;
+  mood?: Mood;
 }) {
   const hasText = (label ?? "").trim().length > 0;
+  const showText = mood === "idle" && hasText;
   return (
     <View style={[styles.imageContainer, style]}>
       <Image
@@ -182,7 +238,7 @@ export function ServerTerminal({
         contentFit="contain"
       />
       <View style={styles.screenRect}>
-        {hasText ? <TerminalText text={label ?? ""} /> : <SmileyFace />}
+        {showText ? <TerminalText text={label ?? ""} /> : <SmileyFace mood={mood} />}
       </View>
       <Led left={LED_POSITIONS.power.left} top={LED_POSITIONS.power.top} gid="power" />
       <Led left={LED_POSITIONS.status.left} top={LED_POSITIONS.status.top} gid="status" />
