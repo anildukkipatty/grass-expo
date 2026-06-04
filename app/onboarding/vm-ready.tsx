@@ -168,8 +168,18 @@ export default function VmReadyScreen() {
     let cancelled = false;
     const startedAt = Date.now();
 
+    // Safety net: never let the loader hang silently. If nothing has resolved
+    // after 40s, surface a retry instead of spinning forever.
+    const hangGuard = setTimeout(() => {
+      if (!cancelled) {
+        console.warn("[vm-ready] provisioning timed out after 40s");
+        setProvisionError("This is taking longer than expected.");
+      }
+    }, 40000);
+
     const goLive = async (url?: string) => {
       if (cancelled) return;
+      console.log("[vm-ready] goLive — VM ready, url:", url);
       if (url) await saveVmUrl(url);
       setServerUrl(url);
       notifyGrassVmReady();
@@ -182,11 +192,17 @@ export default function VmReadyScreen() {
 
     async function provision() {
       const token = await getToken();
-      if (!token || cancelled) return;
+      if (cancelled) return;
+      if (!token) {
+        console.warn("[vm-ready] no auth token — cannot provision");
+        setProvisionError("You're not signed in. Please log in and try again.");
+        return;
+      }
 
       // 1. Heartbeat — container may already be running.
       const hb = await heartbeat(token);
       if (cancelled) return;
+      console.log("[vm-ready] heartbeat:", JSON.stringify(hb));
 
       if (!hb.ok && isSandboxUsageLimitError(hb)) {
         notifyGrassSandboxUsageLimitHit();
@@ -235,6 +251,7 @@ export default function VmReadyScreen() {
       // 3. Container stopped / not found — request / restart it.
       const result = await requestContainer(token);
       if (cancelled) return;
+      console.log("[vm-ready] requestContainer:", JSON.stringify(result));
 
       if (result.ok) {
         posthog.capture("container_provisioned");
@@ -252,6 +269,7 @@ export default function VmReadyScreen() {
     provision();
     return () => {
       cancelled = true;
+      clearTimeout(hangGuard);
     };
     // `name` and `router` are stable during activation; re-running on their
     // identity would cancel the pending go-live and loop forever.
