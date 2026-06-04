@@ -1,7 +1,13 @@
-import BackButton from "@/assets/images/new-design/chat/back-button.svg";
+import { isSandboxUsageLimitError } from "@/api/client";
+import { heartbeat, requestContainer, signedPreviewUrl } from "@/api/containers";
 import { Confetti } from "@/components/onboarding/Confetti";
+import { DotMatrixLoader } from "@/components/onboarding/DotMatrixLoader";
 import { ServerTerminal } from "@/components/onboarding/ServerTerminal";
+import { posthog } from "@/constants/posthog";
 import { SFPro } from "@/constants/theme";
+import { getToken } from "@/store/auth-store";
+import { notifyGrassSandboxUsageLimitHit, notifyGrassVmReady } from "@/store/grass-vm-events";
+import { saveVmUrl } from "@/store/url-store";
 import { setVmName as saveVmName } from "@/store/vm-metadata-store";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
@@ -29,11 +35,63 @@ const ACTIVATE_SHIFT = SCREEN_HEIGHT * 0.12; // down to centre when activating
 type Phase = "naming" | "activating" | "live";
 
 const LOADING_MSGS = [
-  "Spinning up your machine…",
-  "Allocating compute…",
-  "Booting things up…",
-  "Almost there…",
+  "Securing your plot…",
+  "Waking the CPU…",
+  "Watering the server…",
+  "Planting seeds…",
+  "Checking the soil…",
+  "Allocating sunlight…",
+  "Greening the terminal…",
+  "Roots are taking hold…",
+  "Pruning the latency…",
+  "Almost ready to grow.",
 ];
+
+// Keep the activation animation on screen at least this long, even if the
+// container is already running and the backend resolves near-instantly.
+const ACTIVATING_MIN_MS = 2600;
+
+// A soft sheen that sweeps across the loading text. On the white background the
+// white band only shows where it overlaps the (darker) glyphs, reading as shimmer.
+function ShimmerText({ text }: { text: string }) {
+  const tx = useRef(new Animated.Value(0)).current;
+  const [width, setWidth] = useState(0);
+  const BAND = 90;
+
+  useEffect(() => {
+    if (!width) return;
+    tx.setValue(-BAND);
+    const anim = Animated.loop(
+      Animated.timing(tx, {
+        toValue: width + BAND,
+        duration: 2000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [width, tx]);
+
+  return (
+    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      <Text style={styles.loadingText}>{text}</Text>
+      {width > 0 && (
+        <Animated.View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { transform: [{ translateX: tx }] }]}
+        >
+          <LinearGradient
+            colors={["#FFFFFF00", "#FFFFFFF2", "#FFFFFF00"]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={{ width: BAND, height: "100%" }}
+          />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
 
 export default function VmReadyScreen() {
   const router = useRouter();
@@ -43,6 +101,9 @@ export default function VmReadyScreen() {
   const [loadingStep, setLoadingStep] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [serverUrl, setServerUrl] = useState<string | undefined>(undefined);
+  const [provisionError, setProvisionError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   const scale = useRef(new Animated.Value(1)).current;
   const colorAnim = useRef(new Animated.Value(0)).current;
@@ -87,7 +148,7 @@ export default function VmReadyScreen() {
     if (phase === "live") setMood("excited");
   }, [phase]);
 
-  // Loading sequence while "activating", then flip to "live".
+  // Cycle the loading messages while "activating".
   useEffect(() => {
     if (phase !== "activating") return;
     setLoadingStep(0);
@@ -95,19 +156,111 @@ export default function VmReadyScreen() {
     const interval = setInterval(() => {
       step += 1;
       setLoadingStep(step % LOADING_MSGS.length);
-    }, 850);
-    const done = setTimeout(() => setPhase("live"), 3200);
-    return () => {
-      clearInterval(interval);
-      clearTimeout(done);
-    };
+    }, 2000);
+    return () => clearInterval(interval);
   }, [phase]);
+
+  // Real container provisioning while "activating" — mirrors vm-final's logic.
+  // Flips to "live" only once the backend confirms the VM is ready (and the
+  // activation animation has had at least ACTIVATING_MIN_MS on screen).
+  useEffect(() => {
+    if (phase !== "activating") return;
+    let cancelled = false;
+    const startedAt = Date.now();
+
+    const goLive = async (url?: string) => {
+      if (cancelled) return;
+      if (url) await saveVmUrl(url);
+      setServerUrl(url);
+      notifyGrassVmReady();
+      posthog.capture("vm_provisioned", { vm_name: name.trim() });
+      const wait = Math.max(0, ACTIVATING_MIN_MS - (Date.now() - startedAt));
+      setTimeout(() => {
+        if (!cancelled) setPhase("live");
+      }, wait);
+    };
+
+    async function provision() {
+      const token = await getToken();
+      if (!token || cancelled) return;
+
+      // 1. Heartbeat — container may already be running.
+      const hb = await heartbeat(token);
+      if (cancelled) return;
+
+      if (!hb.ok && isSandboxUsageLimitError(hb)) {
+        notifyGrassSandboxUsageLimitHit();
+        router.replace("/new-navbar/(tabs)" as any);
+        return;
+      }
+
+      if (hb.ok && hb.data.container === "running" && hb.data.grass) {
+        let url = hb.data.url;
+        if (!url) {
+          const preview = await signedPreviewUrl(token);
+          if (preview.ok) url = preview.data.url;
+        }
+        await goLive(url);
+        return;
+      }
+
+      // 2. Provisioning in progress — poll every 2s for up to 10s.
+      if (hb.ok && hb.data.container === "provisioning") {
+        const pollStart = Date.now();
+        while (Date.now() - pollStart < 10000) {
+          await new Promise((r) => setTimeout(r, 2000));
+          if (cancelled) return;
+          const poll = await heartbeat(token);
+          if (cancelled) return;
+          if (!poll.ok && isSandboxUsageLimitError(poll)) {
+            notifyGrassSandboxUsageLimitHit();
+            router.replace("/new-navbar/(tabs)" as any);
+            return;
+          }
+          if (poll.ok && poll.data.container === "running" && poll.data.grass) {
+            let url = poll.data.url;
+            if (!url) {
+              const preview = await signedPreviewUrl(token);
+              if (preview.ok) url = preview.data.url;
+            }
+            await goLive(url);
+            return;
+          }
+          if (poll.ok && poll.data.container !== "provisioning") break;
+        }
+      }
+
+      if (cancelled) return;
+
+      // 3. Container stopped / not found — request / restart it.
+      const result = await requestContainer(token);
+      if (cancelled) return;
+
+      if (result.ok) {
+        posthog.capture("container_provisioned");
+        await goLive(result.data.url);
+      } else if (isSandboxUsageLimitError(result)) {
+        posthog.capture("container_provision_failed", { reason: "sandbox_limit" });
+        notifyGrassSandboxUsageLimitHit();
+        router.replace("/new-navbar/(tabs)" as any);
+      } else {
+        posthog.capture("container_provision_failed", { reason: result.error });
+        setProvisionError(result.error);
+      }
+    }
+
+    provision();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, retryCount, name, router]);
 
   const handleActivate = async () => {
     const trimmed = name.trim();
     if (!trimmed) return;
     Keyboard.dismiss();
     await saveVmName(trimmed);
+    setProvisionError(null);
     setPhase("activating");
     setMood("excited");
     Animated.timing(activate, {
@@ -131,7 +284,16 @@ export default function VmReadyScreen() {
   };
 
   const handleLiveContinue = () => {
-    router.replace({ pathname: "/onboarding/vm-final" as any, params: { vmName: name.trim() } });
+    router.push({
+      pathname: "/onboarding/vm-first-task" as any,
+      params: { vmName: name.trim(), serverUrl: serverUrl ?? "" },
+    });
+  };
+
+  const handleRetry = () => {
+    setProvisionError(null);
+    setMood("waiting");
+    setRetryCount((c) => c + 1);
   };
 
   const backgroundColor = colorAnim.interpolate({
@@ -232,29 +394,56 @@ export default function VmReadyScreen() {
           pointerEvents={phase === "naming" ? "none" : "auto"}
           style={[StyleSheet.absoluteFill, { opacity: activateOpacity }]}
         >
-          {phase === "live" && (
+          {phase !== "naming" && (
             <SafeAreaView style={styles.backSafe}>
-              {/* TEMP back button */}
+              {/* TEMP back button — also shown while activating so we can bail
+                  out of the loading loop until the backend is fixed. */}
               <Pressable style={styles.backBtn} hitSlop={10} onPress={handleBack}>
-                <BackButton />
+                <Text style={styles.backText}>‹ Back</Text>
               </Pressable>
             </SafeAreaView>
           )}
 
           <Text style={styles.liveTitle}>
-            {phase === "live" ? `${name} is live!` : "Activating your machine"}
+            {phase === "live"
+              ? `${name} is live!`
+              : provisionError
+                ? "Couldn't start your machine"
+                : "Activating your machine"}
           </Text>
 
           {phase === "live" ? (
             // Same place as the "Activate now" button.
             <SafeAreaView style={styles.liveButtonSafe}>
               <View style={styles.liveButtonInner}>
-                <GreenButton text="Continue" onPress={handleLiveContinue} />
+                <GreenButton text="Assign it's first task" onPress={handleLiveContinue} />
+              </View>
+            </SafeAreaView>
+          ) : provisionError ? (
+            <SafeAreaView style={styles.liveButtonSafe}>
+              <View style={styles.liveButtonInner}>
+                <Text style={styles.errorText}>{provisionError}</Text>
+                <GreenButton text="Try again" onPress={handleRetry} />
               </View>
             </SafeAreaView>
           ) : (
             <View style={styles.activateBottom}>
-              <Text style={styles.loadingText}>{LOADING_MSGS[loadingStep]}</Text>
+              <View style={styles.loadingRow}>
+                <View style={styles.loadingLeft}>
+                  <DotMatrixLoader
+                    size={20}
+                    dotSize={3}
+                    speed={0.8}
+                    pattern="rings"
+                    colorPreset="solid-theme"
+                    opacityBase={0.12}
+                    opacityMid={0.42}
+                    opacityPeak={1}
+                  />
+                  <ShimmerText text={LOADING_MSGS[loadingStep]} />
+                </View>
+                <View style={styles.simpleDot} />
+              </View>
             </View>
           )}
         </Animated.View>
@@ -353,6 +542,13 @@ const styles = StyleSheet.create({
   backBtn: {
     marginTop: 8,
     marginLeft: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  backText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 17,
+    color: "#3D841E",
   },
   liveTitle: {
     position: "absolute",
@@ -362,7 +558,7 @@ const styles = StyleSheet.create({
     fontFamily: SFPro.bold,
     fontSize: 28,
     color: "#000000",
-    textAlign: "center",
+    textAlign: "left",
     lineHeight: 32,
     letterSpacing: -0.8,
   },
@@ -371,9 +567,26 @@ const styles = StyleSheet.create({
     top: SCREEN_HEIGHT * 0.61,
     left: 24,
     right: 24,
-    alignItems: "center",
+    alignItems: "flex-start",
     minHeight: 52,
     justifyContent: "center",
+  },
+  loadingRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  loadingLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  simpleDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#3D841E",
   },
   // Mirrors the naming card's button position (card left/right 16 + content
   // paddingHorizontal 24 + paddingBottom 48 + safe-area inset).
@@ -392,6 +605,14 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: "#56657D",
     letterSpacing: -0.3,
+  },
+  errorText: {
+    fontFamily: SFPro.medium,
+    fontSize: 15,
+    color: "#841E1E",
+    textAlign: "left",
+    lineHeight: 21,
+    marginBottom: 4,
   },
 
   // ── Button ──

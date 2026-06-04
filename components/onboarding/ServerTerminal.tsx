@@ -76,11 +76,21 @@ function SmileyFace({ mood = "idle" }: { mood?: Mood }) {
   const lookY = useRef(new Animated.Value(0)).current;
   const bounceY = useRef(new Animated.Value(0)).current;
   const scaleA = useRef(new Animated.Value(1)).current;
+  const flat = useRef(new Animated.Value(0)).current; // 0 = smile, 1 = straight line
 
   useEffect(() => {
     let cancelled = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const loops: Animated.CompositeAnimation[] = [];
+
+    // Keep eyes open when entering a mood.
+    blink.setValue(1);
+    // Flatten the mouth to a straight line while looking down (waiting), smile otherwise.
+    Animated.timing(flat, {
+      toValue: mood === "waiting" ? 1 : 0,
+      duration: 260,
+      useNativeDriver: true,
+    }).start();
 
     const quickBlink = (cb?: () => void) => {
       Animated.sequence([
@@ -159,29 +169,55 @@ function SmileyFace({ mood = "idle" }: { mood?: Mood }) {
       };
       timers.push(setTimeout(doBlink, 200));
     } else {
-      // waiting — look down at the loading text and blink slowly
+      // waiting — look down at the loading text, eyes scanning like it's reading.
+      // If the load drags on past ~3s it gets bored and yawns now and then.
       Animated.parallel([
-        Animated.timing(lookX, { toValue: 0, duration: 250, useNativeDriver: true }),
         Animated.timing(lookY, { toValue: 3, duration: 380, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
         Animated.timing(bounceY, { toValue: 1, duration: 300, useNativeDriver: true }),
         Animated.timing(scaleA, { toValue: 1, duration: 200, useNativeDriver: true }),
       ]).start();
+
+      // Reading: scan the eyes left→right, then flick back to the line start.
+      const scan = () => {
+        if (cancelled) return;
+        lookX.setValue(-2.2);
+        Animated.sequence([
+          Animated.timing(lookX, { toValue: 2.2, duration: 2000, easing: Easing.linear, useNativeDriver: true }),
+          Animated.timing(lookX, { toValue: -2.2, duration: 200, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        ]).start(({ finished }) => {
+          if (cancelled || !finished) return;
+          scan();
+        });
+      };
+      scan();
+
+      // Gentle slow blinks.
       const doBlink = () => {
         if (cancelled) return;
         quickBlink(() => {
           if (cancelled) return;
-          timers.push(setTimeout(doBlink, 1800 + Math.random() * 2200));
+          timers.push(setTimeout(doBlink, 2200 + Math.random() * 2200));
         });
       };
-      timers.push(setTimeout(doBlink, 1400));
+      timers.push(setTimeout(doBlink, 1600));
     }
 
     return () => {
       cancelled = true;
       timers.forEach(clearTimeout);
       loops.forEach((l) => l.stop());
+      // Halt any in-flight tweens so the next mood starts from a clean state
+      // (otherwise an interrupted yawn would never settle back).
+      blink.stopAnimation();
+      lookX.stopAnimation();
+      lookY.stopAnimation();
+      bounceY.stopAnimation();
+      scaleA.stopAnimation();
+      flat.stopAnimation();
     };
-  }, [mood, blink, lookX, lookY, bounceY, scaleA]);
+  }, [mood, blink, lookX, lookY, bounceY, scaleA, flat]);
+
+  const smileOpacity = flat.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
 
   return (
     <Animated.View style={[styles.face, { transform: [{ translateY: bounceY }, { scale: scaleA }] }]}>
@@ -189,7 +225,10 @@ function SmileyFace({ mood = "idle" }: { mood?: Mood }) {
         <Animated.View style={[styles.eye, { transform: [{ scaleY: blink }] }]} />
         <Animated.View style={[styles.eye, { transform: [{ scaleY: blink }] }]} />
       </Animated.View>
-      <View style={styles.mouth} />
+      <View style={styles.mouthWrap}>
+        <Animated.View style={[styles.mouth, { opacity: smileOpacity }]} />
+        <Animated.View style={[styles.mouthLine, { opacity: flat }]} />
+      </View>
     </Animated.View>
   );
 }
@@ -298,8 +337,15 @@ const styles = StyleSheet.create({
     borderRadius: 3.5,
     backgroundColor: GREEN,
   },
+  mouthWrap: {
+    width: 10,
+    height: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   mouth: {
     // Small, gentle smile under the big eyes.
+    position: "absolute",
     width: 10,
     height: 6,
     borderColor: GREEN,
@@ -309,5 +355,13 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 9,
     borderBottomRightRadius: 9,
     backgroundColor: "transparent",
+  },
+  mouthLine: {
+    // Neutral straight mouth while looking down.
+    position: "absolute",
+    width: 9,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: GREEN,
   },
 });
