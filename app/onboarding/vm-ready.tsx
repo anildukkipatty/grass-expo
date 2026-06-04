@@ -51,6 +51,9 @@ const LOADING_MSGS = [
 // container is already running and the backend resolves near-instantly.
 const ACTIVATING_MIN_MS = 2600;
 
+// Famous fictional AI / robot names, cycled through the name field placeholder.
+const PLACEHOLDER_NAMES = ["HAL 9000", "JARVIS", "R2-D2", "WALL-E", "Joshua", "Bender"];
+
 // A soft sheen that sweeps across the loading text. On the white background the
 // white band only shows where it overlaps the (darker) glyphs, reading as shimmer.
 function ShimmerText({ text }: { text: string }) {
@@ -93,6 +96,61 @@ function ShimmerText({ text }: { text: string }) {
   );
 }
 
+// One labelled metric cell in the telemetry strip.
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.metric}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={styles.metricValue}>{value}</Text>
+    </View>
+  );
+}
+
+// Live VM telemetry shown below the server once it's up — a compact device
+// read-out. The numbers are a lightweight simulation (the backend doesn't
+// stream these yet); the layout mirrors a real status bar.
+function LiveStats() {
+  const [uptime, setUptime] = useState(0); // seconds
+  const [ping, setPing] = useState(12);
+  const [cpu, setCpu] = useState(1);
+  const [ram, setRam] = useState(4);
+
+  useEffect(() => {
+    const up = setInterval(() => setUptime((s) => s + 1), 1000);
+    const net = setInterval(() => setPing(12 + Math.floor(Math.random() * 39)), 1000); // 12–50
+    const sys = setInterval(() => {
+      setCpu(1 + Math.floor(Math.random() * 4)); // 1–4
+      setRam(4 + Math.floor(Math.random() * 3)); // 4–6
+    }, 1500);
+    return () => {
+      clearInterval(up);
+      clearInterval(net);
+      clearInterval(sys);
+    };
+  }, []);
+
+  const fmt = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return [h, m, sec].map((n) => String(n).padStart(2, "0")).join(":");
+  };
+
+  return (
+    <View style={styles.stats}>
+      <View style={styles.telemetryStrip}>
+        <Metric label="UPTIME" value={fmt(uptime)} />
+        <View style={styles.metricDivider} />
+        <Metric label="PING" value={`${ping}ms`} />
+        <View style={styles.metricDivider} />
+        <Metric label="CPU" value={`${cpu}%`} />
+        <View style={styles.metricDivider} />
+        <Metric label="RAM" value={`${ram}%`} />
+      </View>
+    </View>
+  );
+}
+
 export default function VmReadyScreen() {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -104,11 +162,13 @@ export default function VmReadyScreen() {
   const [serverUrl, setServerUrl] = useState<string | undefined>(undefined);
   const [provisionError, setProvisionError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
 
   const scale = useRef(new Animated.Value(1)).current;
   const colorAnim = useRef(new Animated.Value(0)).current;
   const activate = useRef(new Animated.Value(0)).current; // 0 = naming, 1 = activating/live
   const kbShift = useRef(new Animated.Value(0)).current;
+  const placeholderOpacity = useRef(new Animated.Value(1)).current;
 
   // Single server's vertical offset = keyboard shift + activation shift.
   const activateShift = activate.interpolate({ inputRange: [0, 1], outputRange: [0, ACTIVATE_SHIFT] });
@@ -147,6 +207,19 @@ export default function VmReadyScreen() {
   useEffect(() => {
     if (phase === "live") setMood("excited");
   }, [phase]);
+
+  // Cycle the placeholder through famous AI names while naming — dissolve the
+  // old name out, swap, then fade the new one in.
+  useEffect(() => {
+    if (phase !== "naming") return;
+    const id = setInterval(() => {
+      Animated.timing(placeholderOpacity, { toValue: 0, duration: 260, useNativeDriver: true }).start(() => {
+        setPlaceholderIdx((i) => (i + 1) % PLACEHOLDER_NAMES.length);
+        Animated.timing(placeholderOpacity, { toValue: 1, duration: 260, useNativeDriver: true }).start();
+      });
+    }, 2000);
+    return () => clearInterval(id);
+  }, [phase, placeholderOpacity]);
 
   // Cycle the loading messages while "activating".
   useEffect(() => {
@@ -391,17 +464,26 @@ export default function VmReadyScreen() {
 
               <Text style={styles.title}>Give your Virtual{"\n"}Machine a name.</Text>
 
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Marvin"
-                placeholderTextColor="#9AA7BD"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-                autoCorrect={false}
-                returnKeyType="done"
-                onSubmitEditing={handleActivate}
-              />
+              <View style={styles.inputWrap}>
+                <TextInput
+                  style={styles.input}
+                  placeholder=""
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  onSubmitEditing={handleActivate}
+                />
+                {name.length === 0 && (
+                  <View style={styles.inputPlaceholder} pointerEvents="none">
+                    <Text style={styles.placeholderPrefix}>e.g. </Text>
+                    <Animated.Text style={[styles.placeholderName, { opacity: placeholderOpacity }]}>
+                      {PLACEHOLDER_NAMES[placeholderIdx]}
+                    </Animated.Text>
+                  </View>
+                )}
+              </View>
 
               {!keyboardVisible && (
                 <GreenButton text="Activate now" onPress={handleActivate} disabled={!name.trim()} />
@@ -432,6 +514,12 @@ export default function VmReadyScreen() {
                 ? "Couldn't start your machine"
                 : "Activating your machine"}
           </Text>
+
+          {phase === "live" && (
+            <View style={styles.statsWrap}>
+              <LiveStats />
+            </View>
+          )}
 
           {phase === "live" ? (
             // Same place as the "Activate now" button.
@@ -541,6 +629,10 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
     marginBottom: 16,
   },
+  inputWrap: {
+    width: "100%",
+    justifyContent: "center",
+  },
   input: {
     width: "100%",
     height: 50,
@@ -552,6 +644,24 @@ const styles = StyleSheet.create({
     fontFamily: SFPro.medium,
     fontSize: 17,
     color: "#16243A",
+  },
+  inputPlaceholder: {
+    position: "absolute",
+    left: 15,
+    top: 0,
+    height: 50,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  placeholderPrefix: {
+    fontFamily: SFPro.medium,
+    fontSize: 17,
+    color: "#9AA7BD",
+  },
+  placeholderName: {
+    fontFamily: SFPro.medium,
+    fontSize: 17,
+    color: "#9AA7BD",
   },
 
   // ── Activating / Live ──
@@ -626,6 +736,55 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: "#56657D",
     letterSpacing: -0.3,
+  },
+
+  // ── Live telemetry strip ──
+  statsWrap: {
+    position: "absolute",
+    top: SCREEN_HEIGHT * 0.6,
+    left: 24,
+    right: 24,
+    alignItems: "center",
+  },
+  stats: {
+    width: "100%",
+    alignItems: "center",
+    gap: 16,
+  },
+  telemetryStrip: {
+    width: "98%",
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-evenly",
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E7ECF3",
+    backgroundColor: "#FBFCFE",
+  },
+  metric: {
+    alignItems: "center",
+    gap: 4,
+  },
+  metricLabel: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    color: "#8090A6",
+  },
+  metricValue: {
+    fontFamily: "Courier New",
+    fontWeight: "700",
+    fontSize: 15,
+    color: "#16243A",
+    letterSpacing: -0.2,
+  },
+  metricDivider: {
+    width: 1,
+    height: 26,
+    alignSelf: "center",
+    backgroundColor: "#E7ECF3",
   },
   errorText: {
     fontFamily: SFPro.medium,
