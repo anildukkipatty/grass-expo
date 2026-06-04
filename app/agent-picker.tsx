@@ -5,7 +5,7 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '@/utils/haptics';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';

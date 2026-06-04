@@ -1,18 +1,22 @@
 import { usePathname } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import React from "react";
-import { SafeAreaView, StyleSheet } from "react-native";
+import { SafeAreaView } from "react-native";
 
 import { NavbarHeader } from "@/components/new-navbar/NavbarHeader";
 import { useNavbar } from "@/contexts/navbar-context";
+import { GrassColors } from "@/constants/theme";
+import { useTheme } from "@/store/theme-store";
 
 export default function TabsLayout() {
   const pathname = usePathname();
   const showNavbarHeader = !pathname.includes("chat-list");
   const { permsCount } = useNavbar();
+  const [theme] = useTheme();
+  const c = GrassColors[theme];
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
       {showNavbarHeader && <NavbarHeader />}
       <NativeTabs>
         <NativeTabs.Trigger name="chat-list">
@@ -40,10 +44,3 @@ export default function TabsLayout() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-});

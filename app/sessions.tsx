@@ -7,7 +7,7 @@ import {
 } from "@/store/connection-store";
 import { setSessionLabel } from "@/store/session-label-store";
 import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/utils/haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useRef, useState } from "react";

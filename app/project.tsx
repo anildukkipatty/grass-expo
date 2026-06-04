@@ -6,12 +6,12 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '@/utils/haptics';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { ExplorerPanel } from '@/components/ExplorerPanel';
 import { DiffViewer } from '@/components/DiffViewer';
-import { isIPad } from '@/utils/device';
+import { isLargeScreen } from '@/utils/device';
 
 // TODO: Revisit useConnectionStatuses when connection health indicators are restored
 // import { useConnectionStatuses } from '@/store/connection-store';
@@ -150,7 +150,7 @@ export default function Project() {
       </View>
 
       {/* Body: sidebar + content (iPad only) */}
-      {isIPad && (
+      {isLargeScreen && (
         <View style={styles.body}>
           {/* 52px sidebar */}
           <View style={[styles.sidebar, { borderRightColor: c.border, backgroundColor: c.barBg }]}>
@@ -195,12 +195,12 @@ export default function Project() {
         visible={agentModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => { if (isIPad) setAgentModalVisible(false); else router.back(); }}
+        onRequestClose={() => { if (isLargeScreen) setAgentModalVisible(false); else router.back(); }}
       >
         <TouchableOpacity
           style={styles.modalBackdrop}
           activeOpacity={1}
-          onPress={() => { if (isIPad) setAgentModalVisible(false); }}
+          onPress={() => { if (isLargeScreen) setAgentModalVisible(false); }}
         >
           <View
             style={[styles.modalSheet, { backgroundColor: c.bg, borderTopColor: c.border }]}
@@ -209,7 +209,7 @@ export default function Project() {
             <View style={[styles.modalHandle, { backgroundColor: c.badgeText }]} />
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: c.badgeText }]}>Select an agent</Text>
-              {!isIPad && (
+              {!isLargeScreen && (
                 <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
                   <Ionicons name="close" size={20} color={c.badgeText} />
                 </TouchableOpacity>

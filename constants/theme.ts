@@ -82,24 +82,61 @@ export const NationalPark = {
   extraBold:  'NationalPark-ExtraBold',
 } as const;
 
-export const SFMono = {
-  regular:  'SFMono-Regular',
-  medium:   'SFMono-Medium',
-  semiBold: 'SFMono-Semibold',
-  bold:     'SFMono-Bold',
-} as const;
+// SF Mono is Apple-proprietary; on Android we fall back to the system monospace
+// alias (Droid Sans Mono / Roboto Mono on newer devices).
+export const SFMono = Platform.select({
+  ios: {
+    regular:  'SFMono-Regular',
+    medium:   'SFMono-Medium',
+    semiBold: 'SFMono-Semibold',
+    bold:     'SFMono-Bold',
+  },
+  default: {
+    regular:  'monospace',
+    medium:   'monospace',
+    semiBold: 'monospace',
+    bold:     'monospace',
+  },
+}) as { regular: string; medium: string; semiBold: string; bold: string };
 
-export const SFPro = {
-  regular:        'SFProText-Regular',
-  medium:         'SFProText-Medium',
-  semiBold:       'SFProText-Semibold',
-  bold:           'SFProText-Bold',
-  condensedBold:  'SFProText-CondensedBold',
-  displayRegular: 'SFProDisplay-Regular',
-  displayMedium:  'SFProDisplay-Medium',
-  displaySemiBold:'SFProDisplay-Semibold',
-  displayBold:    'SFProDisplay-Bold',
-} as const;
+// SF Pro is Apple-proprietary. On Android we map to the system Roboto aliases
+// so no extra font files need to ship. Weight collapses: Roboto has no native
+// semibold, so semiBold → medium; bold → black (closest heavy weight).
+// Revisit (open question) with screenshots if any specific screen looks off.
+export const SFPro = Platform.select({
+  ios: {
+    regular:        'SFProText-Regular',
+    medium:         'SFProText-Medium',
+    semiBold:       'SFProText-Semibold',
+    bold:           'SFProText-Bold',
+    condensedBold:  'SFProText-CondensedBold',
+    displayRegular: 'SFProDisplay-Regular',
+    displayMedium:  'SFProDisplay-Medium',
+    displaySemiBold:'SFProDisplay-Semibold',
+    displayBold:    'SFProDisplay-Bold',
+  },
+  default: {
+    regular:        'sans-serif',
+    medium:         'sans-serif-medium',
+    semiBold:       'sans-serif-medium',
+    bold:           'sans-serif-black',
+    condensedBold:  'sans-serif-condensed',
+    displayRegular: 'sans-serif',
+    displayMedium:  'sans-serif-medium',
+    displaySemiBold:'sans-serif-medium',
+    displayBold:    'sans-serif-black',
+  },
+}) as {
+  regular: string;
+  medium: string;
+  semiBold: string;
+  bold: string;
+  condensedBold: string;
+  displayRegular: string;
+  displayMedium: string;
+  displaySemiBold: string;
+  displayBold: string;
+};
 
 export const Fonts = Platform.select({
   ios: {

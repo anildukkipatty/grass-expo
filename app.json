@@ -20,6 +20,7 @@
       }
     },
     "android": {
+      "package": "com.codeongrass",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -62,11 +63,12 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#088120",
           "sounds": []
         }
-      ]
+      ],
+      "./plugins/with-android-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -6,10 +6,16 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
     },
     "production": {
       "autoIncrement": true,
@@ -18,6 +24,9 @@
       },
       "ios": {
         "buildArtifactPaths": ["ios/build/*"]
+      },
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   },

@@ -50,6 +50,21 @@ Notifications.setNotificationHandler({
   },
 });
 
+// Android 8+ requires a notification channel before any local/remote notification
+// can display. Without this, presentLocalNotificationAsync throws and Expo Push
+// silently drops messages. iOS ignores this call.
+async function ensureAndroidNotificationChannel(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  try {
+    await Notifications.setNotificationChannelAsync("default", {
+      name: "Default",
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#088120",
+    });
+  } catch (_err) {}
+}
+
 async function registerForPushNotificationsAsync(): Promise<string | null> {
   // Push notifications only work on physical devices
   if (!Device.isDevice) return null;
@@ -179,6 +194,10 @@ export function usePushNotifications() {
     });
 
     let cancelled = false;
+
+    // Create the Android notification channel before any other notification work.
+    // Safe to call on every mount: Expo no-ops when the channel already exists.
+    void ensureAndroidNotificationChannel();
 
     (async () => {
       // ── Push token registration ──────────────────────────────────────────

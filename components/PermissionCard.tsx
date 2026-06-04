@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '@/utils/haptics';
 import { GrassColors } from '@/constants/theme';
 import { GlobalPermissionItem } from '@/store/connection-store';
 import { PermissionBody } from '@/components/PermissionBody';

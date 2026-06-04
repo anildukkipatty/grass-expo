@@ -10,13 +10,13 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '@/utils/haptics';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/store/theme-store';
 import { GrassColors } from '@/constants/theme';
 import { Repo, useWebSocket } from '@/hooks/use-websocket';
 import { listReposStore, cloneRepoStore, createFolderStore, getRepoDetailsStore, getEntry, RepoDetails } from '@/store/connection-store';
-import { isIPad } from '@/utils/device';
+import { isLargeScreen } from '@/utils/device';
 
 // Green theme palette
 const BG = '#0f1a0f';
@@ -407,7 +407,7 @@ export default function Folders() {
   const loading = fetching && ws.repos.length === 0;
 
   function openAgentPicker(repo: Repo) {
-    if (isIPad) {
+    if (isLargeScreen) {
       router.push({
         pathname: '/project',
         params: { serverUrl: serverUrl!, repoPath: repo.path, repoName: repo.name },
@@ -516,7 +516,7 @@ export default function Folders() {
       )}
 
       {/* iPhone-only: agent picker bottom sheet */}
-      {!isIPad && (
+      {!isLargeScreen && (
         <BottomSheetModal
           ref={agentSheetRef}
           enableDynamicSizing

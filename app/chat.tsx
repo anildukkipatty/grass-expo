@@ -28,7 +28,7 @@ import {
   BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
 import { BlurView } from "expo-blur";
-import * as Haptics from "expo-haptics";
+import * as Haptics from "@/utils/haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -1027,6 +1027,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
+    elevation: 8,
   },
   textInput: {
     fontSize: 16,

@@ -9,7 +9,7 @@ import { Stack, usePathname, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef } from "react";
-import { Text, TextInput} from "react-native";
+import { Platform, Text, TextInput} from "react-native";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -37,14 +37,18 @@ if (ErrorUtils) {
 
 SplashScreen.preventAutoHideAsync();
 
-// Apply SF Pro as the default font for all Text and TextInput components
+// Apply SF Pro on iOS / Roboto (via 'sans-serif' alias) on Android as the
+// default font for all Text and TextInput components. SFPro.regular already
+// resolves to the right family per platform via constants/theme.ts.
+const defaultFontFamily = SFPro.regular;
+
 const DefaultText = Text as any;
 if (DefaultText.defaultProps == null) DefaultText.defaultProps = {};
-DefaultText.defaultProps.style = { fontFamily: SFPro.regular };
+DefaultText.defaultProps.style = { fontFamily: defaultFontFamily };
 
 const DefaultTextInput = TextInput as any;
 if (DefaultTextInput.defaultProps == null) DefaultTextInput.defaultProps = {};
-DefaultTextInput.defaultProps.style = { fontFamily: SFPro.regular };
+DefaultTextInput.defaultProps.style = { fontFamily: defaultFontFamily };
 
 // Track screen views for PostHog analytics using Expo Router's pathname.
 function useScreenTracking() {
@@ -87,6 +91,9 @@ export default function RootLayout() {
 
   const [theme] = useTheme();
   const c = GrassColors[theme];
+  // SF Pro / SF Mono .otf files only ship on iOS — on Android the same
+  // exported tokens resolve to Roboto/monospace system aliases, so we skip
+  // the loader entries entirely.
   const [fontsLoaded] = useFonts({
     [NationalPark.extraLight]: require("../assets/fonts/National_Park/static/NationalPark-ExtraLight.ttf"),
     [NationalPark.light]: require("../assets/fonts/National_Park/static/NationalPark-Light.ttf"),
@@ -98,19 +105,23 @@ export default function RootLayout() {
     [DMMono.light]: require("@expo-google-fonts/dm-mono/300Light/DMMono_300Light.ttf"),
     [DMMono.regular]: require("@expo-google-fonts/dm-mono/400Regular/DMMono_400Regular.ttf"),
     [DMMono.medium]: require("@expo-google-fonts/dm-mono/500Medium/DMMono_500Medium.ttf"),
-    [SFPro.regular]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Regular.otf"),
-    [SFPro.medium]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Medium.otf"),
-    [SFPro.semiBold]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Semibold.otf"),
-    [SFPro.bold]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Bold.otf"),
-    [SFPro.condensedBold]: require("../assets/fonts/SF-Pro/SF-Pro-Text-CondensedBold.otf"),
-    [SFPro.displayRegular]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Regular.otf"),
-    [SFPro.displayMedium]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Medium.otf"),
-    [SFPro.displaySemiBold]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Semibold.otf"),
-    [SFPro.displayBold]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Bold.otf"),
-    [SFMono.regular]: require("../assets/fonts/SF-Mono/SF-Mono-Regular.otf"),
-    [SFMono.medium]: require("../assets/fonts/SF-Mono/SF-Mono-Medium.otf"),
-    [SFMono.semiBold]: require("../assets/fonts/SF-Mono/SF-Mono-Semibold.otf"),
-    [SFMono.bold]: require("../assets/fonts/SF-Mono/SF-Mono-Bold.otf"),
+    ...(Platform.OS === "ios"
+      ? {
+          [SFPro.regular]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Regular.otf"),
+          [SFPro.medium]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Medium.otf"),
+          [SFPro.semiBold]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Semibold.otf"),
+          [SFPro.bold]: require("../assets/fonts/SF-Pro/SF-Pro-Text-Bold.otf"),
+          [SFPro.condensedBold]: require("../assets/fonts/SF-Pro/SF-Pro-Text-CondensedBold.otf"),
+          [SFPro.displayRegular]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Regular.otf"),
+          [SFPro.displayMedium]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Medium.otf"),
+          [SFPro.displaySemiBold]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Semibold.otf"),
+          [SFPro.displayBold]: require("../assets/fonts/SF-Pro/SF-Pro-Display-Bold.otf"),
+          [SFMono.regular]: require("../assets/fonts/SF-Mono/SF-Mono-Regular.otf"),
+          [SFMono.medium]: require("../assets/fonts/SF-Mono/SF-Mono-Medium.otf"),
+          [SFMono.semiBold]: require("../assets/fonts/SF-Mono/SF-Mono-Semibold.otf"),
+          [SFMono.bold]: require("../assets/fonts/SF-Mono/SF-Mono-Bold.otf"),
+        }
+      : {}),
   });
 
   useEffect(() => {
@@ -172,7 +183,7 @@ export default function RootLayout() {
         />
       </Stack>
       </PostHogProvider>
-      <StatusBar style={theme === "dark" ? "light" : "dark"} />
+      <StatusBar style={theme === "dark" ? "light" : "dark"} backgroundColor="transparent" translucent />
       </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );

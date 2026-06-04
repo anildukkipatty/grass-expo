@@ -111,6 +111,17 @@ export function OnboardingAuthSheet({
     if (!visible) resetState();
   }, [visible, resetState]);
 
+  // Android: `autoFocus` on a TextInput inside a <Modal> often fires before the
+  // modal's slide-in animation finishes, and focus is silently dropped — the
+  // input looks focused but keystrokes never land. Manually focus via ref after
+  // the animation settles. On iOS we still get the original autoFocus behavior.
+  useEffect(() => {
+    if (!visible) return;
+    const target = step === "email" ? emailInputRef : otpInputRef;
+    const t = setTimeout(() => target.current?.focus(), 350);
+    return () => clearTimeout(t);
+  }, [visible, step]);
+
   const emailValid = isValidEmail(email);
   const otpComplete = otp.trim().length === 6;
   const buttonActive = step === "email" ? emailValid : otpComplete;
@@ -235,6 +246,15 @@ export function OnboardingAuthSheet({
     ]).start();
   }, [buttonColorAnim, buttonScale]);
 
+  // On Android, wrapping the sheet in TouchableWithoutFeedback to dismiss the
+  // keyboard on tap-outside steals focus/key events from the nested TextInput
+  // (no characters reach the input). iOS doesn't have that problem, so keep
+  // the dismiss-on-tap-outside behavior there only.
+  const DismissWrapper =
+    Platform.OS === "ios" ? TouchableWithoutFeedback : React.Fragment;
+  const dismissProps =
+    Platform.OS === "ios" ? { onPress: Keyboard.dismiss } : {};
+
   return (
     <Modal
       visible={visible}
@@ -242,7 +262,7 @@ export function OnboardingAuthSheet({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <DismissWrapper {...dismissProps}>
         <SafeAreaView style={s.container}>
           <KeyboardAvoidingView
             style={s.flex}
@@ -306,7 +326,6 @@ export function OnboardingAuthSheet({
                     onSubmitEditing={handleRequestOtp}
                     onFocus={() => setEmailFocused(true)}
                     onBlur={() => setEmailFocused(false)}
-                    autoFocus
                   />
                   <View
                     style={[
@@ -386,7 +405,6 @@ export function OnboardingAuthSheet({
                     }}
                     onFocus={() => setOtpFocused(true)}
                     onBlur={() => setOtpFocused(false)}
-                    autoFocus
                     caretHidden
                     returnKeyType="done"
                     onSubmitEditing={handleVerifyOtp}
@@ -488,7 +506,7 @@ export function OnboardingAuthSheet({
             </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
-      </TouchableWithoutFeedback>
+      </DismissWrapper>
     </Modal>
   );
 }
