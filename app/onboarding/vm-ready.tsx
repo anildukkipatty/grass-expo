@@ -253,7 +253,10 @@ export default function VmReadyScreen() {
     return () => {
       cancelled = true;
     };
-  }, [phase, retryCount, name, router]);
+    // `name` and `router` are stable during activation; re-running on their
+    // identity would cancel the pending go-live and loop forever.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, retryCount]);
 
   const handleActivate = async () => {
     const trimmed = name.trim();
