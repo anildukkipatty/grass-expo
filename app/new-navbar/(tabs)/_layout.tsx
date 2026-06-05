@@ -60,7 +60,7 @@ export default function TabsLayout() {
   return (
     <SafeAreaView
       style={styles.safeArea}
-      edges={showNavbarHeader ? ["bottom"] : ["top", "bottom"]}
+      edges={showNavbarHeader ? [] : ["top"]}
     >
       <NativeTabs>
         <NativeTabs.Trigger name="chat-list">
