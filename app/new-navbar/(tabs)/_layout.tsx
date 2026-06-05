@@ -20,11 +20,17 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Label>Chats</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="index">
-          <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
+          <NativeTabs.Trigger.Icon
+            src={require("@/assets/images/new-design/navbar/tabs/tab-home.png")}
+            renderingMode="template"
+          />
           <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="permissions">
-          <NativeTabs.Trigger.Icon sf="bolt.fill" md="bolt" />
+          <NativeTabs.Trigger.Icon
+            src={require("@/assets/images/new-design/navbar/tabs/tab-permissions.png")}
+            renderingMode="template"
+          />
           <NativeTabs.Trigger.Label>Permissions</NativeTabs.Trigger.Label>
           {permsCount > 0 && (
             <NativeTabs.Trigger.Badge>
@@ -33,8 +39,18 @@ export default function TabsLayout() {
           )}
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="repos">
-          <NativeTabs.Trigger.Icon sf="tray.fill" md="inbox" />
+          <NativeTabs.Trigger.Icon
+            src={require("@/assets/images/new-design/navbar/tabs/tab-repos.png")}
+            renderingMode="template"
+          />
           <NativeTabs.Trigger.Label>Repos</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="machines">
+          <NativeTabs.Trigger.Icon
+            src={require("@/assets/images/new-design/navbar/tabs/tab-machines.png")}
+            renderingMode="template"
+          />
+          <NativeTabs.Trigger.Label>Machines</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       </NativeTabs>
     </SafeAreaView>
