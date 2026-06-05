@@ -119,7 +119,7 @@ export function ConnectMoreOptions({
         activeOpacity={0.85}
       >
         <ConnectCard
-          title={"Connect your\nown agent"}
+          title={"Connect your agent\nsubscription"}
           subtitle={"Used by 95%\nGrass users"}
           footerText={"We are working on\nsupporting more agents"}
           image={require("@/assets/images/new-design/connect-more/own-agent.png")}
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontFamily: SFPro.semiBold,
-    fontSize: 20,
+    fontSize: 18,
     lineHeight: 26,
     color: "#000",
     letterSpacing: -0.4,
