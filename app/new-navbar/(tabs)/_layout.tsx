@@ -50,7 +50,7 @@ export default function TabsLayout() {
             src={require("@/assets/images/new-design/navbar/tabs/tab-machines.png")}
             renderingMode="template"
           />
-          <NativeTabs.Trigger.Label>Machines</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Label>Connections</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       </NativeTabs>
     </SafeAreaView>
