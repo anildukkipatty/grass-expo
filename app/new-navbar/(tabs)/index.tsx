@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import FloatIcon from "@/assets/images/new-design/navbar/float-icon.svg";
+import { ConnectLaptopSlider } from "@/components/new-navbar/ConnectLaptopSlider";
 import { ConnectMoreSlider } from "@/components/new-navbar/ConnectMoreSlider";
 import {
   Machine,
@@ -127,6 +128,7 @@ export default function HomeScreen() {
   const { bottom } = useSafeAreaInsets();
   const router = useRouter();
   const [connectMoreVisible, setConnectMoreVisible] = React.useState(false);
+  const [laptopVisible, setLaptopVisible] = React.useState(false);
   const [newChatVisible, setNewChatVisible] = React.useState(false);
   const [vmMetadataMap, setVmMetadataMap] = useState<
     Record<string, { name: string; iconIndex: number }>
@@ -423,7 +425,7 @@ export default function HomeScreen() {
           const idx = vmUrls.indexOf(id);
           if (idx >= 0) setActiveVmTab(idx);
         }}
-        onAddNew={() => setConnectMoreVisible(true)}
+        onAddNew={() => setLaptopVisible(true)}
         vmUrlStatuses={vmUrlStatuses}
         vmRunning={vmRunning}
         primaryVmUrl={primaryVmUrl}
@@ -431,6 +433,10 @@ export default function HomeScreen() {
       <ConnectMoreSlider
         visible={connectMoreVisible}
         onClose={() => setConnectMoreVisible(false)}
+      />
+      <ConnectLaptopSlider
+        visible={laptopVisible}
+        onClose={() => setLaptopVisible(false)}
       />
       <NewChatSlider2
         visible={newChatVisible}

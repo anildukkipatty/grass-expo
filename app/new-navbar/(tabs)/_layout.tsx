@@ -1,7 +1,8 @@
 import { usePathname } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import React from "react";
-import { SafeAreaView, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { NavbarHeader } from "@/components/new-navbar/NavbarHeader";
 import { useNavbar } from "@/contexts/navbar-context";
@@ -12,7 +13,7 @@ export default function TabsLayout() {
   const { permsCount } = useNavbar();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
       {showNavbarHeader && <NavbarHeader />}
       <NativeTabs>
         <NativeTabs.Trigger name="chat-list">
@@ -50,7 +51,7 @@ export default function TabsLayout() {
             src={require("@/assets/images/new-design/navbar/tabs/tab-machines.png")}
             renderingMode="template"
           />
-          <NativeTabs.Trigger.Label>Connections</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Label>Connect</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       </NativeTabs>
     </SafeAreaView>

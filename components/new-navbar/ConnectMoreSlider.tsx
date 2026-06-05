@@ -86,6 +86,123 @@ type Props = {
   onClose: () => void;
 };
 
+type ConnectMoreOptionsProps = {
+  onConnectAgent: () => void;
+  onConnectLaptop: () => void;
+  onAddRepo: () => void;
+  onConfigureGitAccess: () => void;
+};
+
+export function ConnectMoreHeader() {
+  return (
+    <View style={styles.header}>
+      <View style={styles.headerText}>
+        <Text style={styles.headerTitle}>Get more from grass</Text>
+        <Text style={styles.headerSubtitle}>
+          All optional. Set up whenever you&#39;re ready.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+export function ConnectMoreOptions({
+  onConnectAgent,
+  onConnectLaptop,
+  onAddRepo,
+  onConfigureGitAccess,
+}: ConnectMoreOptionsProps) {
+  return (
+    <>
+      <TouchableOpacity
+        onPress={onConnectAgent}
+        activeOpacity={0.85}
+      >
+        <ConnectCard
+          title={"Connect your\nown agent"}
+          subtitle={"Used by 95%\nGrass users"}
+          footerText={"We are working on\nsupporting more agents"}
+          image={require("@/assets/images/new-design/connect-more/own-agent.png")}
+          footerIcons={
+            <>
+              <ClaudeIcon
+                width={16}
+                height={16}
+                style={{ marginRight: -8, marginTop: -10 }}
+              />
+              <OpenCodeIcon width={30} height={30} />
+            </>
+          }
+        />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={onConnectLaptop}
+        activeOpacity={0.85}
+      >
+        <ConnectCard
+          title={"Connect your\nLaptop"}
+          subtitle={"Your machine,\nyour rules"}
+          footerText={"Your code never leaves\nyour machine."}
+          image={require("@/assets/images/new-design/connect-more/laptop.png")}
+          footerIcons={
+            <>
+              <AppleIcon
+                width={30}
+                height={30}
+                style={{ marginRight: -14 }}
+              />
+              <WindowsIcon
+                width={30}
+                height={30}
+                style={{ marginRight: -14 }}
+              />
+              <LinuxIcon width={30} height={30} />
+            </>
+          }
+        />
+      </TouchableOpacity>
+
+      <View style={styles.halfRow}>
+        <TouchableOpacity
+          style={styles.halfCardWrapper}
+          onPress={onAddRepo}
+          activeOpacity={0.85}
+        >
+          <ConnectCard
+            title={"Add a\nrepository"}
+            subtitle={"Agents need a\nrepo to work on"}
+            style={{ flex: 1 }}
+            footerIcons={
+              <>
+                <GithubIcon
+                  width={30}
+                  height={30}
+                  style={{ marginRight: -14 }}
+                />
+                <GitLabIcon width={30} height={30} />
+              </>
+            }
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.halfCardWrapper}
+          onPress={onConfigureGitAccess}
+          activeOpacity={0.85}
+        >
+          <ConnectCard
+            title={"Configure\nGit Access"}
+            subtitle={"GitHub OAuth\nfor your VM"}
+            style={{ flex: 1 }}
+            footerIcons={<GithubIcon width={30} height={30} />}
+          />
+        </TouchableOpacity>
+      </View>
+    </>
+  );
+}
+
 export function ConnectMoreSlider({ visible, onClose }: Props) {
   const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [ownAgentVisible, setOwnAgentVisible] = useState(false);
@@ -125,106 +242,18 @@ export function ConnectMoreSlider({ visible, onClose }: Props) {
         backgroundStyle={styles.sheetBackground}
         handleIndicatorStyle={styles.dragHandle}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>Get more from grass</Text>
-            <Text style={styles.headerSubtitle}>
-              All optional. Set up whenever you&#39;re ready.
-            </Text>
-          </View>
-        </View>
+        <ConnectMoreHeader />
 
         <BottomSheetScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          <TouchableOpacity
-            onPress={() => setOwnAgentVisible(true)}
-            activeOpacity={0.85}
-          >
-            <ConnectCard
-              title={"Connect your\nown agent"}
-              subtitle={"Used by 95%\nGrass users"}
-              footerText={"We are working on\nsupporting more agents"}
-              image={require("@/assets/images/new-design/connect-more/own-agent.png")}
-              footerIcons={
-                <>
-                  <ClaudeIcon
-                    width={16}
-                    height={16}
-                    style={{ marginRight: -8, marginTop: -10 }}
-                  />
-                  <OpenCodeIcon width={30} height={30} />
-                </>
-              }
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setLaptopVisible(true)}
-            activeOpacity={0.85}
-          >
-            <ConnectCard
-              title={"Connect your\nLaptop"}
-              subtitle={"Your machine,\nyour rules"}
-              footerText={"Your code never leaves\nyour machine."}
-              image={require("@/assets/images/new-design/connect-more/laptop.png")}
-              footerIcons={
-                <>
-                  <AppleIcon
-                    width={30}
-                    height={30}
-                    style={{ marginRight: -14 }}
-                  />
-                  <WindowsIcon
-                    width={30}
-                    height={30}
-                    style={{ marginRight: -14 }}
-                  />
-                  <LinuxIcon width={30} height={30} />
-                </>
-              }
-            />
-          </TouchableOpacity>
-
-          <View style={styles.halfRow}>
-            <TouchableOpacity
-              style={styles.halfCardWrapper}
-              onPress={() => setAddRepoVisible(true)}
-              activeOpacity={0.85}
-            >
-              <ConnectCard
-                title={"Add a\nrepository"}
-                subtitle={"Agents need a\nrepo to work on"}
-                // footerText={"GitHub and GitLab\nsupported"}
-                style={{ flex: 1 }}
-                footerIcons={
-                  <>
-                    <GithubIcon
-                      width={30}
-                      height={30}
-                      style={{ marginRight: -14 }}
-                    />
-                    <GitLabIcon width={30} height={30} />
-                  </>
-                }
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.halfCardWrapper}
-              onPress={() => setGitAccessVisible(true)}
-              activeOpacity={0.85}
-            >
-              <ConnectCard
-                title={"Configure\nGit Access"}
-                subtitle={"GitHub OAuth\nfor your VM"}
-                style={{ flex: 1 }}
-                footerIcons={<GithubIcon width={30} height={30} />}
-              />
-            </TouchableOpacity>
-          </View>
+          <ConnectMoreOptions
+            onConnectAgent={() => setOwnAgentVisible(true)}
+            onConnectLaptop={() => setLaptopVisible(true)}
+            onAddRepo={() => setAddRepoVisible(true)}
+            onConfigureGitAccess={() => setGitAccessVisible(true)}
+          />
         </BottomSheetScrollView>
       </BottomSheetModal>
 
