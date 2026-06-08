@@ -16,7 +16,21 @@
         "NSLocalNetworkUsageDescription": "GRASS uses the local network to connect to your coding servers.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
-        }
+        },
+        "SKAdNetworkItems": [
+          {
+            "SKAdNetworkIdentifier": "n6fk4nfna4.skadnetwork"
+          },
+          {
+            "SKAdNetworkIdentifier": "4fzdc2evr5.skadnetwork"
+          },
+          {
+            "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"
+          },
+          {
+            "SKAdNetworkIdentifier": "v9wttpbfk9.skadnetwork"
+          }
+        ]
       }
     },
     "android": {
