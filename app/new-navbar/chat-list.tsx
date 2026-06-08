@@ -12,6 +12,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BackButtonIcon from "@/assets/images/new-design/chat/back-button.svg";
+import ChatGPTActiveIcon from "@/assets/images/new-design/chat/chatGPT-active.svg";
+import ChatGPTIcon from "@/assets/images/new-design/chat/chatGPT.svg";
 import ClaudeLightModeIcon from "@/assets/images/new-design/chat/claude-light-mode.svg";
 import ClaudeIcon from "@/assets/images/new-design/chat/claude.svg";
 import OpenCodeLightNodeIcon from "@/assets/images/new-design/chat/opencode-light-node.svg";
@@ -23,6 +25,7 @@ import GitBranchIcon from "@/assets/images/new-design/navbar/git-branch-icon.svg
 import { posthog } from "@/constants/posthog";
 import { SFPro } from "@/constants/theme";
 import { useNavbar } from "@/contexts/navbar-context";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import {
   Session,
   getEntry,
@@ -35,7 +38,7 @@ import { formatRelativeTime, pruneThreads } from "@/store/thread-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AgentKey = "claude" | "opencode";
+type AgentKey = "claude" | "opencode" | "codex";
 
 function normalizeParam(input?: string | string[]): string | undefined {
   if (Array.isArray(input)) return input[0];
@@ -63,8 +66,12 @@ export default function ChatListScreen() {
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchSeqRef = useRef(0);
 
-  const selectedAgentId =
-    selectedAgent === "claude" ? "claude-code" : "opencode";
+  const selectedAgentId: "claude-code" | "opencode" | "codex" =
+    selectedAgent === "claude"
+      ? "claude-code"
+      : selectedAgent === "opencode"
+        ? "opencode"
+        : "codex";
   const selectedVmOffline =
     !!selectedVmUrl && vmUrlStatuses.get(selectedVmUrl) === false;
 
@@ -112,30 +119,40 @@ export default function ChatListScreen() {
     const req = ++fetchSeqRef.current;
     if (!selectedVmUrl) {
       setSessions([]);
+      setLoadingSessions(false);
       return;
     }
     setLoadingSessions(true);
-    openConnection(selectedVmUrl);
-    const ok = await listSessionsStore(
-      selectedVmUrl,
-      resolvedRepoPath || undefined,
-      selectedAgentId,
-    );
-    if (req !== fetchSeqRef.current) return;
-    if (!ok) {
-      setSessions([]);
-      showErrorToast("Couldn’t load threads. Please try again.");
-    } else {
-      const returned = getEntry(selectedVmUrl)?.sessionsList ?? [];
-      pruneThreads({
-        serverUrl: selectedVmUrl,
-        agent: selectedAgentId,
-        repoPath: resolvedRepoPath || undefined,
-        keepIds: new Set(returned.map((s) => s.id)),
-      }).catch(() => {});
+    try {
+      openConnection(selectedVmUrl);
+      const ok = await listSessionsStore(
+        selectedVmUrl,
+        resolvedRepoPath || undefined,
+        selectedAgentId,
+      );
+      if (req !== fetchSeqRef.current) return;
+      if (!ok) {
+        setSessions([]);
+        showErrorToast("Couldn’t load threads. Please try again.");
+      } else {
+        const returned = getEntry(selectedVmUrl)?.sessionsList ?? [];
+        pruneThreads({
+          serverUrl: selectedVmUrl,
+          agent: selectedAgentId,
+          repoPath: resolvedRepoPath || undefined,
+          keepIds: new Set(returned.map((s) => s.id)),
+        }).catch(() => {});
+      }
+    } finally {
+      // Always reset the background-loading flag — even when a superseded fetch
+      // bails at the seq check above — so it can't strand the spinner.
+      if (req === fetchSeqRef.current) setLoadingSessions(false);
     }
-    setLoadingSessions(false);
   }, [selectedVmUrl, resolvedRepoPath, selectedAgentId, showErrorToast]);
+
+  // Pull-to-refresh spinner is driven from its own state so it can't be
+  // stranded by the focus/offline-recovery effects that also call fetchSessions.
+  const pull = usePullToRefresh(fetchSessions);
 
   useFocusEffect(
     useCallback(() => {
@@ -224,6 +241,8 @@ export default function ChatListScreen() {
       {/* ── Agent tab toggle ── */}
       <View style={styles.agentTabRow}>
         <TouchableOpacity
+          testID="agent-pill-claude"
+          accessibilityLabel="Claude agent"
           style={[
             styles.agentTab,
             selectedAgent === "claude"
@@ -241,6 +260,8 @@ export default function ChatListScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          testID="agent-pill-opencode"
+          accessibilityLabel="Opencode agent"
           style={[
             styles.agentTab,
             selectedAgent === "opencode"
@@ -254,6 +275,25 @@ export default function ChatListScreen() {
             <OpenCodeLightNodeIcon width={24} height={24} />
           ) : (
             <OpenCodeIcon width={24} height={24} />
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          testID={selectedAgent === "codex" ? "agent-pill-codex-active" : "agent-pill-codex"}
+          accessibilityLabel={selectedAgent === "codex" ? "Codex agent selected" : "Codex agent"}
+          style={[
+            styles.agentTab,
+            selectedAgent === "codex"
+              ? styles.openCodeActiveTab
+              : styles.inactiveTab,
+          ]}
+          activeOpacity={0.85}
+          onPress={() => setSelectedAgent("codex")}
+        >
+          {selectedAgent === "codex" ? (
+            <ChatGPTActiveIcon width={24} height={24} />
+          ) : (
+            <ChatGPTIcon width={24} height={24} />
           )}
         </TouchableOpacity>
       </View>
@@ -276,7 +316,7 @@ export default function ChatListScreen() {
         contentContainerStyle={{ paddingBottom: bottom + 150 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={loadingSessions} onRefresh={fetchSessions} />
+          <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />
         }
       >
         {loadingSessions && filteredSessions.length === 0 ? (

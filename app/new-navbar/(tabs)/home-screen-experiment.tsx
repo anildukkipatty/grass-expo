@@ -33,6 +33,7 @@ import {
 import { formatRelativeTime } from "@/store/thread-store";
 import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
 
+import ChatGptIcon from "@/assets/images/new-design/navbar/chatgpt.svg";
 import ClaudeIcon from "@/assets/images/new-design/navbar/claude.svg";
 import FolderIcon from "@/assets/images/new-design/navbar/folder-icon.svg";
 import OpenCodeIcon from "@/assets/images/new-design/navbar/opencode.svg";
@@ -83,6 +84,7 @@ const AGENT_ICONS: Record<
   "claude-code": ClaudeIcon,
   claude: ClaudeIcon,
   opencode: OpenCodeIcon,
+  codex: ChatGptIcon,
 };
 
 // ─── Skeleton loader ───────────────────────────────────────────────────────────

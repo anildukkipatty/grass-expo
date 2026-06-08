@@ -13,7 +13,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import BackButton from "@/assets/images/new-design/chat/back-button.svg";
 import RightArrow from "@/assets/images/new-design/onboarding/right-arrow-head.svg";
 import AddMachineIcon from "@/assets/images/new-design/settings/add-machine.svg";

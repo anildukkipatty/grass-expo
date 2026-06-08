@@ -183,7 +183,8 @@ const styles = StyleSheet.create({
   },
   addNewLabel: {
     fontFamily: SFPro.medium,
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 18,
     color: "#3D841E",
     textAlign: "center",
   },
@@ -245,7 +246,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     maxWidth: 70,
     lineHeight: 18,
-    letterSpacing: -0.3,
   },
   nameSelected: {
     fontFamily: SFPro.semiBold,

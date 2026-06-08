@@ -1,0 +1,79 @@
+appId: com.codeongrass
+name: Codex E2E
+tags:
+  - codex
+  - e2e
+---
+# Codex agent end-to-end smoke flow.
+#
+# Preconditions (see .maestro/README.md):
+#   - iOS sim has the Expo build installed and onboarded.
+#   - A CLI server URL is added in the app.
+#   - At least one existing codex thread is visible on the Home screen
+#     under "Recent threads" (a thread whose icon is the OpenAI/ChatGPT
+#     glyph from new-design/navbar/chatgpt.svg).
+#
+# This flow validates the core codex integration by opening an existing
+# codex thread and exercising send/receive against the real SSE stream.
+
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# ── Sanity: a codex thread is rendered on the Home screen ───────────────────
+# The thread text format is "<title>, <relative-time>, <repo>". We don't
+# pin to a specific thread title; any thread under "Recent threads" works.
+- assertVisible: "Recent threads"
+
+# ── Open the most-recent thread (top of the list) ───────────────────────────
+# Maestro can target the row by its accessibility text via a substring regex
+# on ", ago," (the relative-time separator) which only appears on thread rows.
+- tapOn:
+    text: ".*ago.*"
+    index: 0
+    retryTapIfNoChange: true
+- waitForAnimationToEnd:
+    timeout: 8000
+
+# ── (c) Codex model dropdown shows a codex-family model ────────────────────
+# The chip displays modelList[0]'s label if the thread's stored model
+# isn't in the current models.json (fallback behavior in chat.tsx).
+- assertVisible:
+    text: "(GPT-5\\.5|GPT-5\\.4|GPT-5\\.4 Mini|GPT-5\\.3 Codex|GPT-5\\.2)"
+
+# ── Switch model to GPT-5 (subscription-auth compatible) ───────────────────
+# gpt-5-codex is API-key-only; for ChatGPT-subscription accounts only
+# gpt-5 / o3 / o4-mini work. Tap the model dropdown and pick GPT-5.
+- tapOn:
+    id: "chat-model-dropdown"
+- waitForAnimationToEnd:
+    timeout: 3000
+# @gorhom/bottom-sheet renders inside a portal that XCUITest can't introspect
+# on iOS — neither text nor testIDs are visible inside the sheet. We fall
+# back to position taps. Sheet starts at ~49% screen height; rows are stacked
+# (GPT-5 first), Confirm button at the very bottom.
+- tapOn:
+    point: "50%,56%"      # GPT-5 row (top of model list)
+- tapOn:
+    point: "50%,96%"      # Confirm button (sticky at sheet footer)
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# ── (b) Round-trip: send a prompt and receive an SSE reply ──────────────────
+- tapOn:
+    id: "chat-input"
+- inputText: "Reply with exactly the word pong and nothing else."
+- tapOn:
+    id: "chat-send-button"
+
+# Codex turn (real OpenAI call) typically takes 5-30s. Wait up to 90s.
+# Scoped to id:assistant-bubble so the user's prompt echo cannot satisfy.
+# User prompts always contain "pong" as a substring within the longer text
+# "Reply with exactly the word pong and nothing else." Codex's reply is just
+# the bare word. We anchor the regex to require the whole visible string to
+# be "pong" (with optional trailing punctuation), which only matches the
+# assistant reply, not the prompt echo.
+- extendedWaitUntil:
+    visible:
+      text: "^pong[.!]?$"
+    timeout: 90000
