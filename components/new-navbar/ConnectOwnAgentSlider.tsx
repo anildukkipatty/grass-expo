@@ -27,6 +27,7 @@ import Animated, {
 
 import ClaudeTransparentIcon from "@/assets/images/new-design/connect-more/claude-transparent.svg";
 import ClaudeIcon from "@/assets/images/new-design/connect-more/claude.svg";
+import ChatGptIcon from "@/assets/images/new-design/navbar/chatgpt.svg";
 import CopyIcon from "@/assets/images/new-design/connect-more/copy-icon.svg";
 import LogoIcon from "@/assets/images/new-design/connect-more/logo.svg";
 import OpenCodeIcon from "@/assets/images/new-design/connect-more/opencode-transparent.svg";
@@ -35,13 +36,136 @@ import SuccessMark from "@/assets/images/new-design/connect-more/success-mark.sv
 
 import { SFPro } from "@/constants/theme";
 import { claudeComplete, claudeDisconnect, claudeStart, claudeStatus } from "@/api/claude";
+import { codexComplete, codexDisconnect, codexStart, codexStatus } from "@/api/codex";
 import { opencodeConnect, opencodeDisconnect, opencodeStatus } from "@/api/opencode";
 import { getToken } from "@/store/auth-store";
+import { OAuthWebViewModal } from "./OAuthWebViewModal";
 
-const OPENCODE_KEY_URL = "opencode.ai/zen";
-const TABS = ["Claude Code", "Opencode"] as const;
-type Tab = (typeof TABS)[number];
 type Step = "form" | "connected";
+type ProviderId = "claude" | "opencode" | "codex";
+
+type SvgIcon = React.FC<{ width: number; height: number }>;
+
+type StatusFn = typeof claudeStatus;
+type StartFn = typeof claudeStart;
+type CompleteFn = typeof claudeComplete;
+type ConnectFn = typeof opencodeConnect;
+type DisconnectFn = typeof claudeDisconnect;
+
+type ProviderBase = {
+  id: ProviderId;
+  /** Short label shown in the tab pill. */
+  tabLabel: string;
+  /** Used in "Connect {agentLabel}" button + step-1 title. */
+  agentLabel: string;
+  /** Heading shown in the connected state. */
+  connectedName: string;
+  TabIcon: SvgIcon;
+  ColorIcon: SvgIcon;
+  step1Desc: string;
+  footerNote: string;
+  successSubtitle: string;
+  loadingHint: string;
+  status: StatusFn;
+  disconnect: DisconnectFn;
+};
+
+type OAuthProvider = ProviderBase & {
+  flow: "oauth";
+  start: StartFn;
+  complete: CompleteFn;
+  /** When set, the slider opens an in-app WebView for the auth URL and
+   *  intercepts the first navigation whose URL starts with this prefix.
+   *  Used for providers (Codex) whose OAuth client is hard-locked to a
+   *  localhost redirect that no mobile browser can complete on its own.
+   *  These providers render a single-step UI (no copy URL / paste code). */
+  webviewIntercept?: string;
+  /** CTA label for the single-step button when webviewIntercept is set.
+   *  Defaults to `Connect {agentLabel}`. */
+  connectButtonLabel?: string;
+};
+
+type ApiKeyProvider = ProviderBase & {
+  flow: "apikey";
+  /** Fixed URL where the user obtains their API key. */
+  keyUrl: string;
+  connect: ConnectFn;
+};
+
+type Provider = OAuthProvider | ApiKeyProvider;
+
+const PROVIDERS: readonly Provider[] = [
+  {
+    id: "claude",
+    flow: "oauth",
+    tabLabel: "Claude",
+    agentLabel: "Claude",
+    connectedName: "Claude Code",
+    TabIcon: ClaudeTransparentIcon,
+    ColorIcon: ClaudeIcon,
+    step1Desc: "You'll be redirected to Anthropic to login, and authorize Grass.",
+    footerNote: "Auth happens on Anthropic's servers, not ours.",
+    successSubtitle: "Claude Code is connected and ready.",
+    loadingHint: "Fetching the Claude login link…",
+    status: claudeStatus,
+    start: claudeStart,
+    complete: claudeComplete,
+    disconnect: claudeDisconnect,
+  },
+  {
+    id: "opencode",
+    flow: "apikey",
+    tabLabel: "Opencode",
+    agentLabel: "Opencode",
+    connectedName: "OpenCode Zen",
+    TabIcon: OpenCodeIcon,
+    ColorIcon: OpenCodeIcon,
+    step1Desc: "You'll need an API key from Opencode. Visit the link below to get one.",
+    footerNote: "Auth happens on OpenCode's servers, not ours.",
+    successSubtitle: "Opencode is connected and ready.",
+    loadingHint: "Fetching your Opencode auth link…",
+    keyUrl: "opencode.ai/zen",
+    status: opencodeStatus,
+    connect: opencodeConnect,
+    disconnect: opencodeDisconnect,
+  },
+  {
+    id: "codex",
+    flow: "oauth",
+    tabLabel: "Codex",
+    agentLabel: "Codex",
+    connectedName: "Codex",
+    TabIcon: ChatGptIcon,
+    ColorIcon: ChatGptIcon,
+    step1Desc: "You'll be redirected to OpenAI to login, and authorize Grass.",
+    footerNote: "Auth happens on OpenAI's servers, not ours.",
+    successSubtitle: "Codex is connected and ready.",
+    loadingHint: "Fetching the Codex login link…",
+    status: codexStatus,
+    start: codexStart,
+    complete: codexComplete,
+    disconnect: codexDisconnect,
+    // OpenAI's Codex OAuth client is hard-locked to redirect to localhost:1455,
+    // which a mobile browser can't complete. Use the in-app WebView so we can
+    // intercept the redirect, pull `code` + `state`, and call /codex/complete.
+    webviewIntercept: "http://localhost:1455/auth/callback",
+  },
+];
+
+const DEFAULT_PROVIDER_ID: ProviderId = "claude";
+
+type Session = { sessionId: string; cmdId: string; authUrl: string };
+
+const emptyConnected: Record<ProviderId, boolean> = {
+  claude: false,
+  opencode: false,
+  codex: false,
+};
+const emptySessions: Record<ProviderId, Session | null> = {
+  claude: null,
+  opencode: null,
+  codex: null,
+};
 
 type Props = {
   visible: boolean;
@@ -69,7 +193,7 @@ function SkeletonBox({
 export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
   const bottomSheetRef = useRef<BottomSheetModal>(null);
 
-  const [activeTab, setActiveTab] = useState<Tab>("Claude Code");
+  const [activeId, setActiveId] = useState<ProviderId>(DEFAULT_PROVIDER_ID);
   const [authCode, setAuthCode] = useState("");
   const [authError, setAuthError] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -79,16 +203,14 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [step, setStep] = useState<Step>("form");
 
-  const [claudeConnected, setClaudeConnected] = useState(false);
-  const [opencodeConnected, setOpencodeConnected] = useState(false);
-
-  const [claudeSession, setClaudeSession] = useState<{
-    sessionId: string;
-    cmdId: string;
-    authUrl: string;
-  } | null>(null);
+  const [connected, setConnected] = useState<Record<ProviderId, boolean>>(emptyConnected);
+  const [sessions, setSessions] = useState<Record<ProviderId, Session | null>>(emptySessions);
+  // WebView OAuth — only used by providers with a `webviewIntercept` redirect prefix
+  const [webviewVisible, setWebviewVisible] = useState(false);
 
   const authInputRef = useRef<TextInput>(null);
+
+  const activeProvider = PROVIDERS.find((p) => p.id === activeId) ?? PROVIDERS[0];
 
   const snapPoints = ["90%"];
   const animationConfigs = useBottomSheetTimingConfigs({
@@ -114,65 +236,77 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
     successTranslateY.value = withSpring(0, { damping: 20, stiffness: 180 });
   }, [successTranslateY]);
 
+  const setConnectedFor = useCallback((id: ProviderId, value: boolean) => {
+    setConnected((prev) => ({ ...prev, [id]: value }));
+  }, []);
+
+  const setSessionFor = useCallback((id: ProviderId, value: Session | null) => {
+    setSessions((prev) => ({ ...prev, [id]: value }));
+  }, []);
+
   // ─── API helpers ──────────────────────────────────────────────────────────
 
-  const startClaudeAuth = useCallback(async (token: string) => {
-    setIsLoading(true);
-    setClaudeSession(null);
-    setConnectError(null);
-    const res = await claudeStart(token);
-    if (res.ok && res.data.success) {
-      if (res.data.alreadyAuthenticated) {
-        setClaudeConnected(true);
-      } else if (res.data.sessionId && res.data.cmdId && res.data.authUrl) {
-        setClaudeSession({
-          sessionId: res.data.sessionId,
-          cmdId: res.data.cmdId,
-          authUrl: res.data.authUrl,
-        });
+  const startOAuth = useCallback(
+    async (provider: OAuthProvider, token: string) => {
+      setIsLoading(true);
+      setSessionFor(provider.id, null);
+      setConnectError(null);
+      const res = await provider.start(token);
+      if (res.ok && res.data.success) {
+        if (res.data.alreadyAuthenticated) {
+          setConnectedFor(provider.id, true);
+        } else if (res.data.sessionId && res.data.cmdId && res.data.authUrl) {
+          setSessionFor(provider.id, {
+            sessionId: res.data.sessionId,
+            cmdId: res.data.cmdId,
+            authUrl: res.data.authUrl,
+          });
+        }
+      } else {
+        setConnectError(
+          res.ok ? "Unable to start authentication. Please try again."
+                 : (res.error ?? "Unable to start authentication. Please try again.")
+        );
       }
-    } else {
-      setConnectError(
-        res.ok ? "Unable to start authentication. Please try again."
-               : (res.error ?? "Unable to start authentication. Please try again.")
-      );
-    }
-    setIsLoading(false);
-  }, []);
+      setIsLoading(false);
+    },
+    [setConnectedFor, setSessionFor],
+  );
 
   const checkAndInit = useCallback(async () => {
     setIsLoading(true);
     const token = await getToken();
     if (!token) { setIsLoading(false); return; }
 
-    const [claudeRes, opencodeRes] = await Promise.all([
-      claudeStatus(token),
-      opencodeStatus(token),
-    ]);
+    const results = await Promise.all(PROVIDERS.map((p) => p.status(token)));
 
-    const isClaudeConn = claudeRes.ok && claudeRes.data.connected;
-    const isOpencodeConn = opencodeRes.ok && opencodeRes.data.connected;
-    setClaudeConnected(isClaudeConn);
-    setOpencodeConnected(isOpencodeConn);
+    const nextConnected = { ...emptyConnected };
+    PROVIDERS.forEach((p, i) => {
+      const res = results[i];
+      nextConnected[p.id] = res.ok && res.data.connected;
+    });
+    setConnected(nextConnected);
 
-    if (!isClaudeConn) {
-      await startClaudeAuth(token);
+    // On open the active tab is always the default provider; pre-fetch its
+    // auth session if it uses an OAuth flow and isn't connected yet.
+    const active = PROVIDERS.find((p) => p.id === DEFAULT_PROVIDER_ID) ?? PROVIDERS[0];
+    if (active.flow === "oauth" && !nextConnected[active.id]) {
+      await startOAuth(active, token);
     } else {
       setIsLoading(false);
     }
-  }, [startClaudeAuth]);
+  }, [startOAuth]);
 
   useEffect(() => {
     if (visible) {
       bottomSheetRef.current?.present();
       successTranslateY.value = 800;
-      setActiveTab("Claude Code");
+      setActiveId(DEFAULT_PROVIDER_ID);
       setAuthCode("");
       setAuthError(false);
       setConnectError(null);
-      setClaudeSession(null);
-      setClaudeConnected(false);
-      setOpencodeConnected(false);
+      setSessions(emptySessions);
+      setConnected(emptyConnected);
       setIsConnecting(false);
       setIsDisconnecting(false);
       setStep("form");
@@ -185,7 +319,9 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
   const authUrl =
-    activeTab === "Claude Code" ? (claudeSession?.authUrl ?? "") : OPENCODE_KEY_URL;
+    activeProvider.flow === "oauth"
+      ? (sessions[activeProvider.id]?.authUrl ?? "")
+      : activeProvider.keyUrl;
 
   const handleCopy = useCallback(() => {
     if (!authUrl) return;
@@ -196,9 +332,77 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
 
   const handleOpenBrowser = useCallback(() => {
     if (!authUrl) return;
+    // For providers whose OAuth client locks the redirect to a URL the OS
+    // can't actually load (e.g. http://localhost:1455 for Codex), drive the
+    // sign-in through an in-app WebView and intercept the redirect.
+    if (activeProvider.flow === "oauth" && activeProvider.webviewIntercept) {
+      setWebviewVisible(true);
+      return;
+    }
     const url = authUrl.startsWith("http") ? authUrl : `https://${authUrl}`;
     Linking.openURL(url);
-  }, [authUrl]);
+  }, [authUrl, activeProvider]);
+
+  // Fires once when the WebView intercepts the OAuth provider's redirect URL.
+  // Parses `code` + `state`, posts to /<provider>/complete, marks connected.
+  const handleWebViewCallback = useCallback(
+    async (callbackUrl: string) => {
+      setWebviewVisible(false);
+      if (activeProvider.flow !== "oauth") return;
+
+      let code: string | null = null;
+      let state: string | null = null;
+      try {
+        const parsed = new URL(callbackUrl);
+        code = parsed.searchParams.get("code");
+        state = parsed.searchParams.get("state");
+      } catch {
+        setConnectError("Couldn't read the auth callback URL. Please try again.");
+        return;
+      }
+      if (!code) {
+        setConnectError("Auth was cancelled or did not return a code.");
+        return;
+      }
+
+      setIsConnecting(true);
+      setConnectError(null);
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const session = sessions[activeProvider.id];
+        // Prefer the `state` returned in the redirect (round-trip integrity);
+        // fall back to the one we issued in /start if for any reason it's absent.
+        const cmdId = state ?? session?.cmdId ?? "";
+        const sessionId = session?.sessionId ?? "";
+        if (!cmdId || !sessionId) {
+          setConnectError("Session expired. Please try connecting again.");
+          return;
+        }
+        const res = await activeProvider.complete(token, {
+          authCode: code,
+          sessionId,
+          cmdId,
+        });
+        if (res.ok && res.data.success) {
+          setConnectedFor(activeProvider.id, true);
+          setAuthCode("");
+          slideSuccessIn();
+        } else {
+          setConnectError(
+            res.ok
+              ? (res.data.message ?? "Authentication failed. Please try again.")
+              : (res.error ?? "Authentication failed. Please try again."),
+          );
+        }
+      } catch {
+        setConnectError("Something went wrong. Please try again.");
+      } finally {
+        setIsConnecting(false);
+      }
+    },
+    [activeProvider, sessions, setConnectedFor, slideSuccessIn],
+  );
 
   const handleConnect = useCallback(async () => {
     if (authCode.trim().length < 1) { setAuthError(true); return; }
@@ -209,15 +413,17 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
       const token = await getToken();
       if (!token) return;
 
-      if (activeTab === "Claude Code") {
-        if (!claudeSession) return;
-        const res = await claudeComplete(token, {
+      const provider = activeProvider;
+      if (provider.flow === "oauth") {
+        const session = sessions[provider.id];
+        if (!session) return;
+        const res = await provider.complete(token, {
           authCode: authCode.trim(),
-          sessionId: claudeSession.sessionId,
-          cmdId: claudeSession.cmdId,
+          sessionId: session.sessionId,
+          cmdId: session.cmdId,
         });
         if (res.ok && res.data.success) {
-          setClaudeConnected(true);
+          setConnectedFor(provider.id, true);
           slideSuccessIn();
         } else {
           setAuthError(true);
@@ -227,9 +433,9 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
           );
         }
       } else {
-        const res = await opencodeConnect(token, { apiKey: authCode.trim() });
+        const res = await provider.connect(token, { apiKey: authCode.trim() });
         if (res.ok && res.data.success) {
-          setOpencodeConnected(true);
+          setConnectedFor(provider.id, true);
           slideSuccessIn();
         } else {
           setAuthError(true);
@@ -244,54 +450,42 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
     } finally {
       setIsConnecting(false);
     }
-  }, [activeTab, authCode, claudeSession, slideSuccessIn]);
+  }, [activeProvider, authCode, sessions, slideSuccessIn, setConnectedFor]);
 
   const handleDisconnect = useCallback(async () => {
     const token = await getToken();
     if (!token) return;
+    const provider = activeProvider;
     setIsDisconnecting(true);
     try {
-      if (activeTab === "Claude Code") {
-        const res = await claudeDisconnect(token);
-        if (res.ok && res.data.success) {
-          setClaudeConnected(false);
-          setClaudeSession(null);
-          setAuthCode("");
-          setConnectError(null);
-          await startClaudeAuth(token);
-        }
-      } else {
-        const res = await opencodeDisconnect(token);
-        if (res.ok && res.data.success) {
-          setOpencodeConnected(false);
-          setAuthCode("");
-          setConnectError(null);
+      const res = await provider.disconnect(token);
+      if (res.ok && res.data.success) {
+        setConnectedFor(provider.id, false);
+        setAuthCode("");
+        setConnectError(null);
+        if (provider.flow === "oauth") {
+          setSessionFor(provider.id, null);
+          await startOAuth(provider, token);
         }
       }
     } finally {
       setIsDisconnecting(false);
     }
-  }, [activeTab, startClaudeAuth]);
+  }, [activeProvider, startOAuth, setConnectedFor, setSessionFor]);
 
   // ─── Derived UI values ────────────────────────────────────────────────────
 
-  const isCurrentTabConnected =
-    activeTab === "Claude Code" ? claudeConnected : opencodeConnected;
-  const agentLabel = activeTab === "Claude Code" ? "Claude" : "Opencode";
+  const isCurrentTabConnected = connected[activeProvider.id];
+  const agentLabel = activeProvider.agentLabel;
   const isGreenStep = step === "connected";
+  const ActiveColorIcon = activeProvider.ColorIcon;
 
   const step2Title =
-    activeTab === "Claude Code" ? "Paste your auth code here" : "Paste your API key here";
+    activeProvider.flow === "oauth" ? "Paste your auth code here" : "Paste your API key here";
   const step2Placeholder =
-    activeTab === "Claude Code" ? "Enter auth code" : "Enter API key";
-  const footerNote =
-    activeTab === "Claude Code"
-      ? "Auth happens on Anthropic's servers, not ours."
-      : "Auth happens on OpenCode's servers, not ours.";
-  const successSubtitle =
-    activeTab === "Claude Code"
-      ? "Claude Code is connected and ready."
-      : "Opencode is connected and ready.";
+    activeProvider.flow === "oauth" ? "Enter auth code" : "Enter API key";
+  const footerNote = activeProvider.footerNote;
+  const successSubtitle = activeProvider.successSubtitle;
 
   return (
     <BottomSheetModal
@@ -334,35 +528,32 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
         <View style={styles.card}>
           {/* Tabs row */}
           <View style={styles.tabRow}>
-            {TABS.map((tab) => {
-              const isActive = activeTab === tab;
-              const isConnected = tab === "Claude Code" ? claudeConnected : opencodeConnected;
+            {PROVIDERS.map((provider) => {
+              const isActive = activeId === provider.id;
+              const isConnected = connected[provider.id];
+              const TabIcon = provider.TabIcon;
               return (
                 <TouchableOpacity
-                  key={tab}
+                  key={provider.id}
                   style={[styles.tab, isActive && styles.tabActive]}
                   onPress={async () => {
-                    if (tab === activeTab) return;
-                    setActiveTab(tab);
+                    if (provider.id === activeId) return;
+                    setActiveId(provider.id);
                     setAuthCode("");
                     setAuthError(false);
                     setConnectError(null);
-                    if (tab === "Claude Code" && !claudeConnected) {
+                    if (provider.flow === "oauth" && !connected[provider.id]) {
                       const token = await getToken();
-                      if (token) startClaudeAuth(token);
+                      if (token) startOAuth(provider, token);
                     } else {
                       setIsLoading(false);
                     }
                   }}
                   activeOpacity={0.7}
                 >
-                  {tab === "Claude Code" ? (
-                    <ClaudeTransparentIcon width={18} height={18} />
-                  ) : (
-                    <OpenCodeIcon width={18} height={18} />
-                  )}
+                  <TabIcon width={16} height={16} />
                   <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-                    {tab}
+                    {provider.tabLabel}
                   </Text>
                   {isConnected && (
                     <View style={styles.tabConnectedDot} />
@@ -378,11 +569,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
           {isCurrentTabConnected ? (
             <View style={styles.connectedBlock}>
               <View style={styles.illustrationRow}>
-                {activeTab === "Claude Code" ? (
-                  <ClaudeIcon width={44} height={44} />
-                ) : (
-                  <OpenCodeIcon width={44} height={44} />
-                )}
+                <ActiveColorIcon width={44} height={44} />
                 <Image
                   source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
                   style={styles.arrowImage}
@@ -392,7 +579,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
               </View>
 
               <Text style={styles.connectedAgentName}>
-                {activeTab === "Claude Code" ? "Claude Code" : "OpenCode Zen"}
+                {activeProvider.connectedName}
               </Text>
               <Text style={styles.connectedSubtitle}>Connected and ready to use.</Text>
 
@@ -414,6 +601,90 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 )}
               </TouchableOpacity>
             </View>
+          ) : activeProvider.flow === "oauth" && activeProvider.webviewIntercept ? (
+            /* ── Single-step WebView OAuth (Codex / future PKCE-localhost providers) ── */
+            <View style={styles.stepBlock}>
+              <View style={styles.illustrationRow}>
+                {isLoading ? (
+                  <SkeletonBox width={44} height={44} borderRadius={10} />
+                ) : (
+                  <ActiveColorIcon width={44} height={44} />
+                )}
+                <Image
+                  source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
+                  style={styles.arrowImage}
+                  resizeMode="contain"
+                />
+                {isLoading ? (
+                  <SkeletonBox width={44} height={44} borderRadius={10} />
+                ) : (
+                  <LogoIcon width={44} height={44} />
+                )}
+              </View>
+
+              <View style={styles.stepHeader}>
+                {isLoading ? (
+                  <SkeletonBox width={160} height={18} borderRadius={6} />
+                ) : (
+                  <>
+                    <View style={styles.stepBadge}>
+                      <Text style={styles.stepBadgeText}>1</Text>
+                    </View>
+                    <Text style={styles.stepTitle}>Connect {agentLabel}</Text>
+                  </>
+                )}
+              </View>
+
+              {isLoading ? (
+                <View style={styles.skeletonDescGroup}>
+                  <SkeletonBox width="90%" height={13} borderRadius={6} />
+                  <SkeletonBox width="100%" height={13} borderRadius={6} />
+                  <SkeletonBox width="70%" height={13} borderRadius={6} />
+                  <Text style={styles.loadingHintText}>
+                    {activeProvider.loadingHint}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.stepDesc}>
+                  {activeProvider.step1Desc}
+                </Text>
+              )}
+
+              {connectError && (
+                <Text style={styles.errorText}>{connectError}</Text>
+              )}
+
+              {isLoading ? (
+                <SkeletonBox height={52} borderRadius={50} />
+              ) : (
+                <View
+                  style={[
+                    styles.connectButtonWrap,
+                    (isConnecting || !authUrl) && styles.connectButtonWrapNoShadow,
+                  ]}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.connectButton,
+                      authUrl && !isConnecting
+                        ? styles.connectButtonActive
+                        : styles.connectButtonDisabled,
+                    ]}
+                    onPress={handleOpenBrowser}
+                    activeOpacity={0.88}
+                    disabled={!authUrl || isConnecting}
+                  >
+                    {isConnecting ? (
+                      <ActivityIndicator color="#FFF" size="small" />
+                    ) : (
+                      <Text style={styles.connectButtonText}>
+                        {activeProvider.connectButtonLabel ?? `Connect ${agentLabel}`}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           ) : (
             <>
               {/* ── Step 1 ── */}
@@ -421,10 +692,8 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                 <View style={styles.illustrationRow}>
                   {isLoading ? (
                     <SkeletonBox width={44} height={44} borderRadius={10} />
-                  ) : activeTab === "Claude Code" ? (
-                    <ClaudeIcon width={44} height={44} />
                   ) : (
-                    <OpenCodeIcon width={44} height={44} />
+                    <ActiveColorIcon width={44} height={44} />
                   )}
                   <Image
                     source={require("@/assets/images/new-design/connect-more/arrow-lock-arrow.png")}
@@ -457,16 +726,12 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                     <SkeletonBox width="100%" height={13} borderRadius={6} />
                     <SkeletonBox width="70%" height={13} borderRadius={6} />
                     <Text style={styles.loadingHintText}>
-                      {activeTab === "Claude Code"
-                        ? "Fetching the Claude login link…"
-                        : "Fetching your Opencode auth link…"}
+                      {activeProvider.loadingHint}
                     </Text>
                   </View>
                 ) : (
                   <Text style={styles.stepDesc}>
-                    {activeTab === "Claude Code"
-                      ? "You'll be redirected to Anthropic to login, and authorize Grass."
-                      : "You'll need an API key from Opencode. Visit the link below to get one."}
+                    {activeProvider.step1Desc}
                   </Text>
                 )}
 
@@ -543,7 +808,7 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                     }}
                     autoCapitalize="none"
                     autoCorrect={false}
-                    secureTextEntry={activeTab === "Opencode"}
+                    secureTextEntry={activeProvider.flow === "apikey"}
                   />
                 )}
 
@@ -627,9 +892,9 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
                   setAuthCode("");
                   setAuthError(false);
                   setConnectError(null);
-                  if (activeTab === "Claude Code") {
+                  if (activeProvider.flow === "oauth") {
                     const token = await getToken();
-                    if (token) startClaudeAuth(token);
+                    if (token) startOAuth(activeProvider, token);
                   }
                 }}
                 activeOpacity={0.85}
@@ -640,6 +905,16 @@ export function ConnectOwnAgentSlider({ visible, onClose }: Props) {
           </View>
         )}
       </Animated.View>
+      {activeProvider.flow === "oauth" && activeProvider.webviewIntercept && (
+        <OAuthWebViewModal
+          visible={webviewVisible}
+          authUrl={authUrl}
+          redirectPrefix={activeProvider.webviewIntercept}
+          title={`Sign in to ${activeProvider.agentLabel}`}
+          onCallback={handleWebViewCallback}
+          onCancel={() => setWebviewVisible(false)}
+        />
+      )}
     </BottomSheetModal>
   );
 }
@@ -697,14 +972,14 @@ const styles = StyleSheet.create({
   cardDivider: { height: 1, backgroundColor: "#DFDFDF" },
 
   // Tabs
-  tabRow: { flexDirection: "row", gap: 10, padding: 14 },
+  tabRow: { flexDirection: "row", gap: 8, padding: 14 },
   tab: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingHorizontal: 14,
+    gap: 5,
+    paddingHorizontal: 8,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
@@ -712,7 +987,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
   },
   tabActive: { borderColor: "#3D841E", backgroundColor: "#E3FDD7" },
-  tabText: { fontFamily: SFPro.semiBold, fontSize: 17, color: "#000", letterSpacing: -0.2 },
+  tabText: { fontFamily: SFPro.semiBold, fontSize: 15, color: "#000", letterSpacing: -0.2 },
   tabTextActive: { color: "#000", fontFamily: SFPro.semiBold },
   tabConnectedDot: {
     width: 7,

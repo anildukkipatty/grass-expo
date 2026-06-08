@@ -262,7 +262,9 @@ export function usePushNotifications() {
                 agent: data.tool || "claude-code",
                 // No real sessionId (headless fallback ran) — resume the latest
                 // session for the repo rather than opening an empty chat.
-                ...(data.sessionId ? { sessionId: data.sessionId } : { resumeLatest: "1" }),
+                ...(data.sessionId
+                  ? { sessionId: data.sessionId }
+                  : { resumeLatestForRepo: "1" }),
               },
             });
           } else {

@@ -37,6 +37,7 @@ import {
 import { formatRelativeTime } from "@/store/thread-store";
 import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
 
+import ChatGptIcon from "@/assets/images/new-design/navbar/chatgpt.svg";
 import ClaudeIcon from "@/assets/images/new-design/navbar/claude.svg";
 import FolderIcon from "@/assets/images/new-design/navbar/folder-icon.svg";
 import OpenCodeIcon from "@/assets/images/new-design/navbar/opencode.svg";
@@ -87,6 +88,7 @@ const AGENT_ICONS: Record<
   "claude-code": ClaudeIcon,
   claude: ClaudeIcon,
   opencode: OpenCodeIcon,
+  codex: ChatGptIcon,
 };
 
 // ─── Skeleton loader ───────────────────────────────────────────────────────────
@@ -363,7 +365,7 @@ export default function HomeScreen() {
                 // Dispatch threads have a synthetic grassId that the Grass server
                 // does not know — passing it would 404 on /sessions/:id/history.
                 // Opt into resuming the latest real session for the repo instead.
-                ...(thread.isDispatch ? { resumeLatest: "1" } : { sessionId: thread.grassId }),
+                ...(thread.isDispatch ? { resumeLatestForRepo: "1" } : { sessionId: thread.grassId }),
                 repoName: thread.repo,
                 repoPath: thread.repoPath,
                 agent: thread.tool,
