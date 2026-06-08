@@ -427,49 +427,7 @@ export default function HomeScreen() {
         onClose={() => setNewChatVisible(false)}
       />
 
-      {/* ── Connect-agent nudge (only default Grass VM connected) ── */}
-      {showConnectAgent && (
-        <View style={styles.connectAgentCard}>
-          <Text style={styles.connectAgentText}>Connect your agent</Text>
-          <TouchableOpacity
-            style={styles.connectAgentButton}
-            activeOpacity={0.85}
-            onPress={() => setConnectMoreVisible(true)}
-          >
-            <Text style={styles.connectAgentButtonText}>Connect</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* ── Section header ── */}
-      <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionHeader}>Recent threads</Text>
-        {!vmRunning && selectedVmUrl === primaryVmUrl && (
-          wakeFailed ? (
-            <View style={styles.retryContainer}>
-              <Text style={styles.wakeFailedText}>Couldn’t start VM</Text>
-              <TouchableOpacity
-                style={styles.retryButton}
-                activeOpacity={0.8}
-                onPress={retryWake}
-              >
-                <Text style={styles.retryButtonText}>Retry</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.refreshingContainer}>
-              <Text style={styles.refreshingText}>Refreshing VM</Text>
-              <View style={styles.progressTrack}>
-                <Animated.View
-                  style={[styles.progressBar, { width: progressWidth }]}
-                />
-              </View>
-            </View>
-          )
-        )}
-      </View>
-
-      {/* ── Thread list or skeleton ── */}
+      {/* ── Scrollable content: machines carousel + recent threads ── */}
       <ScrollView
         style={styles.threadList}
         contentContainerStyle={{ paddingBottom: bottom }}
