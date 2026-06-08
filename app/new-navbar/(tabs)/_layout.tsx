@@ -35,6 +35,22 @@ export default function TabsLayout() {
   // iOS 26 and get the system's shared Liquid Glass, whereas a custom headerLeft
   // view gets stretched into a capsule. The Grass logo sits centered as the
   // native header title. Hidden on the chat-list tab, which owns its UI.
+  const headerTitle = React.useCallback(
+    () => <GrassLogo width={104} height={33} />,
+    [],
+  );
+  const headerLeftItemsBuilder = React.useCallback(
+    () => [
+      {
+        type: "button" as const,
+        label: "Account",
+        icon: { type: "sfSymbol" as const, name: "person.crop.circle" },
+        onPress: () => router.push("/new-navbar/settings" as any),
+      },
+    ],
+    [],
+  );
+
   React.useLayoutEffect(() => {
     // Scope these options to the (tabs) screen in the new-navbar Stack — NOT
     // getParent(), which reaches the root stack and would apply the logo +
@@ -43,19 +59,13 @@ export default function TabsLayout() {
       headerShown: showNavbarHeader,
       title: "",
       headerTitleAlign: "center",
-      headerTitle: () => <GrassLogo width={104} height={33} />,
-      unstable_headerLeftItems: () => [
-        {
-          type: "button",
-          label: "Account",
-          icon: { type: "sfSymbol", name: "person.crop.circle" },
-          onPress: () => router.push("/new-navbar/settings" as any),
-        },
-      ],
+      headerTitle,
+      unstable_headerLeftItems: headerLeftItemsBuilder,
       headerStyle: { backgroundColor: "#FFFFFF" },
       headerShadowVisible: false,
     });
-  }, [navigation, showNavbarHeader]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showNavbarHeader, headerTitle, headerLeftItemsBuilder]);
 
   return (
     <SafeAreaView
@@ -93,13 +103,13 @@ export default function TabsLayout() {
           />
           <NativeTabs.Trigger.Label>Repos</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="machines">
+        {/* <NativeTabs.Trigger name="machines">
           <NativeTabs.Trigger.Icon
             src={require("@/assets/images/new-design/navbar/tabs/tab-machines.png")}
             renderingMode="template"
           />
           <NativeTabs.Trigger.Label>Machines</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
+        </NativeTabs.Trigger> */}
       </NativeTabs>
       <NotificationPermissionSlider
         visible={permSliderVisible}
