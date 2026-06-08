@@ -418,18 +418,6 @@ export default function HomeScreen() {
           <Text style={styles.startupOverlayText}>Starting container...</Text>
         </View>
       )}
-      <MachineCarousel
-        machines={machines}
-        selectedId={selectedMachineId}
-        onSelect={(id) => {
-          const idx = vmUrls.indexOf(id);
-          if (idx >= 0) setActiveVmTab(idx);
-        }}
-        onAddNew={() => setConnectMoreVisible(true)}
-        vmUrlStatuses={vmUrlStatuses}
-        vmRunning={vmRunning}
-        primaryVmUrl={primaryVmUrl}
-      />
       <ConnectMoreSlider
         visible={connectMoreVisible}
         onClose={() => setConnectMoreVisible(false)}
@@ -439,54 +427,57 @@ export default function HomeScreen() {
         onClose={() => setNewChatVisible(false)}
       />
 
-      {/* ── Connect-agent nudge (only default Grass VM connected) ── */}
-      {showConnectAgent && (
-        <View style={styles.connectAgentCard}>
-          <Text style={styles.connectAgentText}>Connect your agent</Text>
-          <TouchableOpacity
-            style={styles.connectAgentButton}
-            activeOpacity={0.85}
-            onPress={() => setConnectMoreVisible(true)}
-          >
-            <Text style={styles.connectAgentButtonText}>Connect</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* ── Section header ── */}
-      <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionHeader}>Recent threads</Text>
-        {!vmRunning && selectedVmUrl === primaryVmUrl && (
-          wakeFailed ? (
-            <View style={styles.retryContainer}>
-              <Text style={styles.wakeFailedText}>Couldn’t start VM</Text>
-              <TouchableOpacity
-                style={styles.retryButton}
-                activeOpacity={0.8}
-                onPress={retryWake}
-              >
-                <Text style={styles.retryButtonText}>Retry</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.refreshingContainer}>
-              <Text style={styles.refreshingText}>Refreshing VM</Text>
-              <View style={styles.progressTrack}>
-                <Animated.View
-                  style={[styles.progressBar, { width: progressWidth }]}
-                />
-              </View>
-            </View>
-          )
-        )}
-      </View>
-
-      {/* ── Thread list or skeleton ── */}
+      {/* ── Scrollable content: machines carousel + recent threads ── */}
       <ScrollView
         style={styles.threadList}
         contentContainerStyle={{ paddingBottom: bottom }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Negative margin cancels the ScrollView's horizontal padding so the
+            carousel stays edge-to-edge like before. */}
+        <View style={styles.carouselFullBleed}>
+          <MachineCarousel
+            machines={machines}
+            selectedId={selectedMachineId}
+            onSelect={(id) => {
+              const idx = vmUrls.indexOf(id);
+              if (idx >= 0) setActiveVmTab(idx);
+            }}
+            onAddNew={() => setConnectMoreVisible(true)}
+            vmUrlStatuses={vmUrlStatuses}
+            vmRunning={vmRunning}
+            primaryVmUrl={primaryVmUrl}
+          />
+        </View>
+
+        {/* ── Section header ── */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeader}>Recent threads</Text>
+          {!vmRunning && selectedVmUrl === primaryVmUrl && (
+            wakeFailed ? (
+              <View style={styles.retryContainer}>
+                <Text style={styles.wakeFailedText}>Couldn’t start VM</Text>
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  activeOpacity={0.8}
+                  onPress={retryWake}
+                >
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.refreshingContainer}>
+                <Text style={styles.refreshingText}>Refreshing VM</Text>
+                <View style={styles.progressTrack}>
+                  <Animated.View
+                    style={[styles.progressBar, { width: progressWidth }]}
+                  />
+                </View>
+              </View>
+            )
+          )}
+        </View>
+
         {selectedVmOffline ? (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyText}>
@@ -498,13 +489,16 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      <TouchableOpacity
-        style={styles.floatButton}
-        activeOpacity={0.85}
-        onPress={() => setNewChatVisible(true)}
-      >
-        <FloatIcon width={24} height={24} />
-      </TouchableOpacity>
+      <View style={styles.floatWrap} pointerEvents="box-none">
+        <TouchableOpacity
+          style={styles.floatButton}
+          activeOpacity={0.85}
+          onPress={() => setNewChatVisible(true)}
+        >
+          <FloatIcon width={20} height={20} />
+          <Text style={styles.floatButtonText}>New thread</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -526,7 +520,8 @@ const styles = StyleSheet.create({
   },
   startupOverlayText: {
     fontFamily: SFPro.medium,
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 18,
     color: "#3D841E",
   },
   connectAgentCard: {
@@ -566,12 +561,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 20,
     marginBottom: 5,
-    paddingHorizontal: 16,
+  },
+  carouselFullBleed: {
+    marginHorizontal: -16,
   },
   sectionHeader: {
     fontFamily: SFPro.semiBold,
-    fontSize: 17,
-    color: "#000",
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: "#9F9F9F",
   },
   refreshingContainer: {
     flexDirection: "row",
@@ -581,6 +581,7 @@ const styles = StyleSheet.create({
   refreshingText: {
     fontFamily: SFPro.medium,
     fontSize: 13,
+    lineHeight: 18,
     color: "#72C44E",
   },
   retryContainer: {
@@ -591,6 +592,7 @@ const styles = StyleSheet.create({
   wakeFailedText: {
     fontFamily: SFPro.medium,
     fontSize: 13,
+    lineHeight: 18,
     color: "#C62828",
   },
   retryButton: {
@@ -601,7 +603,8 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     fontFamily: SFPro.semiBold,
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 18,
     color: "#FFFFFF",
   },
   progressTrack: {
@@ -643,13 +646,16 @@ const styles = StyleSheet.create({
   threadMessage: {
     flex: 1,
     fontFamily: SFPro.medium,
-    fontSize: 15,
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.5,
     color: "#000",
     marginRight: 8,
   },
   threadTime: {
     fontFamily: SFPro.regular,
     fontSize: 13,
+    lineHeight: 18,
     color: "#808080",
   },
   threadMeta: {
@@ -691,28 +697,38 @@ const styles = StyleSheet.create({
   },
   commandText: {
     fontFamily: SFPro.medium,
-    fontSize: 13,
-    color: "#9F9F9F",
-    marginLeft: 5,
+    fontSize: 15,
     lineHeight: 20,
-    letterSpacing: -0.3,
+    color: "#808080",
+    marginLeft: 5,
   },
-  floatButton: {
+  floatWrap: {
     position: "absolute",
     bottom: 100,
-    right: 16,
-    zIndex: 9999,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#FFF",
+    left: 0,
+    right: 0,
     alignItems: "center",
-    justifyContent: "center",
+    zIndex: 9999,
+  },
+  floatButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 52,
+    paddingHorizontal: 22,
+    borderRadius: 26,
+    backgroundColor: "#FFF",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 4,
+  },
+  floatButtonText: {
+    fontFamily: SFPro.semiBold,
+    fontSize: 16,
+    color: "#1A1A1A",
+    letterSpacing: -0.2,
   },
   emptyWrap: {
     alignItems: "center",
@@ -721,6 +737,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontFamily: SFPro.regular,
     fontSize: 15,
+    lineHeight: 20,
     color: "#808080",
     textAlign: "center",
   },
