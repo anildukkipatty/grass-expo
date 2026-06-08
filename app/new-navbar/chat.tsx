@@ -79,16 +79,23 @@ const MODELS_BY_AGENT = modelsJson as Record<string, Record<string, string>>;
 const MODEL_DEFAULTS: Record<string, string> = {
   "claude-code": "claude-sonnet-4-6",
   opencode: "opencode/big-pickle",
+  codex: "gpt-5.5",
 };
 
+function resolveAgentKey(agent: string): string {
+  if (agent === "opencode") return "opencode";
+  if (agent === "codex") return "codex";
+  return "claude-code";
+}
+
 function getModelsForAgent(agent: string): { key: string; label: string }[] {
-  const agentKey = agent === "opencode" ? "opencode" : "claude-code";
+  const agentKey = resolveAgentKey(agent);
   const map = MODELS_BY_AGENT[agentKey] ?? MODELS_BY_AGENT["claude-code"];
   return Object.entries(map).map(([key, label]) => ({ key, label }));
 }
 
 function getDefaultModel(agent: string): string {
-  const agentKey = agent === "opencode" ? "opencode" : "claude-code";
+  const agentKey = resolveAgentKey(agent);
   return MODEL_DEFAULTS[agentKey] ?? "claude-sonnet-4-6";
 }
 
@@ -466,7 +473,7 @@ export default function ChatScreen() {
     repoPath,
     agent,
     initialMessage,
-    resumeLatest,
+    resumeLatestForRepo,
   } = useLocalSearchParams<{
     serverUrl: string;
     sessionId?: string;
@@ -474,7 +481,7 @@ export default function ChatScreen() {
     repoPath?: string;
     agent?: string;
     initialMessage?: string;
-    resumeLatest?: string;
+    resumeLatestForRepo?: string;
   }>();
 
   // Pin the first non-null serverUrl so it never reverts mid-session
@@ -486,6 +493,10 @@ export default function ChatScreen() {
   const repoNameStr = Array.isArray(repoName) ? repoName[0] : (repoName ?? "");
   const repoPathStr = Array.isArray(repoPath) ? repoPath[0] : (repoPath ?? "");
   const agentStr = Array.isArray(agent) ? agent[0] : (agent ?? "claude-code");
+  // Codex SDK has no programmatic approval callback, so "ask-permissions" and
+  // "allow-all-edits" don't behave correctly — only "yolo" maps to a working
+  // Codex sandbox/approval combination. Force yolo for Codex sessions.
+  const isCodex = agentStr === "codex";
 
   // ── Local state ──
   const [inputText, setInputText] = useState("");
@@ -544,6 +555,12 @@ export default function ChatScreen() {
   useEffect(() => subscribeSessionLabel(setSessionLabelState), []);
 
   useEffect(() => {
+    if (!isCodex) return;
+    if (ws.permissionMode === "yolo") return;
+    ws.patchPermissionMode(ws.grassId ?? ws.sessionId, "yolo");
+  }, [isCodex, ws.permissionMode, ws.grassId, ws.sessionId, ws.patchPermissionMode]);
+
+  useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
     const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
     return () => { show.remove(); hide.remove(); };
@@ -592,7 +609,15 @@ export default function ChatScreen() {
   useEffect(() => {
     if (!sessionInitialized.current && serverUrl) {
       sessionInitialized.current = true;
-      ws.initSession(initialSessionId ?? null, agentStr, repoPathStr || null, resumeLatest === "1");
+      const resumeLatestFlag = Array.isArray(resumeLatestForRepo)
+        ? resumeLatestForRepo[0]
+        : resumeLatestForRepo;
+      ws.initSession(
+        initialSessionId ?? null,
+        agentStr,
+        repoPathStr || null,
+        resumeLatestFlag ? { resumeLatestForRepo: true } : undefined,
+      );
     }
     return () => {
       if (serverUrl) closeSSEStream(serverUrl);
@@ -1051,7 +1076,7 @@ export default function ChatScreen() {
 
     if (msg.role === "assistant") {
       return (
-        <View key={msg.msgId} style={styles.agentBlock}>
+        <View key={msg.msgId} style={styles.agentBlock} testID="assistant-bubble">
           <MarkdownText content={msg.content} />
         </View>
       );
@@ -1269,7 +1294,12 @@ export default function ChatScreen() {
                 <View key={img.uri + idx} style={styles.thumbnailWrapper}>
                   <Image source={{ uri: img.uri }} style={styles.thumbnail} />
                   {!img.uploadedUrl && !img.error && (
-                    <ActivityIndicator style={StyleSheet.absoluteFill} color="#fff" size="small" />
+                    <ActivityIndicator
+                      testID="pending-image-uploading"
+                      style={StyleSheet.absoluteFill}
+                      color="#fff"
+                      size="small"
+                    />
                   )}
                   {img.error && <Text style={styles.thumbnailError}>!</Text>}
                   <TouchableOpacity
@@ -1284,6 +1314,7 @@ export default function ChatScreen() {
           )}
           <View style={styles.inputRow}>
             <TextInput
+              testID="chat-input"
               style={styles.textInput}
               value={inputText}
               onChangeText={(t) => {
@@ -1299,6 +1330,8 @@ export default function ChatScreen() {
             />
             {ws.streaming ? (
               <TouchableOpacity
+                testID="chat-stop-button"
+                accessibilityLabel="Stop"
                 style={styles.submitBtn}
                 activeOpacity={0.8}
                 onPress={() => ws.abort()}
@@ -1307,6 +1340,8 @@ export default function ChatScreen() {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
+                testID="chat-send-button"
+                accessibilityLabel="Send message"
                 style={[styles.submitBtn, !canSend && styles.submitBtnDisabled]}
                 activeOpacity={0.8}
                 onPress={handleSubmit}
@@ -1320,6 +1355,8 @@ export default function ChatScreen() {
             {/* Image attachments button — temporarily disabled, re-enable after testing
             <TouchableOpacity
               ref={addBtnRef}
+              testID="chat-attach-button"
+              accessibilityLabel="Attach"
               style={styles.addBtn}
               activeOpacity={0.7}
               onPress={openOptions}
@@ -1331,6 +1368,7 @@ export default function ChatScreen() {
             <View style={styles.toolbarSpacer} />
 
             <TouchableOpacity
+              testID="chat-model-dropdown"
               style={styles.modelDropdown}
               activeOpacity={0.7}
               onPress={openModelSheet}
@@ -1529,31 +1567,39 @@ export default function ChatScreen() {
                 { key: "ask-permissions", label: "Ask permissions", sub: "Agent asks before making changes" },
                 { key: "allow-all-edits",  label: "Allow all edits",  sub: "Agent edits files without asking" },
                 { key: "yolo",             label: "YOLO",             sub: "Agent runs commands freely, no confirmations" },
-              ] as const).map((item, index) => (
-                <TouchableOpacity
-                  key={item.key}
-                  style={[
-                    styles.modelRow,
-                    ws.permissionMode === item.key && styles.modelRowSelected,
-                    index < 2 && styles.modelRowSeparator,
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    if (serverUrl) {
-                      ws.patchPermissionMode(
-                        ws.grassId ?? ws.sessionId,
-                        item.key as PermissionMode,
-                      );
-                    }
-                  }}
-                >
-                  <View style={styles.modelInfo}>
-                    <Text style={styles.modelLabel}>{item.label}</Text>
-                    <Text style={styles.modeSheetSubLabel}>{item.sub}</Text>
-                  </View>
-                  {ws.permissionMode === item.key && <SelectedIcon width={16} height={16} />}
-                </TouchableOpacity>
-              ))}
+              ] as const).map((item, index) => {
+                const disabled = isCodex && item.key !== "yolo";
+                return (
+                  <TouchableOpacity
+                    key={item.key}
+                    style={[
+                      styles.modelRow,
+                      ws.permissionMode === item.key && styles.modelRowSelected,
+                      index < 2 && styles.modelRowSeparator,
+                      disabled && { opacity: 0.4 },
+                    ]}
+                    activeOpacity={disabled ? 1 : 0.7}
+                    disabled={disabled}
+                    onPress={() => {
+                      if (disabled) return;
+                      if (serverUrl) {
+                        ws.patchPermissionMode(
+                          ws.grassId ?? ws.sessionId,
+                          item.key as PermissionMode,
+                        );
+                      }
+                    }}
+                  >
+                    <View style={styles.modelInfo}>
+                      <Text style={styles.modelLabel}>{item.label}</Text>
+                      <Text style={styles.modeSheetSubLabel}>
+                        {disabled ? "Not supported for Codex" : item.sub}
+                      </Text>
+                    </View>
+                    {ws.permissionMode === item.key && <SelectedIcon width={16} height={16} />}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </BottomSheetScrollView>
         </View>
@@ -1562,7 +1608,7 @@ export default function ChatScreen() {
       {/* ── Model picker bottom sheet ── */}
       <BottomSheetModal
         ref={modelSheetRef}
-        snapPoints={[agentStr === "claude-code" ? "55%" : "75%"]}
+        snapPoints={[(agentStr === "claude-code" || agentStr === "codex") ? "55%" : "75%"]}
         enableDynamicSizing={false}
         enablePanDownToClose
         backdropComponent={renderModelBackdrop}
@@ -1594,6 +1640,7 @@ export default function ChatScreen() {
               {modelList.map((m, index) => (
                 <TouchableOpacity
                   key={m.key}
+                  testID={`model-row-${m.key}`}
                   style={[
                     styles.modelRow,
                     tempModelKey === m.key && styles.modelRowSelected,
@@ -1614,6 +1661,7 @@ export default function ChatScreen() {
           {/* Sticky confirm button */}
           <View style={styles.sheetFooter}>
             <TouchableOpacity
+              testID="model-confirm-button"
               style={styles.confirmBtn}
               activeOpacity={0.85}
               onPress={confirmModel}
