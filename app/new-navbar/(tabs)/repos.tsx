@@ -8,6 +8,7 @@ import {
 } from "@/components/new-navbar/MachineCarousel";
 import { VM_ICONS } from "@/constants/vm-icons";
 import { extractHost, useNavbar } from "@/contexts/navbar-context";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { getAllVmMetadata, getVmName } from "@/store/vm-metadata-store";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
@@ -93,6 +94,7 @@ export default function ReposScreen() {
     reposLoading,
     refreshRepos,
   } = useNavbar();
+  const pull = usePullToRefresh(refreshRepos);
 
   const [startupOverlayVisible, setStartupOverlayVisible] = useState(false);
   const [wakeFailed, setWakeFailed] = useState(false);
@@ -371,7 +373,7 @@ export default function ReposScreen() {
         contentContainerStyle={{ paddingBottom: bottom + 80 + 16 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={reposLoading} onRefresh={refreshRepos} />
+          <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />
         }
       >
         {(() => {
@@ -421,9 +423,10 @@ export default function ReposScreen() {
             );
           }
 
-          return repos.map((repo) => (
+          return repos.map((repo, index) => (
             <TouchableOpacity
               key={repo.id}
+              testID={`repo-row-${index}`}
               style={styles.repoItem}
               activeOpacity={0.7}
               onPress={() =>

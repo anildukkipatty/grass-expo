@@ -2,13 +2,14 @@ import { SFPro } from "@/constants/theme";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
-import React from "react";
+import React, { useRef } from "react";
 import {
+  Animated,
   Dimensions,
+  Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 
@@ -16,6 +17,27 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function VmReadyScreen() {
   const router = useRouter();
+  const scale = useRef(new Animated.Value(1)).current;
+  const colorAnim = useRef(new Animated.Value(0)).current;
+
+  const backgroundColor = colorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["#3D841E", "#2A5C14"],
+  });
+
+  const onPressIn = () => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 60, bounciness: 0 }),
+      Animated.spring(colorAnim, { toValue: 1, useNativeDriver: false, speed: 60, bounciness: 0 }),
+    ]).start();
+  };
+
+  const onPressOut = () => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 5 }),
+      Animated.spring(colorAnim, { toValue: 0, useNativeDriver: false, speed: 30, bounciness: 0 }),
+    ]).start();
+  };
 
   return (
     <>
@@ -52,15 +74,25 @@ export default function VmReadyScreen() {
               </Text>
 
               {/* Give them a name button */}
-              <View style={styles.buttonShadowWrap}>
-                <TouchableOpacity
-                  style={styles.button}
-                  activeOpacity={0.85}
-                  onPress={() => router.push("/onboarding/vm-name" as any)}
-                >
-                  <Text style={styles.buttonText}>Give them a name</Text>
-                </TouchableOpacity>
-              </View>
+              <Pressable
+                style={styles.pressable}
+                onPressIn={onPressIn}
+                onPressOut={onPressOut}
+                onPress={() => router.push("/onboarding/vm-name" as any)}
+              >
+                <Animated.View style={[styles.buttonShadowWrap, { transform: [{ scale }] }]}>
+                  <LinearGradient
+                    colors={["#7ED957", "#1A4D09"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={styles.buttonBorder}
+                  >
+                    <Animated.View style={[styles.button, { backgroundColor }]}>
+                      <Text style={styles.buttonText}>Give them a name</Text>
+                    </Animated.View>
+                  </LinearGradient>
+                </Animated.View>
+              </Pressable>
             </View>
           </SafeAreaView>
         </LinearGradient>
@@ -95,8 +127,8 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   content: {
-    paddingHorizontal: 16,
-    paddingBottom: 50,
+    paddingHorizontal: 24,
+    paddingBottom: 48,
     alignItems: "center",
   },
   badgeRow: {
@@ -122,46 +154,51 @@ const styles = StyleSheet.create({
   badgeText: {
     fontFamily: SFPro.semiBold,
     fontSize: 15,
+    lineHeight: 20,
     color: "#fff",
-    letterSpacing: -0.3,
   },
   title: {
-    fontFamily: SFPro.semiBold,
+    fontFamily: SFPro.bold,
     fontSize: 28,
     color: "#000000",
     textAlign: "center",
     lineHeight: 32,
+    letterSpacing: -1,
     marginBottom: 12,
   },
   subtitle: {
-    fontFamily: SFPro.medium,
+    fontFamily: SFPro.regular,
     fontSize: 17,
-    color: "#404040",
+    color: "#000",
     textAlign: "center",
     lineHeight: 22,
     letterSpacing: -0.5,
-    marginBottom: 36,
+  },
+  pressable: {
+    marginTop: 24,
+    width: "100%",
   },
   buttonShadowWrap: {
     width: "100%",
-    borderRadius: 50,
-    elevation: 12,
+  },
+  buttonBorder: {
+    width: "100%",
+    borderRadius: 25,
+    borderCurve: "continuous",
+    padding: 2,
   },
   button: {
-    borderRadius: 50,
-    borderWidth: 2,
-    borderColor: "#72C44E",
-    backgroundColor: "#3D841E",
-    height: 52,
-    width: "100%",
+    height: 46,
+    borderRadius: 23,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   buttonText: {
-    fontFamily: SFPro.semiBold,
     fontSize: 17,
-    color: "#F2F2F2",
-    lineHeight: 22,
-    letterSpacing: -0.5,
+    fontWeight: "500",
+    color: "#fff",
+    letterSpacing: 0,
   },
 });

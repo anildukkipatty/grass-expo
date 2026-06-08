@@ -25,6 +25,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import ClaudeIconChat from "@/assets/images/new-design/chat/claude.svg";
 import OpenCodeIconChat from "@/assets/images/new-design/chat/opencode.svg";
+import ChatGPTIconChat from "@/assets/images/new-design/chat/chatGPT.svg";
 import MachinesIcon from "@/assets/images/new-design/new-chat/machines.svg";
 import RepositoryIcon from "@/assets/images/new-design/new-chat/repository.svg";
 import CloseIcon from "@/assets/images/new-design/notification/close-icon.svg";
@@ -50,7 +51,7 @@ export function NewChatSlider2({ visible, onClose }: Props) {
   const [addRepoVisible, setAddRepoVisible] = useState(false);
   const [gitAccessVisible, setGitAccessVisible] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<RepoItem | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState<"claude-code" | "opencode">("claude-code");
+  const [selectedAgent, setSelectedAgent] = useState<"claude-code" | "opencode" | "codex">("claude-code");
   const [showRepoPicker, setShowRepoPicker] = useState(false);
   const [vmMetadataMap, setVmMetadataMap] = useState<Record<string, { name: string; iconIndex: number }>>({});
   const [grassVmName, setGrassVmName] = useState<string | null>(null);
@@ -100,7 +101,9 @@ export function NewChatSlider2({ visible, onClose }: Props) {
       setVmMetadataMap(metadataMap);
       setGrassVmName(storedGrassVmName);
       setSelectedAgent(
-        lastAgent === "claude-code" || lastAgent === "opencode" ? lastAgent : "claude-code",
+        lastAgent === "claude-code" || lastAgent === "opencode" || lastAgent === "codex"
+          ? lastAgent
+          : "claude-code",
       );
       if (lastRepoRaw) {
         try {
@@ -282,6 +285,16 @@ export function NewChatSlider2({ visible, onClose }: Props) {
                   <OpenCodeIconChat width={20} height={20} />
                   <Text style={[styles.agentBtnText, selectedAgent === "opencode" && styles.agentBtnTextWhite]}>
                     OpenCode
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.agentBtn, selectedAgent === "codex" && styles.agentBtnActiveCodex]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedAgent("codex")}
+                >
+                  <ChatGPTIconChat width={20} height={20} />
+                  <Text style={[styles.agentBtnText, selectedAgent === "codex" && styles.agentBtnTextWhite]}>
+                    Codex
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -527,6 +540,7 @@ const styles = StyleSheet.create({
   },
   agentBtnActive: { backgroundColor: "#3D841E", borderColor: "#3D841E" },
   agentBtnActiveBlack: { backgroundColor: "#000", borderColor: "#000" },
+  agentBtnActiveCodex: { backgroundColor: "#10A37F", borderColor: "#10A37F" },
   agentBtnText: {
     fontFamily: SFPro.semiBold,
     fontSize: 15,
