@@ -1,7 +1,9 @@
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
+  Easing,
   Image,
   Linking,
   ScrollView,
@@ -10,9 +12,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-import BackButton from "@/assets/images/new-design/chat/back-button.svg";
 import RightArrow from "@/assets/images/new-design/onboarding/right-arrow-head.svg";
 import AddMachineIcon from "@/assets/images/new-design/settings/add-machine.svg";
 import ContactIcon from "@/assets/images/new-design/settings/contact.svg";
@@ -70,7 +69,10 @@ function SectionRow({
         {icon}
         <View style={styles.rowTextWrap}>
           <Text
-            style={[styles.rowLabel, labelColor ? { color: labelColor } : {}]}
+            style={[
+              styles.rowLabel,
+              { color: labelColor ?? (sublabel ? "#9F9F9F" : "#000") },
+            ]}
           >
             {label}
           </Text>
@@ -104,17 +106,10 @@ function MachineRow({
       <View style={styles.rowLeft}>
         {icon}
         <View style={styles.rowTextWrap}>
-          <Text
-            style={[
-              styles.rowSublabel,
-              {
-                color: label === "Notification Settings" ? "black" : "9f9f9f",
-              },
-            ]}
-          >
-            {label}
-          </Text>
-          {sublabel ? <Text style={styles.rowLabel}>{sublabel}</Text> : null}
+          <Text style={[styles.rowLabel, { color: "#000" }]}>{label}</Text>
+          {sublabel ? (
+            <Text style={[styles.rowLabel, { marginTop: 2 }]}>{sublabel}</Text>
+          ) : null}
         </View>
       </View>
       {external ? (
@@ -126,31 +121,87 @@ function MachineRow({
   );
 }
 
-type ServerNameOverlayProps = {
-  name: string;
-};
+/**
+ * Server image carrying the animated "screen" from the onboarding claim flow:
+ * a blinking dot-grid plus the VM name scrolling across the monitor as a marquee.
+ */
+function ServerScreen({ name }: { name: string }) {
+  const label = (name || "").toUpperCase();
+  const dotAnims = useRef(
+    Array.from({ length: 15 }, () => new Animated.Value(0.15)),
+  ).current;
+  const marqueeX = useRef(new Animated.Value(0)).current;
+  const [trackW, setTrackW] = useState(0);
+  const [textW, setTextW] = useState(0);
 
-function truncateWithEllipsis(value: string, maxChars = 13) {
-  if (value.length <= maxChars) return value;
-  return `${value.slice(0, Math.max(maxChars - 1, 0))}…`;
-}
+  // Dot grid blinks to life.
+  useEffect(() => {
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+    dotAnims.forEach((anim, i) => {
+      const id = setTimeout(() => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(anim, { toValue: 1, duration: 500, useNativeDriver: true }),
+            Animated.timing(anim, { toValue: 0.15, duration: 500, useNativeDriver: true }),
+          ]),
+        ).start();
+      }, (i * 100) % 1000);
+      timeouts.push(id);
+    });
+    return () => {
+      timeouts.forEach(clearTimeout);
+      dotAnims.forEach((a) => a.stopAnimation());
+    };
+  }, [dotAnims]);
 
-function ServerNameOverlay({ name }: ServerNameOverlayProps) {
-  if (!name) return null;
-
-  const displayName = truncateWithEllipsis(name, 13);
+  // VM name scrolls right-to-left as a looping marquee.
+  useEffect(() => {
+    if (!trackW || !textW) return;
+    const distance = trackW + textW;
+    marqueeX.setValue(trackW);
+    const loop = Animated.loop(
+      Animated.timing(marqueeX, {
+        toValue: -textW,
+        duration: distance * 35,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [trackW, textW, label, marqueeX]);
 
   return (
-    <View style={styles.serverNameOverlayWrap} pointerEvents="none">
-      <Text style={[styles.serverNameOverlay, styles.serverNameShadow]}>{displayName}</Text>
-      <Text style={[styles.serverNameOverlay, styles.serverNameHighlight]}>{displayName}</Text>
-      <Text style={styles.serverNameOverlay}>{displayName}</Text>
+    <View style={styles.serverImageContainer}>
+      <Image
+        source={require("@/assets/images/new-design/onboarding/server.png")}
+        style={styles.serverImage}
+        resizeMode="contain"
+      />
+      <View style={styles.screenRect}>
+        <View style={styles.dotGrid}>
+          {dotAnims.map((anim, i) => (
+            <Animated.View key={i} style={[styles.dot, { opacity: anim }]} />
+          ))}
+        </View>
+        <View
+          style={styles.marqueeTrack}
+          onLayout={(e) => setTrackW(e.nativeEvent.layout.width)}
+        >
+          <Animated.Text
+            numberOfLines={1}
+            onLayout={(e) => setTextW(e.nativeEvent.layout.width)}
+            style={[styles.marqueeText, { transform: [{ translateX: marqueeX }] }]}
+          >
+            {label}
+          </Animated.Text>
+        </View>
+      </View>
     </View>
   );
 }
 
 export default function SettingsScreen() {
-  const { top } = useSafeAreaInsets();
   const { vmUrls, primaryVmUrl } = useNavbar();
   const [connectLaptopVisible, setConnectLaptopVisible] = useState(false);
   const [notifPermVisible, setNotifPermVisible] = useState(false);
@@ -180,31 +231,15 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={[styles.screen, { paddingTop: top }]}>
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} hitSlop={8}>
-          <BackButton />
-        </TouchableOpacity>
-        <View style={styles.headerTitleWrap} pointerEvents="none">
-          <Text style={styles.headerTitle}>Settings & Profile</Text>
-        </View>
-      </View>
-
+    <View style={styles.screen}>
       <ScrollView
+        style={styles.scroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.paddedContent}>
-          {/* ── Machine image ── */}
-          <View style={styles.serverImageContainer}>
-            <Image
-              source={require("@/assets/images/new-design/settings/server.png")}
-              style={styles.serverImage}
-              resizeMode="contain"
-            />
-            <ServerNameOverlay name={grassVmName?.trim() || "Son of ana"} />
-          </View>
+        <View style={[styles.paddedContent, { paddingTop: 8 }]}>
+          {/* ── Server image with animated screen ── */}
+          <ServerScreen name={grassVmName?.trim() || "Son of ana"} />
 
           {/* ── Referral ── */}
           {/* <Text style={styles.sectionHeader}>Referral</Text>
@@ -486,33 +521,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFF",
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#FFF",
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f2f2f2",
-    borderRadius: 50,
-    zIndex: 1,
-  },
-  headerTitleWrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontFamily: SFPro.bold,
-    fontSize: 17,
-    color: "#000",
-    letterSpacing: -0.3,
+  scroll: {
+    flex: 1,
   },
   scrollContent: {},
   paddedContent: {
@@ -542,6 +552,7 @@ const styles = StyleSheet.create({
   profileEmail: {
     fontFamily: SFPro.medium,
     fontSize: 17,
+    letterSpacing: -0.5,
     color: "#737373",
   },
   profileImage: {
@@ -556,49 +567,63 @@ const styles = StyleSheet.create({
   // Server image
   serverImageContainer: {
     width: "100%",
-    aspectRatio: 892 / 502,
-    marginVertical: 16,
-    borderRadius: 12,
+    aspectRatio: 1499 / 521,
+    marginTop: 32,
+    marginBottom: 16,
+    alignSelf: "center",
   },
   serverImage: {
     width: "100%",
     height: "100%",
   },
-  serverNameOverlayWrap: {
+  // Animated monitor screen overlaid on the server image (positioned to sit on
+  // the illustration's screen — same relative box used on the claim screen).
+  screenRect: {
     position: "absolute",
-    top: "31%",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    justifyContent: "center",
+    top: "23%",
+    left: "25.5%",
+    width: "22.3%",
+    height: "30%",
+    backgroundColor: "#000",
+    borderRadius: 3,
+    padding: 3,
+    justifyContent: "space-between",
+    overflow: "hidden",
   },
-  serverNameOverlay: {
+  dotGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 2,
+  },
+  dot: {
+    width: 2,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: "#4FA825",
+  },
+  marqueeTrack: {
+    width: "100%",
+    height: 12,
+    overflow: "hidden",
+  },
+  marqueeText: {
     position: "absolute",
-    color: "#D2D2D1",
-    textAlign: "center",
-    fontFamily: SFPro.bold,
-    fontSize: 20,
-    lineHeight: 22,
-    letterSpacing: -0.5,
-  },
-  serverNameShadow: {
-    color: "#5A5A58",
-    opacity: 0.5,
-    transform: [{ translateX: 0.85 }, { translateY: 1.2 }],
-  },
-  serverNameHighlight: {
-    color: "#FFFFFF",
-    opacity: 0.8,
-    transform: [{ translateX: -0.85 }, { translateY: -0.8 }],
+    top: 0,
+    fontFamily: "Courier New",
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    color: "#4FA825",
   },
 
   // Section header
   sectionHeader: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 15,
+    fontFamily: SFPro.medium,
+    fontSize: 17,
     color: "#000",
     // textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: -0.5,
     marginBottom: 8,
     marginTop: 16,
   },
@@ -629,13 +654,15 @@ const styles = StyleSheet.create({
   },
   inviteTitle: {
     fontFamily: SFPro.medium,
-    fontSize: 15,
+    fontSize: 17,
+    letterSpacing: -0.5,
     color: "#000",
     marginBottom: 2,
   },
   inviteSubtitle: {
     fontFamily: SFPro.medium,
-    fontSize: 13,
+    fontSize: 17,
+    letterSpacing: -0.5,
     color: "#3D841E",
   },
 
@@ -670,13 +697,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowLabel: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 15,
+    fontFamily: SFPro.medium,
+    fontSize: 17,
+    letterSpacing: -0.5,
     color: "#9F9F9F",
   },
   rowSublabel: {
-    fontFamily: SFPro.semiBold,
-    fontSize: 13,
+    fontFamily: SFPro.medium,
+    fontSize: 17,
+    letterSpacing: -0.5,
     color: "#000",
     marginTop: 2,
   },
@@ -767,12 +796,14 @@ const styles = StyleSheet.create({
   },
   footerTagline: {
     fontFamily: SFPro.medium,
-    fontSize: 13,
+    fontSize: 17,
+    letterSpacing: -0.5,
     color: "#000",
   },
   footerVersion: {
     fontFamily: SFPro.medium,
-    fontSize: 13,
+    fontSize: 17,
+    letterSpacing: -0.5,
     color: "#808080",
   },
 

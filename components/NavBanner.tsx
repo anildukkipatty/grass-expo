@@ -1,3 +1,4 @@
+import ChatGptIcon from "@/assets/images/new-design/navbar/chatgpt.svg";
 import GetMoreCardSvg from "@/assets/images/navbar-screens/get-more-card.svg";
 import { NationalPark } from "@/constants/theme";
 import { extractHost, useNavbar } from "@/contexts/navbar-context";
@@ -17,6 +18,7 @@ import {
   ActivityIndicator,
   Animated,
   Image,
+  ImageSourcePropType,
   ScrollView,
   StyleSheet,
   Text,
@@ -148,7 +150,7 @@ function AgentCardRow({
   agent,
   onPress,
 }: {
-  agent: (typeof AGENTS)[number];
+  agent: Agent;
   onPress: () => void;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -175,7 +177,13 @@ function AgentCardRow({
         }
         activeOpacity={1}
       >
-        <Image source={agent.logo} style={styles.agentLogo} />
+        {agent.logoSvg ? (
+          <View style={[styles.agentLogo, styles.agentLogoSvgWrap]}>
+            <agent.logoSvg width={44} height={44} />
+          </View>
+        ) : (
+          <Image source={agent.logo} style={styles.agentLogo} />
+        )}
         <View style={styles.agentTextGroup}>
           <Text style={styles.agentLabel}>{agent.label}</Text>
           <Text style={styles.agentDesc}>{agent.description}</Text>
@@ -188,7 +196,15 @@ function AgentCardRow({
 
 // ─── AgentPickerSheet (modal) ─────────────────────────────────────────────────
 
-const AGENTS = [
+type Agent = {
+  id: string;
+  label: string;
+  description: string;
+  logo?: ImageSourcePropType;
+  logoSvg?: React.FC<{ width: number; height: number }>;
+};
+
+const AGENTS: readonly Agent[] = [
   {
     id: "claude-code",
     label: "Claude Code",
@@ -201,7 +217,13 @@ const AGENTS = [
     description: "Open source AI coding agent",
     logo: require("@/assets/images/open-code.png"),
   },
-] as const;
+  {
+    id: "codex",
+    label: "Codex",
+    description: "OpenAI's AI coding agent",
+    logoSvg: ChatGptIcon,
+  },
+];
 
 export function AgentPickerSheet({
   pendingRepo,
@@ -592,6 +614,11 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   agentLogo: { width: 44, height: 44, borderRadius: 10 },
+  agentLogoSvgWrap: {
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   agentTextGroup: { flex: 1, gap: 3 },
   agentLabel: {
     fontSize: 17,

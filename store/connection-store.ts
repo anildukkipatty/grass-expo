@@ -26,7 +26,7 @@ export interface PermissionItem {
 export interface GlobalPermissionItem {
   sessionId: string;
   sdkSessionId: string | null;
-  agent: 'claude-code' | 'opencode' | string;
+  agent: 'claude-code' | 'opencode' | 'codex' | string;
   repoPath: string;
   repoName: string;
   toolUseID: string;
@@ -409,6 +409,29 @@ function handleSSEEvent(serverUrl: string, event: string | undefined, data: stri
     entry.messages = [...entry.messages, {
       role: 'tool',
       content: toolLabel,
+      complete: true,
+      msgId: nextMsgId(entry),
+      ...(toolUseId ? { toolUseId } : {}),
+      ...(parentToolUseId ? { parentToolUseId } : {}),
+    }];
+    notifyListeners(serverUrl);
+    return;
+  }
+
+  // Codex emits `tool_result` to pair with each `command_execution` tool_use; claude-code and
+  // opencode never emit this event, so this branch only fires for codex Bash completions.
+  if (event === 'tool_result') {
+    const toolName = (parsed.tool_name as string) ?? 'Tool';
+    const exitCode = parsed.exit_code as number | null | undefined;
+    const status = parsed.status as string | undefined;
+    const output = ((parsed.output as string) ?? '').trim();
+    const exitLabel = exitCode != null ? 'exit ' + exitCode : (status ?? 'done');
+    const detail = output ? exitLabel + ' · ' + output.replace(/\s+/g, ' ') : exitLabel;
+    const toolUseId = parsed.tool_use_id as string | undefined;
+    const parentToolUseId = parsed.parent_tool_use_id as string | undefined;
+    entry.messages = [...entry.messages, {
+      role: 'tool',
+      content: toolName + ': ' + detail,
       complete: true,
       msgId: nextMsgId(entry),
       ...(toolUseId ? { toolUseId } : {}),
@@ -1114,7 +1137,13 @@ export async function listSessionsStore(serverUrl: string, repoPath?: string, ag
   }
 }
 
-export async function initSessionStore(serverUrl: string, id: string | null, agent?: string | null, repoPath?: string | null, resumeLatest = false) {
+export async function initSessionStore(
+  serverUrl: string,
+  id: string | null,
+  agent?: string | null,
+  repoPath?: string | null,
+  opts?: { resumeLatestForRepo?: boolean },
+) {
   const key = resolveServerKey(serverUrl);
   const entry = _connections.get(key);
   if (!entry) return;
@@ -1131,16 +1160,17 @@ export async function initSessionStore(serverUrl: string, id: string | null, age
   entry.activity = null;
   // If no explicit session ID but we have a repoPath AND the caller opted into
   // resuming, show loading while we look up the most recent session for that repo
-  // (dispatch notification fallback). New-chat callers leave resumeLatest false so
-  // they fall straight through to an empty chat.
-  entry.sessionLoading = !!id || (!id && !!repoPath && resumeLatest);
+  // (dispatch notification fallback). New-chat callers omit the flag so they fall
+  // straight through to an empty chat.
+  const shouldResumeLatest = !id && !!repoPath && !!opts?.resumeLatestForRepo;
+  entry.sessionLoading = !!id || shouldResumeLatest;
   notifyListeners(key);
 
-  if (!id && repoPath && resumeLatest) {
+  if (shouldResumeLatest) {
     try {
       const params = new URLSearchParams();
       if (agent) params.set('agent', agent);
-      params.set('repoPath', repoPath);
+      params.set('repoPath', repoPath!);
       const res = await fetch(`${entry.baseUrl}/sessions?${params.toString()}`);
       if (res.ok) {
         const json = await res.json() as { sessions?: { id: string }[] };

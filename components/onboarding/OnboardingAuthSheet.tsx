@@ -40,10 +40,12 @@ export function OnboardingAuthSheet({
   visible,
   onClose,
   onVerified,
+  mode = "signup",
 }: {
   visible: boolean;
   onClose: () => void;
   onVerified: (userType: "new" | "old") => void;
+  mode?: "signup" | "login";
 }) {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -260,7 +262,11 @@ export function OnboardingAuthSheet({
               </LinearGradient>
 
               <Text style={s.title}>
-                {step === "email" ? "Create your account" : "Almost there"}
+                {step === "email"
+                  ? mode === "login"
+                    ? "Welcome back"
+                    : "Create your account"
+                  : "Almost there"}
               </Text>
               {step === "email" ? (
                 <Text style={s.subtitle}>
@@ -318,7 +324,9 @@ export function OnboardingAuthSheet({
                     <Text style={s.errorText}>{emailError}</Text>
                   ) : (
                     <Text style={s.helperText}>
-                      Use the email you want linked to your free computer.
+                      {mode === "login"
+                        ? "Enter the email linked to your account."
+                        : "Use the email you want linked to your free computer."}
                     </Text>
                   )}
                 </>
