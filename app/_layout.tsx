@@ -3,7 +3,7 @@ import { posthog } from "@/constants/posthog";
 import { PostHogProvider } from "posthog-react-native";
 import { useTheme } from "@/store/theme-store";
 import { getUser, setAuthErrorHandler, clearAuth } from "@/store/auth-store";
-import { saveUrl } from "@/store/url-store";
+// import { saveUrl } from "@/store/url-store"; // disabled — see dev relay auto-inject below
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { useFonts } from "expo-font";
 import { Stack, usePathname, useRouter } from "expo-router";
@@ -87,12 +87,12 @@ export default function RootLayout() {
   }, []);
 
   // Dev-only: auto-add a relay test server so the emulator doesn't need a QR scan.
-  useEffect(() => {
-    if (!__DEV__) return;
-    saveUrl(
-      "https://relay.codeongrass.com/s/Kj5aKb0tOFXEZi0A1V0qbnrS2ou4yF2aPE_2y4sR-SU",
-    ).catch(() => {});
-  }, []);
+  // useEffect(() => {
+  //   if (!__DEV__) return;
+  //   saveUrl(
+  //     "https://relay.codeongrass.com/s/Kj5aKb0tOFXEZi0A1V0qbnrS2ou4yF2aPE_2y4sR-SU",
+  //   ).catch(() => {});
+  // }, []);
 
   const [theme] = useTheme();
   const c = GrassColors[theme];

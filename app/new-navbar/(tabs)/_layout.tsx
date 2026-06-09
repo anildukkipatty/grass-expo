@@ -103,13 +103,13 @@ export default function TabsLayout() {
           />
           <NativeTabs.Trigger.Label>Repos</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
-        {/* <NativeTabs.Trigger name="machines">
+        <NativeTabs.Trigger name="machines">
           <NativeTabs.Trigger.Icon
             src={require("@/assets/images/new-design/navbar/tabs/tab-machines.png")}
             renderingMode="template"
           />
           <NativeTabs.Trigger.Label>Connect</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger> */}
+        </NativeTabs.Trigger>
       </NativeTabs>
       <NotificationPermissionSlider
         visible={permSliderVisible}
